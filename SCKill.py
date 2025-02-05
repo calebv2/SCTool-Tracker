@@ -1,5 +1,5 @@
 __client_id__ = "kill_logger_client"
-__version__ = "2.0"
+__version__ = "2.0.1"
 
 import sys
 import os
@@ -20,15 +20,16 @@ from PyQt5.QtCore import (
 )
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-    QTextEdit, QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox,
+    QTextBrowser, QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox,
     QGroupBox, QGridLayout, QSizePolicy, QSplitter,
     QCheckBox, QSpinBox,
     QFrame
 )
 from PyQt5.QtGui import QIcon, QFont
+from bs4 import BeautifulSoup
 
 #####################################################################
-# Enable dark title bar on Windows 10/11 using DwmSetWindowAttribute.
+# Enable dark title bar on Windows
 #####################################################################
 def dark_title_bar_for_pyqt5(widget):
     if sys.platform.startswith("win"):
@@ -42,7 +43,7 @@ def dark_title_bar_for_pyqt5(widget):
             logging.error(f"Error enabling dark title bar: {e}")
 
 ####################################################################
-# Locate resources for PyInstaller or development.
+# Locate resources for PyInstaller or development
 ####################################################################
 def resource_path(relative_path):
     try:
@@ -52,7 +53,7 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 ####################################################################
-# Redirect config and log files to a writable location (AppData).
+# Redirect config and log files to a writable location (AppData)
 ####################################################################
 def get_appdata_paths():
     appdata_dir = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
@@ -67,7 +68,7 @@ def get_appdata_paths():
 CONFIG_FILE, LOG_FILE = get_appdata_paths()
 
 ####################################################################
-# Define the latest Chrome User-Agent for HTTP requests.
+# Define the latest Chrome User-Agent for HTTP requests
 ####################################################################
 CHROME_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -76,7 +77,7 @@ CHROME_USER_AGENT = (
 )
 
 ####################################################################
-# Set up logging.
+# Set up logging
 ####################################################################
 logging.basicConfig(
     filename=LOG_FILE,
@@ -87,7 +88,7 @@ logging.basicConfig(
 )
 
 ####################################################################
-# Regular expression patterns for parsing log entries.
+# Regular expression patterns for parsing log entries
 ####################################################################
 CHARACTER_CREATION_PATTERN = re.compile(
     r"<?[^>]*cterStatus_Character> Character: createdAt (?P<createdAt>\d+) - updatedAt (?P<updatedAt>\d+) - "
@@ -119,7 +120,7 @@ GAME_MODE_MAPPING = {
 }
 
 ####################################################################
-# Utility to trim numeric suffix from names.
+# Utility to trim numeric suffix from names
 ####################################################################
 def trim_suffix(name):
     if not name:
@@ -127,10 +128,68 @@ def trim_suffix(name):
     return re.sub(r'_\d+$', '', name)
 
 ####################################################################
-# TailThread: Monitors the log file for new entries.
+# Helper function to fetch player details
+# Retrieves Enlistment Date, Occupation, Org name, and Org tag
+####################################################################
+def fetch_player_details(playername):
+    """
+    Given a player name, fetch additional details from the Star Citizen website
+    and autocomplete API. Returns a dictionary with:
+      enlistment_date, occupation, org_name, org_tag.
+    If a value cannot be found, its value will be "None".
+    """
+    details = {
+        "enlistment_date": "None",
+        "occupation": "None",
+        "org_name": "None",
+        "org_tag": "None"
+    }
+    try:
+        url = f"https://robertsspaceindustries.com/citizens/{playername}"
+        headers = {"User-Agent": CHROME_USER_AGENT}
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            html_content = response.text
+            soup = BeautifulSoup(html_content, 'html.parser')
+            enlistment_label = soup.find("span", class_="label", text="Enlisted")
+            if enlistment_label:
+                enlistment_date_elem = enlistment_label.find_next("strong", class_="value")
+                if enlistment_date_elem:
+                    details["enlistment_date"] = enlistment_date_elem.text.strip()
+        
+        api_url = "https://robertsspaceindustries.com/api/spectrum/search/member/autocomplete"
+        autocomplete_name = playername[:-1] if len(playername) > 1 else playername
+        payload = {"community_id": "1", "text": autocomplete_name}
+        headers2 = {"Content-Type": "application/json"}
+        response2 = requests.post(api_url, headers=headers2, json=payload, timeout=10)
+        if response2.status_code == 200:
+            data = response2.json()
+            correct_player = None
+            for member in data.get("data", {}).get("members", []):
+                if member.get("nickname", "").lower() == playername.lower():
+                    correct_player = member
+                    break
+            if correct_player:
+                badges = correct_player.get("meta", {}).get("badges", [])
+                for badge in badges:
+                    if "url" in badge and "/orgs/" in badge["url"]:
+                        details["org_name"] = badge.get("name", "None")
+                        parts = badge["url"].split('/')
+                        details["org_tag"] = parts[-1] if parts[-1] else "None"
+                    elif "name" in badge:
+                        if details["occupation"] == "None":
+                            details["occupation"] = badge.get("name", "None")
+        else:
+            logging.error(f"Autocomplete API request failed for {playername} with status code {response2.status_code}")
+    except Exception as e:
+        logging.error(f"Error fetching player details for {playername}: {e}")
+    return details
+
+####################################################################
+# TailThread: Monitors the log file for new entries
 ####################################################################
 class TailThread(QThread):
-    kill_detected = pyqtSignal(str)
+    kill_detected = pyqtSignal(str, str)
     player_registered = pyqtSignal(str)
 
     def __init__(self, file_path, callback):
@@ -199,7 +258,7 @@ class TailThread(QThread):
                     self.last_game_mode = mapped
                 else:
                     logging.warning(f"Unknown game mode '{raw}'")
-    
+
     def process_line(self, line):
         char_match = CHARACTER_CREATION_PATTERN.search(line)
         if char_match:
@@ -245,20 +304,28 @@ class TailThread(QThread):
 
             victim_name = self.player_mapping.get(victim_geid, victim)
             attacker_name = self.player_mapping.get(attacker_geid, attacker)
+            
+            details = fetch_player_details(victim_name)
 
             readout = (
-                f"ID: {str(uuid.uuid4())}<br>"
-                f"VICTIM: <a href='https://robertsspaceindustries.com/citizens/{victim_name}'>{victim_name}</a><br>"
-                f"KILLED BY: {attacker_name}<br>"
-                f"TIME: {timestamp}<br>"
-                f"SHIP/ZONE TYPE: {trimmed_zone}<br>"
-                f"DAMAGE: {damage_type}<br>"
-                f"WEAPON: {trimmed_weapon}<br>"
-                f"GAME MODE: {self.last_game_mode if self.last_game_mode else 'Unknown'}<br>"
-                "<hr>"
+                f"<div style='border:2px solid #444; background-color:#f9f9f9; border-radius:8px; padding:15px; margin:10px 0; font-family: Arial, sans-serif;'>"
+                f"<div style='background-color:#e74c3c; color:#ffffff; padding:10px; border-radius:6px; text-align:center; font-size:1.6em; font-weight:bold; margin-bottom:15px;'>"
+                f"VICTIM: <a href='https://robertsspaceindustries.com/en/citizens/{victim_name}' style='color:red; text-decoration:none;'>{victim_name}</a>"
+                f"</div>"
+                f"<div style='margin:5px 0;'><strong>Enlistment Date:</strong> {details['enlistment_date']}</div>"
+                f"<div style='margin:5px 0;'><strong>Occupation:</strong> {details['occupation']}</div>"
+                f"<div style='margin:5px 0;'><strong>Org Name:</strong> {details['org_name']} "
+                f"(Tag: <a href='https://robertsspaceindustries.com/en/orgs/{details['org_tag']}' style='color:#e74c3c; text-decoration:none;'>{details['org_tag']}</a>)</div>"
+                f"<div style='margin:5px 0;'><strong>Killed by:</strong> {attacker_name}</div>"
+                f"<div style='margin:5px 0;'><strong>Time:</strong> {timestamp}</div>"
+                f"<div style='margin:5px 0;'><strong>Ship/Zone Type:</strong> {trimmed_zone}</div>"
+                f"<div style='margin:5px 0;'><strong>Damage:</strong> {damage_type}</div>"
+                f"<div style='margin:5px 0;'><strong>Weapon:</strong> {trimmed_weapon}</div>"
+                f"<div style='margin:5px 0;'><strong>Game Mode:</strong> {self.last_game_mode if self.last_game_mode else 'Unknown'}</div>"
+                f"</div><br>"
             )
 
-            self.kill_detected.emit(readout)
+            self.kill_detected.emit(readout, attacker_name)
             payload = {'log_line': line}
             self.send_payload(payload, timestamp, attacker_name, readout)
             return
@@ -274,14 +341,14 @@ class TailThread(QThread):
         return time.strftime('%Y-%m-%dT%H:%M:%S')
 
 ####################################################################
-# Main GUI for the Kill Logger Client.
+# Main GUI for the Kill Logger Client
 ####################################################################
 class KillLoggerGUI(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
-        self.setWindowTitle("SCtool Logger 2.0")
+        self.setWindowTitle("SCtool Logger 2.0.1")
 
         self.kill_count = 0
         self.monitor_thread = None
@@ -389,8 +456,10 @@ class KillLoggerGUI(QMainWindow):
 
         kill_readouts_group = QGroupBox("Kill Readouts")
         kill_readouts_layout = QVBoxLayout()
-        self.kill_display = QTextEdit()
+        self.kill_display = QTextBrowser()
         self.kill_display.setReadOnly(True)
+        self.kill_display.setOpenExternalLinks(True)
+        self.kill_display.setTextInteractionFlags(Qt.TextBrowserInteraction)
         kill_readouts_layout.addWidget(self.kill_display)
         kill_readouts_group.setLayout(kill_readouts_layout)
 
@@ -448,7 +517,7 @@ class KillLoggerGUI(QMainWindow):
             QPushButton:hover {
                 background-color: #555555;
             }
-            QLineEdit, QTextEdit, QSpinBox, QComboBox, QCheckBox {
+            QLineEdit, QTextBrowser, QSpinBox, QComboBox, QCheckBox {
                 background-color: #3d3d3d;
                 color: #ffffff;
                 selection-background-color: #555555;
@@ -475,7 +544,7 @@ class KillLoggerGUI(QMainWindow):
             QPushButton:hover {
                 background-color: #d0d0d0;
             }
-            QLineEdit, QTextEdit, QSpinBox, QComboBox, QCheckBox {
+            QLineEdit, QTextBrowser, QSpinBox, QComboBox, QCheckBox {
                 background-color: #f9f9f9;
                 color: #000000;
                 selection-background-color: #d0d0d0;
@@ -538,7 +607,7 @@ class KillLoggerGUI(QMainWindow):
                 QMessageBox.warning(self, "Input Error", "Please enter a valid path to your Game.log file.")
                 return
             self.monitor_thread = TailThread(log_path, self.handle_payload)
-            self.monitor_thread.kill_detected.connect(self.append_kill_readout)
+            self.monitor_thread.kill_detected.connect(self.on_kill_detected)
             self.monitor_thread.player_registered.connect(self.append_api_response)
             self.monitor_thread.player_registered.connect(self.on_player_registered)
             self.monitor_thread.start()
@@ -556,6 +625,14 @@ class KillLoggerGUI(QMainWindow):
                 if self.monitor_thread:
                     self.monitor_thread.registered_user = self.local_user_name
                 logging.info(f"Local registered user set to: {self.local_user_name}")
+
+    def on_kill_detected(self, readout, attacker):
+        self.kill_display.append(readout)
+        self.kill_display.verticalScrollBar().setValue(self.kill_display.verticalScrollBar().maximum())
+        if self.kill_sound_enabled and self.local_user_name and attacker == self.local_user_name:
+            self.kill_sound_effect.setSource(QUrl.fromLocalFile(self.kill_sound_path))
+            self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
+            self.kill_sound_effect.play()
 
     def handle_payload(self, payload, timestamp, attacker, readout):
         headers = {
@@ -671,7 +748,7 @@ class KillLoggerGUI(QMainWindow):
         log_path = self.log_path_input.text().strip()
         if self.monitoring_active and log_path and os.path.isfile(log_path):
             self.monitor_thread = TailThread(log_path, self.handle_payload)
-            self.monitor_thread.kill_detected.connect(self.append_kill_readout)
+            self.monitor_thread.kill_detected.connect(self.on_kill_detected)
             self.monitor_thread.player_registered.connect(self.append_api_response)
             self.monitor_thread.player_registered.connect(self.on_player_registered)
             self.monitor_thread.start()
