@@ -1,5 +1,5 @@
 __client_id__ = "kill_logger_client"
-__version__ = "2.0.1"
+__version__ = "2.1"
 
 import sys
 import os
@@ -129,15 +129,8 @@ def trim_suffix(name):
 
 ####################################################################
 # Helper function to fetch player details
-# Retrieves Enlistment Date, Occupation, Org name, and Org tag
 ####################################################################
 def fetch_player_details(playername):
-    """
-    Given a player name, fetch additional details from the Star Citizen website
-    and autocomplete API. Returns a dictionary with:
-      enlistment_date, occupation, org_name, org_tag.
-    If a value cannot be found, its value will be "None".
-    """
     details = {
         "enlistment_date": "None",
         "occupation": "None",
@@ -156,7 +149,6 @@ def fetch_player_details(playername):
                 enlistment_date_elem = enlistment_label.find_next("strong", class_="value")
                 if enlistment_date_elem:
                     details["enlistment_date"] = enlistment_date_elem.text.strip()
-        
         api_url = "https://robertsspaceindustries.com/api/spectrum/search/member/autocomplete"
         autocomplete_name = playername[:-1] if len(playername) > 1 else playername
         payload = {"community_id": "1", "text": autocomplete_name}
@@ -258,7 +250,6 @@ class TailThread(QThread):
                     self.last_game_mode = mapped
                 else:
                     logging.warning(f"Unknown game mode '{raw}'")
-
     def process_line(self, line):
         char_match = CHARACTER_CREATION_PATTERN.search(line)
         if char_match:
@@ -298,15 +289,19 @@ class TailThread(QThread):
             zone = data.get('zone')
             damage_type = data.get('damage_type')
             weapon = data.get('weapon')
-
             trimmed_weapon = trim_suffix(weapon)
             trimmed_zone = trim_suffix(zone)
-
             victim_name = self.player_mapping.get(victim_geid, victim)
             attacker_name = self.player_mapping.get(attacker_geid, attacker)
-            
-            details = fetch_player_details(victim_name)
+            if self.registered_user:
+                if victim_name.lower() == self.registered_user.lower():
+                    logging.info("Ignoring kill event: local player was the victim.")
+                    return
+                if attacker_name.lower() != self.registered_user.lower():
+                    logging.info("Ignoring kill event: kill not performed by the local player.")
+                    return
 
+            details = fetch_player_details(victim_name)
             readout = (
                 f"<div style='border:2px solid #444; background-color:#f9f9f9; border-radius:8px; padding:15px; margin:10px 0; font-family: Arial, sans-serif;'>"
                 f"<div style='background-color:#e74c3c; color:#ffffff; padding:10px; border-radius:6px; text-align:center; font-size:1.6em; font-weight:bold; margin-bottom:15px;'>"
@@ -324,9 +319,11 @@ class TailThread(QThread):
                 f"<div style='margin:5px 0;'><strong>Game Mode:</strong> {self.last_game_mode if self.last_game_mode else 'Unknown'}</div>"
                 f"</div><br>"
             )
-
             self.kill_detected.emit(readout, attacker_name)
-            payload = {'log_line': line}
+            payload = {
+                'log_line': line,
+                'game_mode': self.last_game_mode if self.last_game_mode else "Unknown"
+            }
             self.send_payload(payload, timestamp, attacker_name, readout)
             return
 
@@ -346,24 +343,19 @@ class TailThread(QThread):
 class KillLoggerGUI(QMainWindow):
     def __init__(self):
         super().__init__()
-
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
-        self.setWindowTitle("SCtool Logger 2.0.1")
-
+        self.setWindowTitle("SCtool Logger 2.1")
         self.kill_count = 0
         self.monitor_thread = None
-
         self.api_endpoint = "https://starcitizentool.com/api/v1/kills"
         self.user_agent = CHROME_USER_AGENT
         self.local_user_name = None
-
         self.dark_mode_enabled = False
         self.kill_sound_enabled = False
         self.kill_sound_effect = QSoundEffect()
         self.kill_sound_path = resource_path("kill.wav")
         self.kill_sound_volume = 100
         self.api_key = ""
-
         self.init_ui()
         self.load_config()
         self.apply_dark_mode(self.dark_mode_enabled)
@@ -374,17 +366,14 @@ class KillLoggerGUI(QMainWindow):
         central_layout = QVBoxLayout()
         central_layout.setContentsMargins(10, 10, 10, 10)
         central_layout.setSpacing(10)
-
         settings_group = QGroupBox("Settings")
         settings_layout = QVBoxLayout()
-
         api_key_layout = QHBoxLayout()
         api_key_label = QLabel("API Key:")
         self.api_key_input = QLineEdit()
         self.api_key_input.setPlaceholderText("Enter your API key here")
         api_key_layout.addWidget(api_key_label)
         api_key_layout.addWidget(self.api_key_input)
-
         log_path_layout = QHBoxLayout()
         log_path_label = QLabel("Game.log Path:")
         self.log_path_input = QLineEdit()
@@ -395,25 +384,19 @@ class KillLoggerGUI(QMainWindow):
         log_path_layout.addWidget(log_path_label)
         log_path_layout.addWidget(self.log_path_input)
         log_path_layout.addWidget(browse_button)
-
         extras_group = QGroupBox("Extras")
         extras_layout = QHBoxLayout()
-
         self.dark_mode_checkbox = QCheckBox("Enable Dark Mode")
         self.dark_mode_checkbox.setChecked(False)
         self.dark_mode_checkbox.stateChanged.connect(self.on_dark_mode_toggled)
-
         self.kill_sound_checkbox = QCheckBox("Enable Kill Sound")
         self.kill_sound_checkbox.setChecked(False)
         self.kill_sound_checkbox.stateChanged.connect(self.on_kill_sound_toggled)
-
         extras_layout.addWidget(self.dark_mode_checkbox)
         extras_layout.addWidget(self.kill_sound_checkbox)
         extras_group.setLayout(extras_layout)
-
         kill_sound_group = QGroupBox("Kill Sound Settings")
         kill_sound_layout = QVBoxLayout()
-
         sound_path_layout = QHBoxLayout()
         self.kill_sound_path_label = QLabel("Kill Sound File:")
         self.kill_sound_path_input = QLineEdit()
@@ -423,7 +406,6 @@ class KillLoggerGUI(QMainWindow):
         sound_path_layout.addWidget(self.kill_sound_path_label)
         sound_path_layout.addWidget(self.kill_sound_path_input)
         sound_path_layout.addWidget(self.kill_sound_path_browse_button)
-
         volume_layout = QHBoxLayout()
         volume_label = QLabel("Kill Sound Volume:")
         self.kill_sound_volume_spinbox = QSpinBox()
@@ -432,28 +414,22 @@ class KillLoggerGUI(QMainWindow):
         self.kill_sound_volume_spinbox.valueChanged.connect(self.on_kill_sound_volume_changed)
         volume_layout.addWidget(volume_label)
         volume_layout.addWidget(self.kill_sound_volume_spinbox)
-
         kill_sound_layout.addLayout(sound_path_layout)
         kill_sound_layout.addLayout(volume_layout)
         kill_sound_group.setLayout(kill_sound_layout)
-
         self.start_button = QPushButton("Start Monitoring")
         self.start_button.setIcon(QIcon(resource_path("start_icon.png")))
         self.start_button.clicked.connect(self.toggle_monitoring)
-
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.start_button)
-
         settings_layout.addLayout(api_key_layout)
         settings_layout.addLayout(log_path_layout)
         settings_layout.addWidget(extras_group)
         settings_layout.addWidget(kill_sound_group)
         settings_layout.addLayout(button_layout)
         settings_group.setLayout(settings_layout)
-
         logs_group = QGroupBox("Logs")
         logs_layout = QVBoxLayout()
-
         kill_readouts_group = QGroupBox("Kill Readouts")
         kill_readouts_layout = QVBoxLayout()
         self.kill_display = QTextBrowser()
@@ -462,19 +438,14 @@ class KillLoggerGUI(QMainWindow):
         self.kill_display.setTextInteractionFlags(Qt.TextBrowserInteraction)
         kill_readouts_layout.addWidget(self.kill_display)
         kill_readouts_group.setLayout(kill_readouts_layout)
-
         logs_layout.addWidget(kill_readouts_group)
         logs_group.setLayout(logs_layout)
-
         central_layout.addWidget(settings_group, stretch=0)
         central_layout.addWidget(logs_group, stretch=1)
         central_widget.setLayout(central_layout)
         self.setCentralWidget(central_widget)
         self.status_bar = self.statusBar()
 
-    ####################################################################
-    # Dark Mode and Kill Sound Toggle Handlers
-    ####################################################################
     def on_dark_mode_toggled(self, state):
         self.dark_mode_enabled = (state == Qt.Checked)
         self.apply_dark_mode(self.dark_mode_enabled)
@@ -574,9 +545,6 @@ class KillLoggerGUI(QMainWindow):
         self.kill_sound_volume = value
         self.save_config()
 
-    ####################################################################
-    # Monitoring Logic
-    ####################################################################
     def browse_file(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
@@ -656,6 +624,13 @@ class KillLoggerGUI(QMainWindow):
                     )
                     logging.info(formatted)
                     return
+
+                elif resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("message") == "NPC not logged":
+                        logging.info(f"[{timestamp}] NPC kill detected; kill not logged.")
+                        return
+
                 elif 400 <= resp.status_code < 500:
                     error_text = f"[{timestamp}] Failed to log kill: {resp.status_code} - {resp.text}"
                     logging.error(error_text)
@@ -663,12 +638,14 @@ class KillLoggerGUI(QMainWindow):
                     return
                 else:
                     raise requests.exceptions.HTTPError(f"Server error: {resp.status_code}")
+
             except requests.exceptions.RequestException as e:
                 retry_count += 1
                 error_text = f"[{timestamp}] API request failed (Attempt {retry_count}/{max_retries}): {e}"
                 logging.error(error_text)
                 time.sleep(backoff)
                 backoff *= 2
+
         fail_text = f"[{timestamp}] Error sending kill data after {max_retries} attempts."
         logging.error(fail_text)
         QMessageBox.critical(self, "API Error", fail_text)
