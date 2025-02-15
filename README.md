@@ -1,2 +1,16 @@
 # SCTool-Tracker
-SCTool Tracker
+
+Sending data to the api
+
+Required:
+- victim_name
+- timestamp
+- player_name
+
+Optional:
+- victim_engagement
+- attacker_engagement
+- clip_url
+- game_mode (must be one of the supported modes)
+
+You can also send the complete log line using the field log_line. The log line must be in the expected format so that the API can parse and extract the necessary fields. Optionally, you can also include game_mode and clip_url with the log line payload.
