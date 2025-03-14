@@ -1,52 +1,102 @@
 # Registered_kill.py
 
-def format_registered_kill(log_line: str, data: dict, registered_user: str, timestamp: str, last_game_mode: str):
+def format_registered_kill(
+    log_line: str,
+    data: dict,
+    registered_user: str,
+    timestamp: str,
+    last_game_mode: str,
+    success: bool = True
+):
     from urllib.parse import quote
     from Kill_form import fetch_player_details, fetch_victim_image_base64
     from kill_parser import KillParser
-    
+
     victim = data.get('victim', 'Unknown')
     zone = data.get('zone', 'Unknown')
     damage_type = data.get('damage_type', 'Unknown')
     weapon = data.get('weapon', 'Unknown')
+    
+    killer_ship = data.get('killer_ship', "Player destruction")
+    killer_ship = killer_ship.replace("_", " ")
+    if killer_ship.lower() == "no ship":
+        killer_ship = ""
+    
     formatted_zone = KillParser.format_zone(zone)
     formatted_weapon = KillParser.format_weapon(weapon)
     details = fetch_player_details(victim)
     victim_image_data_uri = fetch_victim_image_base64(victim)
     victim_profile_url = f"https://robertsspaceindustries.com/citizens/{quote(victim)}"
     victim_link = f'<a href="{victim_profile_url}" style="color:#f04747; text-decoration:none;">{victim}</a>'
-    log_line_with_mode = log_line.strip() + f" [GameMode: {last_game_mode if last_game_mode else 'Unknown'}]"
+    
+    log_line_with_mode = (
+        log_line.strip() +
+        f" [GameMode: {last_game_mode if last_game_mode else 'Unknown'}]"
+    )
+    
+    if damage_type.lower() == "vehicledestruction":
+        if killer_ship.lower() not in ["vehicle destruction", "player destruction", ""]:
+            engagement = f"{killer_ship} using {formatted_weapon}"
+        else:
+            engagement = f"{formatted_weapon}"
+        method = "Vehicle destruction"
+    else:
+        engagement = f"{formatted_weapon}"
+        method = "Player destruction"
+
+    header_text = (
+        "New Kill Recorded Successfully"
+        if success else "New Kill Did Not Get Recorded Successfully"
+    )
     
     readout = f"""
 <html>
-<body>
-    <table width="600" cellspacing="0" cellpadding="15" style="background-color:#121212; font-family:Arial, sans-serif; color:#e0e0e0; box-shadow: 0 0 15px 5px #f04747, 0 0 20px 10px #f04747;">
-    <tr>
-        <td style="vertical-align:top;">
-        <div style="font-size:20px; font-weight:bold; margin-bottom:10px;">New Kill Recorded</div>
-        <p style="font-size:14px; margin:4px 0;"><b>Attacker:</b> {registered_user}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Victim:</b> {victim_link}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Engagement Zone:</b> {formatted_zone}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Damage Type:</b> {damage_type} using {formatted_weapon}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Game Mode:</b> {last_game_mode if last_game_mode else 'Unknown'}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Timestamp:</b> {timestamp}</p>
-        <p style="font-size:14px; margin:4px 0;">
-            <b>Organization:</b> {details.get('org_name', 'None')} (Tag: 
-            <a href="https://robertsspaceindustries.com/en/orgs/{details.get('org_tag', 'None')}" style="color:#f04747; text-decoration:none;">{details.get('org_tag', 'None')}</a>)
-        </p>
-        </td>
-        <td style="vertical-align:top; text-align:right;">
-        <img src="{victim_image_data_uri}" width="100" height="100" style="object-fit:cover;" alt="Profile Image">
-        </td>
-    </tr>
-    </table>
-    <br>
+<body style="margin:0; padding:0;">
+    <div style="position: relative; display: inline-block;">
+        <table width="600" cellspacing="0" cellpadding="15"
+               style="background-color:#121212; font-family:Arial, sans-serif;
+                      color:#e0e0e0; box-shadow: 0 0 15px 5px #f04747,
+                      0 0 20px 10px #f04747; margin-bottom:10px;">
+            <tr>
+                <td style="vertical-align:top;">
+                    <div style="font-size:20px; font-weight:bold; margin-bottom:10px;">
+                        {header_text}
+                    </div>
+                    <p style="font-size:14px; margin:4px 0;"><b>Game Mode:</b> {last_game_mode if last_game_mode else 'Unknown'}</p>
+                    <p style="font-size:14px; margin:4px 0;"><b>Timestamp:</b> {timestamp}</p>
+                    <br>
+                    <p style="font-size:14px; margin:4px 0;"><b>Attacker:</b> {registered_user}</p>
+                    <p style="font-size:14px; margin:4px 0;"><b>Engagement:</b> {engagement}</p>
+                    <p style="font-size:14px; margin:4px 0;"><b>Method:</b> {method}</p>
+                    <br>
+                    <p style="font-size:14px; margin:4px 0;"><b>Victim:</b> {victim_link}</p>
+                    <p style="font-size:14px; margin:4px 0;"><b>Engagement:</b> {formatted_zone}</p>
+                    <p style="font-size:14px; margin:4px 0;">
+                        <b>Organization:</b> {details.get('org_name', 'None')} (Tag:
+                        <a href="https://robertsspaceindustries.com/en/orgs/{details.get('org_tag', 'None')}"
+                           style="color:#f04747; text-decoration:none;">
+                           {details.get('org_tag', 'None')}
+                        </a>)
+                    </p>
+                </td>
+                <td style="vertical-align:top; text-align:right;">
+                    <img src="{victim_image_data_uri}" width="100" height="100"
+                         style="object-fit:cover;" alt="Profile Image">
+                </td>
+            </tr>
+        </table>
+    </div>
 </body>
 </html>
-"""
+    """
+    
+    payload_ship = killer_ship if killer_ship.lower() not in ["vehicle destruction", "player destruction"] else ""
+    
     payload = {
         'log_line': log_line_with_mode,
-        'game_mode': last_game_mode if last_game_mode else "Unknown"
+        'game_mode': last_game_mode if last_game_mode else "Unknown",
+        'killer_ship': payload_ship
     }
+    
     return readout, payload
 
