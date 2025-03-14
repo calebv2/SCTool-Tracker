@@ -23,7 +23,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QUrl, QTimer, QStandardPaths, QDir
 from PyQt5.QtMultimedia import QSoundEffect
-
 from Kill_thread import ApiSenderThread, TailThread, RescanThread
 from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT
 
@@ -157,10 +156,10 @@ def fetch_victim_image_base64(victim_name: str) -> str:
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "2.6"
+    __version__ = "2.5"
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 2.6")
+        self.setWindowTitle("SCTool Killfeed 2.5")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.monitor_thread: Optional[TailThread] = None
