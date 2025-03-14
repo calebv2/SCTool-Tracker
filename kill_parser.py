@@ -1,20 +1,20 @@
 # kill_parser.py
 
 import re
+from typing import Optional
 
 CHROME_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/112.0.5615.121 Safari/537.36"
 )
-
 KILL_LOG_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> \[Notice\] <Actor Death> CActor::Kill: '(?P<victim>[^']+)' "
     r"\[(?P<victim_geid>\d+)\] in zone '(?P<zone>[^']+)' "
-    r"killed by '(?P<attacker>[^']+)' \[(?P<attacker_geid>\d+)\] using '(?P<weapon>[^']+)' \[.*\] with damage type '(?P<damage_type>\w+)' "
-    r"from direction x: (?P<x>-?[\d.]+), y: (?P<y>-?[\d.]+), z: (?P<z>-?[\d.]+) \[.*\]"
+    r"killed by '(?P<attacker>[^']+)' \[(?P<attacker_geid>\d+)\] using '(?P<weapon>[^']+)' \[.*\] "
+    r"with damage type '(?P<damage_type>\w+)' "
+    r"from direction x: (?P<x>-?[\d.]+), y: (?P<y>-?[\d.]+), z: (?P<z>-?[\d.]+) \[.*?\]"
 )
-
 GAME_MODE_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> Loading GameModeRecord='(?P<game_mode>[^']+)' with EGameModeId='[^']+'"
 )
@@ -45,6 +45,7 @@ class KillParser:
         if not zone:
             return "Unknown"
         zone = KillParser.process_replacements({r"_[0-9]+$": ""}, zone)
+
         container_replacements = {
             r"OOC_([A-Za-z]+)_([A-Za-z0-9]{1,2})_(.*)": r"\3 (\1 \2)",
             r"ObjectContainer-ugf.*": "Bunker",
@@ -114,3 +115,18 @@ class KillParser:
             return "Selfkill"
         else:
             return "Other"
+
+    @staticmethod
+    def parse_actor_death_event(log_line: str, handle: Optional[str] = None) -> dict:
+        match = KILL_LOG_PATTERN.search(log_line)
+        if not match:
+            return {}
+
+        data = match.groupdict()
+        data['zone'] = KillParser.format_zone(data.get('zone', ''))
+        data['weapon'] = KillParser.format_weapon(data.get('weapon', ''))
+
+        if handle:
+            data['death_type'] = KillParser.determine_death_type(data, handle)
+
+        return data
