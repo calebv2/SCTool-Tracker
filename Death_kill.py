@@ -7,7 +7,6 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
 
     attacker = data.get('attacker', 'Unknown')
     zone = data.get('zone', 'Unknown')
-    damage_type = data.get('damage_type', 'Unknown')
     weapon = data.get('weapon', 'Unknown')
     formatted_zone = KillParser.format_zone(zone)
     formatted_weapon = KillParser.format_weapon(weapon)
@@ -19,24 +18,30 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
     readout = f"""
 <html>
 <body>
-    <table width="600" cellspacing="0" cellpadding="15" style="background-color:#121212; font-family:Arial, sans-serif; color:#e0e0e0; box-shadow: 0 0 15px 5px #f04747, 0 0 20px 10px #f04747;">
-    <tr>
-        <td style="vertical-align:top;">
-        <div style="font-size:20px; font-weight:bold; margin-bottom:10px;">You were killed by:</div>
-        <p style="font-size:14px; margin:4px 0;"><b>Attacker:</b> {attacker_link}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Engagement Zone:</b> {formatted_zone}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Damage Type:</b> {damage_type} using {formatted_weapon}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Game Mode:</b> {last_game_mode if last_game_mode else 'Unknown'}</p>
-        <p style="font-size:14px; margin:4px 0;"><b>Timestamp:</b> {timestamp}</p>
-        <p style="font-size:14px; margin:4px 0;">
-            <b>Organization:</b> {details.get('org_name', 'None')} (Tag: 
-            <a href="https://robertsspaceindustries.com/en/orgs/{details.get('org_tag', 'None')}" style="color:#f04747; text-decoration:none;">{details.get('org_tag', 'None')}</a>)
-        </p>
-        </td>
-        <td style="vertical-align:top; text-align:right;">
-        <img src="{attacker_image_data_uri}" width="100" height="100" style="object-fit:cover;" alt="Profile Image">
-        </td>
-    </tr>
+    <table width="600" cellspacing="0" cellpadding="15"
+           style="background-color:#121212; font-family:Arial, sans-serif;
+                  color:#e0e0e0; box-shadow: 0 0 15px 5px #f04747, 0 0 20px 10px #f04747;">
+        <tr>
+            <td style="vertical-align:top;">
+                <div style="font-size:20px; font-weight:bold; margin-bottom:10px;">You Died.....</div>
+                <p style="font-size:14px; margin:4px 0;"><b>Game Mode:</b> {last_game_mode if last_game_mode else 'Unknown'}</p>
+                <p style="font-size:14px; margin:4px 0;"><b>Timestamp:</b> {timestamp}</p>
+                <br>
+                <p style="font-size:14px; margin:4px 0;"><b>Attacker:</b> {attacker_link}</p>
+                <p style="font-size:14px; margin:4px 0;">
+                    <b>Organization:</b> {details.get('org_name', 'None')} (Tag: 
+                    <a href="https://robertsspaceindustries.com/en/orgs/{details.get('org_tag', 'None')}" 
+                       style="color:#f04747; text-decoration:none;">{details.get('org_tag', 'None')}</a>)
+                </p>
+                <br>
+                <p style="font-size:14px; margin:4px 0;"><b>Engagement:</b> {formatted_zone}</p>
+                <p style="font-size:14px; margin:4px 0;"><b>Damage Type:</b> {formatted_weapon}</p>
+            </td>
+            <td style="vertical-align:top; text-align:right;">
+                <img src="{attacker_image_data_uri}" width="100" height="100"
+                     style="object-fit:cover;" alt="Profile Image">
+            </td>
+        </tr>
     </table>
     <br>
 </body>
