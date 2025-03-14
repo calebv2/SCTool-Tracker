@@ -7,97 +7,67 @@ import base64
 import requests
 import logging
 import time
+from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib.parse import quote
 from typing import Optional, Dict, Any, List
-from PyQt5.QtCore import pyqtSignal, QThread, QDir, QTimer
-from bs4 import BeautifulSoup
+from PyQt5.QtCore import pyqtSignal, QThread, QDir, QTimer, Qt
+
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
+    QPushButton, QHeaderView
+)
 
 from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT
 
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
+cleanupPattern = re.compile(r'^(.+?)_\d+$')
 
-def trim_suffix(name: Optional[str]) -> str:
-    if not name:
-        return "Unknown"
-    return re.sub(r'_\d+$', '', name)
+class MissingKillsDialog(QDialog):
+    def __init__(self, missing_kills, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Missing Kills Found")
+        self.missing_kills = missing_kills
+        self.initUI()
 
-def fetch_player_details(playername: str) -> Dict[str, str]:
-    details = {
-        "enlistment_date": "None",
-        "occupation": "None",
-        "org_name": "None",
-        "org_tag": "None"
-    }
-    try:
-        url = f"https://robertsspaceindustries.com/citizens/{playername}"
-        response = SESSION.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            enlistment_label = soup.find("span", class_="label", string="Enlisted")
-            if enlistment_label:
-                enlistment_date_elem = enlistment_label.find_next("strong", class_="value")
-                if enlistment_date_elem:
-                    details["enlistment_date"] = enlistment_date_elem.text.strip()
-        api_url = "https://robertsspaceindustries.com/api/spectrum/search/member/autocomplete"
-        autocomplete_name = playername[:-1] if len(playername) > 1 else playername
-        payload = {"community_id": "1", "text": autocomplete_name}
-        headers2 = {"Content-Type": "application/json"}
-        response2 = SESSION.post(api_url, headers=headers2, json=payload, timeout=10)
-        if response2.status_code == 200:
-            data = response2.json()
-            correct_player = None
-            for member in data.get("data", {}).get("members", []):
-                if member.get("nickname", "").lower() == playername.lower():
-                    correct_player = member
-                    break
-            if correct_player:
-                badges = correct_player.get("meta", {}).get("badges", [])
-                for badge in badges:
-                    if "url" in badge and "/orgs/" in badge["url"]:
-                        details["org_name"] = badge.get("name", "None")
-                        parts = badge["url"].split('/')
-                        details["org_tag"] = parts[-1] if parts[-1] else "None"
-                    elif "name" in badge and details["occupation"] == "None":
-                        details["occupation"] = badge.get("name", "None")
-        else:
-            logging.error(f"Autocomplete API request failed for {playername} with status code {response2.status_code}")
-    except Exception as e:
-        logging.error(f"Error fetching player details for {playername}: {e}")
-    return details
+    def initUI(self):
+        layout = QVBoxLayout(self)
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Send", "Details", "Local Key"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setRowCount(len(self.missing_kills))
 
-def fetch_victim_image_base64(victim_name: str) -> str:
-    default_image_url = "https://cdn.robertsspaceindustries.com/static/images/account/avatar_default_big.jpg"
-    url = f"https://robertsspaceindustries.com/citizens/{quote(victim_name)}"
-    final_url = default_image_url
-    try:
-        response = SESSION.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            profile_pic = soup.select_one('.thumb img')
-            if profile_pic and profile_pic.has_attr("src"):
-                src = profile_pic['src']
-                if src.startswith("http://") or src.startswith("https://"):
-                    final_url = src
-                else:
-                    if not src.startswith("/"):
-                        src = "/" + src
-                    final_url = f"https://robertsspaceindustries.com{src}"
-    except Exception as e:
-        logging.error(f"Error determining victim image URL for {victim_name}: {e}")
-        final_url = default_image_url
-    try:
-        r = SESSION.get(final_url, timeout=10)
-        if r.status_code == 200:
-            content_type = r.headers.get("Content-Type", "image/jpeg")
-            if not content_type or "image" not in content_type:
-                content_type = "image/jpeg"
-            b64_data = base64.b64encode(r.content).decode("utf-8")
-            return f"data:{content_type};base64,{b64_data}"
-    except Exception as e:
-        logging.error(f"Error fetching image data for {victim_name}: {e}")
-    return default_image_url
+        for row, kill in enumerate(self.missing_kills):
+            checkbox_item = QTableWidgetItem()
+            checkbox_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            checkbox_item.setCheckState(Qt.Unchecked)
+            self.table.setItem(row, 0, checkbox_item)
+            details = kill.get("local_key", "Unknown")
+            details_item = QTableWidgetItem(details)
+            self.table.setItem(row, 1, details_item)
+            key_item = QTableWidgetItem(kill.get("local_key", ""))
+            key_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            self.table.setItem(row, 2, key_item)
+
+        layout.addWidget(self.table)
+        button_layout = QHBoxLayout()
+        send_button = QPushButton("Send Selected")
+        send_button.clicked.connect(self.accept)  # Accepting the dialog means send the selected ones.
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(send_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+    def getSelectedKills(self):
+        selected = []
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item.checkState() == Qt.Checked:
+                selected.append(self.missing_kills[row])
+        return selected
 
 class TailThread(QThread):
     kill_detected = pyqtSignal(str, str)
@@ -105,44 +75,92 @@ class TailThread(QThread):
     player_registered = pyqtSignal(str)
     game_mode_changed = pyqtSignal(str)
     payload_ready = pyqtSignal(dict, str, str, str)
+    ship_updated = pyqtSignal(str)
 
-    def __init__(self, file_path: str, callback) -> None:
+    def __init__(self, file_path: str, config_file: Optional[str] = None, callback=None) -> None:
         super().__init__()
         self.file_path = file_path
+        self.config_file = config_file
         self._stop_event = False
-        self.player_mapping: Dict[str, str] = {}
         self.last_game_mode: str = "Unknown"
         self.registered_user: Optional[str] = None
         self.has_registered = False
+        self.current_attacker_ship: Optional[str] = "Player destruction"
 
-    def is_file_same(self, file) -> bool:
-        try:
-            current_stat = os.stat(self.file_path)
-            file_stat = os.fstat(file.fileno())
-            return (current_stat.st_dev == file_stat.st_dev and
-                    current_stat.st_ino == file_stat.st_ino)
-        except Exception as e:
-            logging.error(f"Error checking if file is same: {e}")
-            return False
+    def update_config_killer_ship(self, ship: str) -> None:
+        if self.config_file and os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except Exception as e:
+                logging.error(f"Error reading config: {e}")
+                config = {}
+            config["killer_ship"] = ship
+            try:
+                with open(self.config_file, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=4)
+                logging.info(f"Updated config with killer_ship: {ship}")
+            except Exception as e:
+                logging.error(f"Error saving config with killer_ship: {e}")
+
+    def clear_config_killer_ship(self) -> None:
+        if self.config_file and os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except Exception as e:
+                logging.error(f"Error reading config for clearing killer_ship: {e}")
+                config = {}
+            if "killer_ship" in config:
+                del config["killer_ship"]
+            try:
+                with open(self.config_file, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=4)
+                logging.info("Cleared killer_ship from config.")
+            except Exception as e:
+                logging.error(f"Error saving config while clearing killer_ship: {e}")
 
     def run(self) -> None:
         logging.info("TailThread started.")
-        try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
-                self.process_existing_player_registrations(f)
-                f.seek(0, os.SEEK_END)
-                logging.info(f"Started tailing {self.file_path} for new entries...")
-                while not self._stop_event:
-                    line = f.readline()
-                    if not line:
-                        if not self.is_file_same(f):
-                            logging.info(f"{self.file_path} has been rotated. Reopening.")
-                            break
-                        time.sleep(0.1)
-                        continue
-                    self.process_line(line.strip())
-        except Exception as e:
-            logging.error(f"Error in TailThread: {e}")
+        timeout_seconds = 10
+        while not self._stop_event:
+            try:
+                with open(self.file_path, 'r', encoding='utf-8') as f:
+                    self.process_existing_player_registrations(f)
+                    # Start tailing from the end of the file.
+                    f.seek(0, os.SEEK_END)
+                    last_activity = time.time()
+                    logging.info(f"Started tailing {self.file_path} for new entries...")
+                    while not self._stop_event:
+                        line = f.readline()
+                        if line:
+                            self.process_line(line.strip())
+                            last_activity = time.time()
+                        else:
+                            try:
+                                current_size = os.path.getsize(self.file_path)
+                                # If the file pointer is beyond the current file size, a truncation has occurred.
+                                if f.tell() > current_size:
+                                    logging.info("Detected file truncation. Resetting pointer to beginning.")
+                                    f.seek(0, os.SEEK_SET)
+                                    last_activity = time.time()
+                            except Exception as e:
+                                logging.error(f"Error checking file size: {e}")
+                            
+                            # If no activity for a while and the file is empty, reset the pointer.
+                            if time.time() - last_activity > timeout_seconds:
+                                try:
+                                    if os.path.getsize(self.file_path) == 0:
+                                        logging.info("Log file appears empty. Waiting for new entries...")
+                                        f.seek(0, os.SEEK_SET)
+                                        last_activity = time.time()
+                                except Exception as e:
+                                    logging.error(f"Error checking file size: {e}")
+                            time.sleep(0.1)
+            except Exception as e:
+                logging.error(f"Error in TailThread: {e}")
+            # Small delay before reopening the file.
+            time.sleep(0.5)
         logging.info("TailThread terminated.")
 
     def process_existing_player_registrations(self, f) -> None:
@@ -153,10 +171,13 @@ class TailThread(QThread):
                 r"<(?P<timestamp>[^>]+)> \[Notice\] <Legacy login response> \[CIG-net\] User Login Success - Handle\[(?P<handle>[^\]]+)\]",
                 stripped_line
             )
-            if legacy_login_match and not self.has_registered:
+            if legacy_login_match:
                 handle = legacy_login_match.group('handle').strip()
-                self.registered_user = handle
-                self.has_registered = True
+                if self.registered_user != handle:
+                    self.registered_user = handle
+                    self.has_registered = True
+                    self.player_registered.emit(f"Registered user: {handle}")
+                    logging.info(f"Updated registered user to: {handle}")
             gm_match = GAME_MODE_PATTERN.search(stripped_line)
             if gm_match:
                 data = gm_match.groupdict()
@@ -168,24 +189,55 @@ class TailThread(QThread):
                 elif not mapped:
                     logging.warning(f"Unknown game mode '{raw}'")
 
+    def process_jump_drive_line(self, line: str) -> None:
+        match = re.search(r'\(adam:\s+(?P<ship>[A-Za-z0-9_]+)\s+in zone', line)
+        if match:
+            raw_ship = match.group('ship')
+            cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
+            cleaned_ship = cleaned_ship.replace('_', ' ')
+            self.current_attacker_ship = cleaned_ship
+            logging.info(f"Jump Drive: Updated killer ship to: {cleaned_ship}")
+            self.update_config_killer_ship(cleaned_ship)
+            self.ship_updated.emit(cleaned_ship)
+
+    def process_interior_zone_line(self, line: str) -> None:
+        if not self.registered_user:
+            return
+        m = re.search(r"-> Entity \[(?P<ship>[^\]]+)\].*m_ownerGEID\[(?P<owner>[^\]]+)\]", line)
+        if m:
+            owner = m.group("owner").strip()
+            if owner.lower() == self.registered_user.strip().lower():
+                raw_ship = m.group("ship")
+                if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                    return
+                cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
+                cleaned_ship = cleaned_ship.replace('_', ' ')
+                self.current_attacker_ship = cleaned_ship
+                logging.info(f"Interior zone update: Updated killer ship to: {cleaned_ship}")
+                self.update_config_killer_ship(cleaned_ship)
+                self.ship_updated.emit(cleaned_ship)
+
     def process_line(self, line: str) -> None:
-        # Check for legacy login response and register the user if needed.
+        if "<Jump Drive Requesting State Change>" in line:
+            self.process_jump_drive_line(line)
+        if "CEntityComponentInstancedInterior" in line and "m_ownerGEID" in line:
+            self.process_interior_zone_line(line)
         legacy_login_match = re.search(
             r"<(?P<timestamp>[^>]+)> \[Notice\] <Legacy login response> \[CIG-net\] User Login Success - Handle\[(?P<handle>[^\]]+)\]",
             line
         )
-        if legacy_login_match and not self.has_registered:
+        if legacy_login_match:
             handle = legacy_login_match.group('handle').strip()
-            self.registered_user = handle
-            self.has_registered = True
+            if self.registered_user != handle:
+                self.registered_user = handle
+                self.has_registered = True
+                self.player_registered.emit(f"Registered user updated: {handle}")
+                logging.info(f"Updated registered user to: {handle}")
             return
-
-        # Check for game mode update.
         gm_match = GAME_MODE_PATTERN.search(line)
         if gm_match:
             data = gm_match.groupdict()
             gm_raw = data.get('game_mode')
-            self.raw_game_mode = gm_raw
             mapped = GAME_MODE_MAPPING.get(gm_raw, gm_raw)
             if mapped and mapped != self.last_game_mode:
                 self.last_game_mode = mapped
@@ -193,53 +245,88 @@ class TailThread(QThread):
             elif not mapped:
                 logging.warning(f"Unknown game mode '{gm_raw}' encountered.")
             return
-
-        # Process a kill event.
         kill_match = KILL_LOG_PATTERN.search(line)
         if kill_match:
-            data = kill_match.groupdict()
-            timestamp_iso = data.get('timestamp')
-            try:
-                timestamp = datetime.fromisoformat(timestamp_iso.replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                timestamp = timestamp_iso
+            self.handle_kill_event(line, kill_match)
 
-            victim = data.get('victim', '').strip()
-            attacker = data.get('attacker', '').strip()
-            if self.registered_user is None:
-                return
-
-            # Capture the current game mode at the time of the kill event.
-            captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
-            logging.info(f"Captured game mode for kill event: {captured_game_mode}")
-
-            registered = self.registered_user.strip().lower()
-            if attacker.lower() == registered:
-                try:
-                    from Registered_kill import format_registered_kill
-                    readout, payload = format_registered_kill(line, data, self.registered_user, timestamp, captured_game_mode)
-                    self.kill_detected.emit(readout, attacker)
-                    logging.info(f"Payload to be sent: {payload}")
-                    self.payload_ready.emit(payload, timestamp, attacker, readout)
-                except Exception as e:
-                    logging.error(f"Error formatting registered kill: {e}")
-            elif victim.lower() == registered:
-                try:
-                    from Death_kill import format_death_kill
-                    readout = format_death_kill(line, data, self.registered_user, timestamp, captured_game_mode)
-                    self.death_detected.emit(readout, victim)
-                except Exception as e:
-                    logging.error(f"Error formatting death kill: {e}")
-            else:
-                logging.info("Ignoring kill event: registered user is neither attacker nor victim.")
-            return
+    def handle_kill_event(self, line: str, match_obj: re.Match) -> None:
+        data = match_obj.groupdict()
+        timestamp_iso = data.get('timestamp')
+        try:
+            timestamp = datetime.fromisoformat(timestamp_iso.replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            timestamp = timestamp_iso
+        victim = data.get('victim', '').strip()
+        attacker = data.get('attacker', '').strip()
         
+        if "pu_human" in victim.lower():
+            logging.info("Detected NPC kill based on victim name. Skipping card and log.")
+            return
+        if attacker.lower() == victim.lower():
+            logging.info("Detected self kill. Skipping card and log.")
+            return
+        if "subside" in victim.lower() or "subside" in attacker.lower():
+            logging.info("Detected subside kill. Skipping card and log.")
+            return
+        if not self.registered_user:
+            return
+        if "npc" in victim.lower():
+            logging.info("Detected NPC kill. Skipping card and log.")
+            return
+        if attacker.lower() == self.registered_user.strip().lower() and victim.lower() == self.registered_user.strip().lower():
+            logging.info("User killed themself (suicide). Treating as death.")
+            try:
+                from Death_kill import format_death_kill
+                captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
+                readout = format_death_kill(line, data, self.registered_user, timestamp, captured_game_mode)
+                self.death_detected.emit(readout, victim)
+            except Exception as e:
+                logging.error(f"Error formatting suicide event: {e}")
+            return
+
+        captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
+        logging.info(f"Captured game mode for kill event: {captured_game_mode}")
+        damage_type = data.get('damage_type', '').strip().lower()
+        ship_candidate = self.current_attacker_ship
+        manufacturer_pattern = re.compile(
+            r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)',
+            re.IGNORECASE
+        )
+
+        if damage_type == "vehicledestruction" or (ship_candidate and manufacturer_pattern.match(ship_candidate)):
+            if ship_candidate and manufacturer_pattern.match(ship_candidate):
+                killer_ship = ship_candidate
+            else:
+                killer_ship = "Vehicle destruction"
+        else:
+            killer_ship = "Player destruction"
+
+        data["killer_ship"] = killer_ship.replace("_", " ")
+
+        if attacker.lower() == self.registered_user.strip().lower():
+            try:
+                from Registered_kill import format_registered_kill
+                readout, payload = format_registered_kill(line, data, self.registered_user, timestamp, captured_game_mode, success=True)
+                payload["killer_ship"] = killer_ship.replace("_", " ")
+                self.kill_detected.emit(readout, attacker)
+                logging.info(f"Payload to be sent: {payload}")
+                self.payload_ready.emit(payload, timestamp, attacker, readout)
+            except Exception as e:
+                logging.error(f"Error formatting registered kill: {e}")
+        elif victim.lower() == self.registered_user.strip().lower():
+            try:
+                from Death_kill import format_death_kill
+                readout = format_death_kill(line, data, self.registered_user, timestamp, captured_game_mode)
+                self.death_detected.emit(readout, victim)
+            except Exception as e:
+                logging.error(f"Error formatting death kill: {e}")
+        else:
+            logging.info("Ignoring kill event: registered user is neither attacker nor victim.")
+
     def stop(self) -> None:
         logging.info("Stopping TailThread.")
         self._stop_event = True
-
-    def current_time(self) -> str:
-        return time.strftime('%Y-%m-%dT%H:%M:%S')
+        self.clear_config_killer_ship()
 
 class RescanThread(QThread):
     rescanFinished = pyqtSignal(list)
@@ -252,9 +339,7 @@ class RescanThread(QThread):
         self.registered_user = registered_user.lower() if registered_user else ""
 
     def run(self) -> None:
-        logging.info("RescanThread started. Reading entire log from the beginning.")
         current_game_mode = "Unknown"
-
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -262,44 +347,39 @@ class RescanThread(QThread):
                         break
 
                     stripped = line.strip()
-                    gm_match = GAME_MODE_PATTERN.search(stripped)
-                    if gm_match:
-                        data = gm_match.groupdict()
-                        raw = data.get('game_mode')
-                        mapped = GAME_MODE_MAPPING.get(raw, "Unknown")
-                        current_game_mode = mapped
+                    if "Loading GameModeRecord=" in stripped:
+                        gm_match = GAME_MODE_PATTERN.search(stripped)
+                        if gm_match:
+                            data = gm_match.groupdict()
+                            raw = data.get('game_mode')
+                            mapped = GAME_MODE_MAPPING.get(raw, "Unknown")
+                            current_game_mode = mapped
 
-                    kill_match = KILL_LOG_PATTERN.search(stripped)
-                    if kill_match:
-                        data = kill_match.groupdict()
-                        attacker = data.get('attacker', '').lower().strip()
-                        victim   = data.get('victim', '').lower().strip()
-
-                        if attacker == self.registered_user:
-                            timestamp_iso = data.get('timestamp')
-                            try:
-                                timestamp = (datetime
-                                             .fromisoformat(timestamp_iso.replace('Z', '+00:00'))
-                                             .strftime('%Y-%m-%d %H:%M:%S'))
-                            except ValueError:
-                                timestamp = timestamp_iso
-
-                            local_key = f"{timestamp}::{victim}::{current_game_mode}"
-                            payload = {
-                                'log_line': stripped,
-                                'game_mode': current_game_mode
-                            }
-
-                            self.found_kills.append({
-                                "local_key": local_key,
-                                "payload": payload,
-                                "timestamp": timestamp
-                            })
+                    if "CActor::Kill:" in stripped:
+                        kill_match = KILL_LOG_PATTERN.search(stripped)
+                        if kill_match:
+                            data = kill_match.groupdict()
+                            attacker = data.get('attacker', '').lower().strip()
+                            victim = data.get('victim', '').lower().strip()
+                            if attacker == self.registered_user:
+                                timestamp_iso = data.get('timestamp')
+                                try:
+                                    timestamp = datetime.fromisoformat(
+                                        timestamp_iso.replace('Z', '+00:00')
+                                    ).strftime('%Y-%m-%d %H:%M:%S')
+                                except ValueError:
+                                    timestamp = timestamp_iso
+                                local_key = f"{timestamp}::{victim}::{current_game_mode}"
+                                payload = {'log_line': stripped, 'game_mode': current_game_mode}
+                                self.found_kills.append({
+                                    "local_key": local_key,
+                                    "payload": payload,
+                                    "timestamp": timestamp
+                                })
 
                     QThread.yieldCurrentThread()
         except Exception as e:
             logging.error(f"Error in RescanThread: {e}")
-        logging.info("RescanThread finished reading the log.")
         self.rescanFinished.emit(self.found_kills)
 
     def stop(self) -> None:
@@ -327,8 +407,6 @@ class ApiSenderThread(QThread):
                     server_msg = data_resp.get("message", "")
                     if "duplicate" in server_msg.lower():
                         self.apiResponse.emit("Duplicate kill. Not logged (server).")
-                    else:
-                        self.apiResponse.emit(f"Accepted kill: {server_msg}")
                     return
                 elif resp.status_code == 200:
                     data_resp = resp.json()
