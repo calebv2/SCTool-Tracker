@@ -21,6 +21,7 @@ GAME_MODE_PATTERN = re.compile(
 
 GAME_MODE_MAPPING = {
     'EA_TeamElimination': 'Team Elimination',
+    'EA_Elimination': 'Elimination',
     'SC_Default': 'PU',
     'EA_FPSGunGame': 'Gun Rush',
     'EA_TonkRoyale_TeamBattle': 'Tonk Royale',
