@@ -4,7 +4,7 @@ def format_registered_kill(
     log_line: str,
     data: dict,
     registered_user: str,
-    timestamp: str,
+    full_timestamp: str,
     last_game_mode: str,
     success: bool = True
 ):
@@ -28,6 +28,7 @@ def format_registered_kill(
     victim_image_data_uri = fetch_victim_image_base64(victim)
     victim_profile_url = f"https://robertsspaceindustries.com/citizens/{quote(victim)}"
     victim_link = f'<a href="{victim_profile_url}" style="color:#f04747; text-decoration:none;">{victim}</a>'
+    display_timestamp = full_timestamp.split(" ")[0] if " " in full_timestamp else full_timestamp
     
     log_line_with_mode = (
         log_line.strip() +
@@ -62,8 +63,9 @@ def format_registered_kill(
                     <div style="font-size:20px; font-weight:bold; margin-bottom:10px;">
                         {header_text}
                     </div>
+                    <!-- Display only the date -->
+                    <p style="font-size:14px; margin:4px 0;"><b>Timestamp:</b> {display_timestamp}</p>
                     <p style="font-size:14px; margin:4px 0;"><b>Game Mode:</b> {last_game_mode if last_game_mode else 'Unknown'}</p>
-                    <p style="font-size:14px; margin:4px 0;"><b>Timestamp:</b> {timestamp}</p>
                     <br>
                     <p style="font-size:14px; margin:4px 0;"><b>Attacker:</b> {registered_user}</p>
                     <p style="font-size:14px; margin:4px 0;"><b>Engagement:</b> {engagement}</p>
@@ -91,12 +93,11 @@ def format_registered_kill(
     """
     
     payload_ship = killer_ship if killer_ship.lower() not in ["vehicle destruction", "player destruction"] else ""
-    
     payload = {
-        'log_line': log_line_with_mode,
+        'log_line': log_line.strip(),
         'game_mode': last_game_mode if last_game_mode else "Unknown",
-        'killer_ship': payload_ship
+        'killer_ship': payload_ship,
+        'method': method
     }
     
     return readout, payload
-
