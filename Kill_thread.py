@@ -11,11 +11,11 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib.parse import quote
 from typing import Optional, Dict, Any, List
-from PyQt5.QtCore import pyqtSignal, QThread, QDir, QTimer, Qt
 
+from PyQt5.QtCore import pyqtSignal, QThread, QDir, QTimer, Qt
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QHeaderView
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
+    QPushButton, QMessageBox
 )
 
 from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT
@@ -24,49 +24,49 @@ SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
 cleanupPattern = re.compile(r'^(.+?)_\d+$')
 
+
 class MissingKillsDialog(QDialog):
     def __init__(self, missing_kills, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Missing Kills Found")
         self.missing_kills = missing_kills
+        self.checkbox_list = []
         self.initUI()
 
     def initUI(self):
         layout = QVBoxLayout(self)
-        self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Send", "Details", "Local Key"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.setRowCount(len(self.missing_kills))
 
-        for row, kill in enumerate(self.missing_kills):
-            checkbox_item = QTableWidgetItem()
-            checkbox_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
-            checkbox_item.setCheckState(Qt.Unchecked)
-            self.table.setItem(row, 0, checkbox_item)
-            details = kill.get("local_key", "Unknown")
-            details_item = QTableWidgetItem(details)
-            self.table.setItem(row, 1, details_item)
-            key_item = QTableWidgetItem(kill.get("local_key", ""))
-            key_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-            self.table.setItem(row, 2, key_item)
+        info_label = QLabel("Select which kills you’d like to send:")
+        layout.addWidget(info_label)
 
-        layout.addWidget(self.table)
+        for kill in self.missing_kills:
+            local_key = kill.get("local_key", "Unknown")
+            parts = local_key.split("::")
+            if len(parts) >= 3:
+                label_text = f"{parts[1]} ({parts[2]})"
+            else:
+                label_text = local_key
+            checkbox = QCheckBox(label_text)
+            checkbox.setChecked(True)
+            layout.addWidget(checkbox)
+            self.checkbox_list.append((checkbox, kill))
+
         button_layout = QHBoxLayout()
         send_button = QPushButton("Send Selected")
-        send_button.clicked.connect(self.accept)  # Accepting the dialog means send the selected ones.
+        send_button.clicked.connect(self.accept)
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(send_button)
         button_layout.addWidget(cancel_button)
         layout.addLayout(button_layout)
 
+        self.setLayout(layout)
+
     def getSelectedKills(self):
         selected = []
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
-            if item.checkState() == Qt.Checked:
-                selected.append(self.missing_kills[row])
+        for checkbox, kill_data in self.checkbox_list:
+            if checkbox.isChecked():
+                selected.append(kill_data)
         return selected
 
 class TailThread(QThread):
@@ -86,6 +86,11 @@ class TailThread(QThread):
         self.registered_user: Optional[str] = None
         self.has_registered = False
         self.current_attacker_ship: Optional[str] = "Player destruction"
+
+    def reset_killer_ship(self) -> None:
+        self.current_attacker_ship = "No Ship"
+        self.update_config_killer_ship("No Ship")
+        self.ship_updated.emit("No Ship")
 
     def update_config_killer_ship(self, ship: str) -> None:
         if self.config_file and os.path.exists(self.config_file):
@@ -127,7 +132,6 @@ class TailThread(QThread):
             try:
                 with open(self.file_path, 'r', encoding='utf-8') as f:
                     self.process_existing_player_registrations(f)
-                    # Start tailing from the end of the file.
                     f.seek(0, os.SEEK_END)
                     last_activity = time.time()
                     logging.info(f"Started tailing {self.file_path} for new entries...")
@@ -139,7 +143,6 @@ class TailThread(QThread):
                         else:
                             try:
                                 current_size = os.path.getsize(self.file_path)
-                                # If the file pointer is beyond the current file size, a truncation has occurred.
                                 if f.tell() > current_size:
                                     logging.info("Detected file truncation. Resetting pointer to beginning.")
                                     f.seek(0, os.SEEK_SET)
@@ -147,7 +150,6 @@ class TailThread(QThread):
                             except Exception as e:
                                 logging.error(f"Error checking file size: {e}")
                             
-                            # If no activity for a while and the file is empty, reset the pointer.
                             if time.time() - last_activity > timeout_seconds:
                                 try:
                                     if os.path.getsize(self.file_path) == 0:
@@ -159,7 +161,6 @@ class TailThread(QThread):
                             time.sleep(0.1)
             except Exception as e:
                 logging.error(f"Error in TailThread: {e}")
-            # Small delay before reopening the file.
             time.sleep(0.5)
         logging.info("TailThread terminated.")
 
@@ -186,6 +187,7 @@ class TailThread(QThread):
                 if mapped and mapped != self.last_game_mode:
                     self.last_game_mode = mapped
                     self.game_mode_changed.emit(f"Monitoring game mode: {mapped}")
+                    self.reset_killer_ship()
                 elif not mapped:
                     logging.warning(f"Unknown game mode '{raw}'")
 
@@ -253,70 +255,55 @@ class TailThread(QThread):
         data = match_obj.groupdict()
         timestamp_iso = data.get('timestamp')
         try:
-            timestamp = datetime.fromisoformat(timestamp_iso.replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M:%S')
+            dt = datetime.fromisoformat(timestamp_iso.replace('Z', '+00:00'))
+            full_timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+            display_timestamp = dt.strftime('%Y-%m-%d')
         except ValueError:
-            timestamp = timestamp_iso
+            full_timestamp = timestamp_iso
+            display_timestamp = timestamp_iso
+
         victim = data.get('victim', '').strip()
         attacker = data.get('attacker', '').strip()
-        
         if "pu_human" in victim.lower():
-            logging.info("Detected NPC kill based on victim name. Skipping card and log.")
             return
         if attacker.lower() == victim.lower():
-            logging.info("Detected self kill. Skipping card and log.")
             return
         if "subside" in victim.lower() or "subside" in attacker.lower():
-            logging.info("Detected subside kill. Skipping card and log.")
             return
         if not self.registered_user:
             return
         if "npc" in victim.lower():
-            logging.info("Detected NPC kill. Skipping card and log.")
             return
-        if attacker.lower() == self.registered_user.strip().lower() and victim.lower() == self.registered_user.strip().lower():
-            logging.info("User killed themself (suicide). Treating as death.")
+        if (attacker.lower() == self.registered_user.strip().lower() and
+            victim.lower() == self.registered_user.strip().lower()):
             try:
-                from Death_kill import format_death_kill
                 captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
-                readout = format_death_kill(line, data, self.registered_user, timestamp, captured_game_mode)
+                readout = format_death_kill(line, data, self.registered_user, display_timestamp, captured_game_mode)
                 self.death_detected.emit(readout, victim)
             except Exception as e:
                 logging.error(f"Error formatting suicide event: {e}")
             return
 
         captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
-        logging.info(f"Captured game mode for kill event: {captured_game_mode}")
-        damage_type = data.get('damage_type', '').strip().lower()
-        ship_candidate = self.current_attacker_ship
-        manufacturer_pattern = re.compile(
-            r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)',
-            re.IGNORECASE
-        )
-
-        if damage_type == "vehicledestruction" or (ship_candidate and manufacturer_pattern.match(ship_candidate)):
-            if ship_candidate and manufacturer_pattern.match(ship_candidate):
-                killer_ship = ship_candidate
-            else:
-                killer_ship = "Vehicle destruction"
+        if data.get("damage_type", "").lower() == "vehicledestruction":
+            chosen_ship = self.current_attacker_ship.strip() or "Unknown Ship"
+            data["killer_ship"] = chosen_ship
         else:
-            killer_ship = "Player destruction"
-
-        data["killer_ship"] = killer_ship.replace("_", " ")
+            data["killer_ship"] = "Player destruction"
 
         if attacker.lower() == self.registered_user.strip().lower():
             try:
-                from Registered_kill import format_registered_kill
-                readout, payload = format_registered_kill(line, data, self.registered_user, timestamp, captured_game_mode, success=True)
-                payload["killer_ship"] = killer_ship.replace("_", " ")
+                readout, payload = format_registered_kill(
+                    line, data, self.registered_user, full_timestamp, captured_game_mode, success=True
+                )
                 self.kill_detected.emit(readout, attacker)
-                logging.info(f"Payload to be sent: {payload}")
-                self.payload_ready.emit(payload, timestamp, attacker, readout)
+                self.payload_ready.emit(payload, full_timestamp, attacker, readout)
             except Exception as e:
                 logging.error(f"Error formatting registered kill: {e}")
         elif victim.lower() == self.registered_user.strip().lower():
             try:
                 from Death_kill import format_death_kill
-                readout = format_death_kill(line, data, self.registered_user, timestamp, captured_game_mode)
+                readout = format_death_kill(line, data, self.registered_user, full_timestamp, captured_game_mode)
                 self.death_detected.emit(readout, victim)
             except Exception as e:
                 logging.error(f"Error formatting death kill: {e}")
@@ -328,7 +315,12 @@ class TailThread(QThread):
         self._stop_event = True
         self.clear_config_killer_ship()
 
+
 class RescanThread(QThread):
+    """
+    Scans the entire log for kills by the registered_user.
+    When complete, it emits rescanFinished with a list of found kills.
+    """
     rescanFinished = pyqtSignal(list)
 
     def __init__(self, file_path: str, registered_user: str, parent: Optional[Any] = None) -> None:
@@ -384,6 +376,7 @@ class RescanThread(QThread):
 
     def stop(self) -> None:
         self._stop_event = True
+
 
 class ApiSenderThread(QThread):
     apiResponse = pyqtSignal(str)
