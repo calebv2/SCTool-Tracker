@@ -155,11 +155,11 @@ def fetch_victim_image_base64(victim_name: str) -> str:
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "3.1"
+    __version__ = "3.5"
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 3.1")
+        self.setWindowTitle("SCTool Killfeed 3.5")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.monitor_thread: Optional[TailThread] = None
@@ -500,7 +500,17 @@ class KillLoggerGUI(QMainWindow):
                 QMessageBox.warning(self, "Input Error", "Please enter a valid path to your Game.log file.")
                 return
 
+            killer_ship = "No Ship"
+            if os.path.isfile(CONFIG_FILE):
+                try:
+                    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    killer_ship = config.get("killer_ship", "No Ship")
+                except Exception as e:
+                    logging.error(f"Error reading config for killer ship: {e}")
+
             self.monitor_thread = TailThread(new_log_path, CONFIG_FILE)
+            self.monitor_thread.current_attacker_ship = killer_ship
             self.monitor_thread.ship_updated.connect(self.on_ship_updated)
             self.monitor_thread.payload_ready.connect(self.handle_payload)
             self.monitor_thread.kill_detected.connect(self.on_kill_detected)
@@ -508,7 +518,7 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.player_registered.connect(self.on_player_registered)
             self.monitor_thread.game_mode_changed.connect(self.on_game_mode_changed)
             self.monitor_thread.start()
-
+            self.on_ship_updated(killer_ship)
             self.start_button.setText("Stop Monitoring")
             self.update_bottom_info("monitoring", "Monitoring started...")
             self.save_config()
@@ -539,16 +549,25 @@ class KillLoggerGUI(QMainWindow):
         self.append_kill_readout(readout)
 
     def handle_payload(self, payload: dict, timestamp: str, attacker: str, readout: str) -> None:
-        logging.info(f"Send to API checkbox state: {self.send_to_api_checkbox.isChecked()}")
         match = KILL_LOG_PATTERN.search(payload.get('log_line', ''))
         if not match:
-            self.show_temporary_popup(f"[{timestamp}] handle_payload: No match in log line, skipping.")
             return
+
+        if not payload.get("killer_ship"):
+            payload["killer_ship"] = (
+                self.monitor_thread.current_attacker_ship
+                if self.monitor_thread and self.monitor_thread.current_attacker_ship
+                else "No Ship"
+            )
+
+        if payload.get("killer_ship") == "No Ship":
+            payload.pop("killer_ship")
 
         data = match.groupdict()
         victim = data.get('victim', '').lower().strip()
         current_game_mode = (
-            self.monitor_thread.last_game_mode if self.monitor_thread and self.monitor_thread.last_game_mode
+            self.monitor_thread.last_game_mode
+            if self.monitor_thread and self.monitor_thread.last_game_mode
             else "Unknown"
         )
         local_key = f"{timestamp}::{victim}::{current_game_mode}"
@@ -557,7 +576,6 @@ class KillLoggerGUI(QMainWindow):
             self.show_temporary_popup("Kill already in local JSON. Skipping API call.")
             return
 
-        logging.info("Storing new kill locally.")
         self.local_kills[local_key] = {
             "payload": payload,
             "timestamp": timestamp,
@@ -566,17 +584,19 @@ class KillLoggerGUI(QMainWindow):
             "sent_to_api": False
         }
         self.save_local_kills()
-
-        headers = {
-            'Content-Type': 'application/json',
-            'X-API-Key': self.api_key,
-            'User-Agent': self.user_agent,
-            'X-Client-ID': self.__client_id__,
-            'X-Client-Version': self.__version__
-        }
-        api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
-        api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
-        api_thread.start()
+        if self.send_to_api_checkbox.isChecked():
+            headers = {
+                'Content-Type': 'application/json',
+                'X-API-Key': self.api_key,
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+            api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+            api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
+            api_thread.start()
+        else:
+            logging.info("Send to API is disabled; kill payload not sent.")
 
     def handle_api_response(self, message: str, local_key: str, timestamp: str) -> None:
         normalized_message = message.strip().lower()
