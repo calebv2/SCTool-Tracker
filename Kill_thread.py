@@ -26,7 +26,6 @@ SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
 cleanupPattern = re.compile(r'^(.+?)_\d+$')
 
-
 class MissingKillsDialog(QDialog):
     def __init__(self, missing_kills, parent=None):
         super().__init__(parent)
@@ -91,6 +90,7 @@ class TailThread(QThread):
     player_registered = pyqtSignal(str)
     game_mode_changed = pyqtSignal(str)
     payload_ready = pyqtSignal(dict, str, str, str)
+    death_payload_ready = pyqtSignal(dict, str, str, str)
     ship_updated = pyqtSignal(str)
 
     def __init__(self, file_path: str, config_file: Optional[str] = None, callback=None) -> None:
@@ -146,7 +146,7 @@ class TailThread(QThread):
         timeout_seconds = 10
         while not self._stop_event:
             try:
-                with open(self.file_path, 'r', encoding='utf-8') as f:
+                with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
                     self.process_existing_player_registrations(f)
                     f.seek(0, os.SEEK_END)
                     last_activity = time.time()
@@ -320,8 +320,21 @@ class TailThread(QThread):
                 from Death_kill import format_death_kill
                 readout = format_death_kill(line, data, self.registered_user, full_timestamp, captured_game_mode)
                 self.death_detected.emit(readout, victim)
+
+                death_payload = {
+                    'log_line': line.strip(),
+                    'game_mode': captured_game_mode,
+                    'victim_name': victim,
+                    'attacker_name': attacker,
+                    'weapon': data.get('weapon', 'Unknown'),
+                    'damage_type': data.get('damage_type', 'Unknown'),
+                    'location': data.get('zone', 'Unknown'),
+                    'timestamp': full_timestamp,
+                    'event_type': 'death'
+                }
+                self.death_payload_ready.emit(death_payload, full_timestamp, attacker, readout)
             except Exception as e:
-                logging.error(f"Error formatting death kill: {e}")
+                logging.error(f"Error formatting or sending death payload: {e}")
         else:
             logging.info("Ignoring kill event: registered user is neither attacker nor victim.")
 
@@ -329,7 +342,6 @@ class TailThread(QThread):
         logging.info("Stopping TailThread.")
         self._stop_event = True
         self.clear_config_killer_ship()
-
 
 class RescanThread(QThread):
     rescanFinished = pyqtSignal(list)
@@ -346,7 +358,7 @@ class RescanThread(QThread):
         current_ship = ""
         jump_drive_pattern = re.compile(r'\(adam:\s+(?P<ship>(?:[A-Za-z0-9_]+?)(?=_\d+\s+in zone)|[A-Za-z0-9_]+)\s+in zone')
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+            with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
                 for line in f:
                     if self._stop_event:
                         break
@@ -392,7 +404,6 @@ class RescanThread(QThread):
 
     def stop(self) -> None:
         self._stop_event = True
-
 
 class ApiSenderThread(QThread):
     apiResponse = pyqtSignal(str)

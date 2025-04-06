@@ -20,11 +20,11 @@ from typing import Optional, Dict, Any, List
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
     QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QCheckBox,
-    QSlider, QFormLayout, QLabel, QComboBox, QDialog
+    QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy
 )
 from PyQt5.QtGui import QIcon, QDesktopServices
 from PyQt5.QtCore import (
-    Qt, QUrl, QTimer, QStandardPaths, QDir
+    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize
 )
 from PyQt5.QtMultimedia import QSoundEffect
 
@@ -153,15 +153,70 @@ def fetch_victim_image_base64(victim_name: str) -> str:
         logging.error(f"Error fetching actual image data for {victim_name}: {e}")
     return default_image_url
 
+class CollapsibleSettingsPanel(QWidget):
+    """A custom widget that represents a collapsible panel for settings"""
+    
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.setObjectName(f"panel_{title.lower().replace(' ', '_')}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        self.toggle_button = QPushButton(f"▼ {title}")
+        self.toggle_button.setStyleSheet(
+            "QPushButton { text-align: left; padding: 10px; font-weight: bold; "
+            "background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #2a2a2a; "
+            "border-radius: 4px 4px 0 0; }"
+            "QPushButton:hover { background-color: #2a2a2a; }"
+        )
+        self.toggle_button.clicked.connect(self.toggle_content)
+        layout.addWidget(self.toggle_button)
+        
+        self.content = QWidget()
+        self.content_layout = QFormLayout(self.content)
+        self.content_layout.setContentsMargins(15, 15, 15, 15)
+        self.content.setStyleSheet(
+            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
+            "border-top: none; border-radius: 0 0 4px 4px; }"
+        )
+        self.content.setVisible(False)
+        layout.addWidget(self.content)
+        
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+    
+    def toggle_content(self):
+        self.content.setVisible(not self.content.isVisible())
+        arrow = "▲" if self.content.isVisible() else "▼"
+        title = self.toggle_button.text()[2:]
+        self.toggle_button.setText(f"{arrow} {title}")
+        
+    def add_row(self, label, widget):
+        """Add a row with a label and widget to the content layout"""
+        if isinstance(label, str):
+            label_widget = QLabel(label)
+            label_widget.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
+            self.content_layout.addRow(label_widget, widget)
+        else:
+            self.content_layout.addRow(label, widget)
+    
+    def add_widget(self, widget, stretch=False):
+        """Add a single widget that spans the entire row"""
+        if stretch:
+            self.content_layout.addRow("", widget)
+        else:
+            self.content_layout.addRow(widget)
+
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "3.6"
+    __version__ = "3.7"
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 3.6")
+        self.setWindowTitle("SCTool Killfeed 3.7")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
+        self.death_count = 0
         self.monitor_thread: Optional[TailThread] = None
         self.rescan_thread: Optional[RescanThread] = None
         self.missing_kills_queue: List[dict] = []
@@ -183,6 +238,8 @@ class KillLoggerGUI(QMainWindow):
             "game_mode": "",
             "api_connection": ""
         }
+        self.last_animation_timer = None
+        self.stats_panel_visible = True
 
         self.init_ui()
         self.load_config()
@@ -194,18 +251,175 @@ class KillLoggerGUI(QMainWindow):
         main_widget.setStyleSheet(
             "QWidget { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
             "stop:0 #1a1a1a, stop:1 #0d0d0d); "
-            "border: 1px solid #2a2a2a; border-radius: 8px; }"
+            "border: 1px solid #2a2a2a; border-radius: 10px; }"
         )
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
-        settings_group = QGroupBox()
-        settings_layout = QFormLayout()
-        settings_layout.setSpacing(10)
-        settings_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        settings_layout.setFormAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        settings_layout.setContentsMargins(10, 10, 10, 10)
         
+        status_layout = QHBoxLayout()
+
+        self.monitoring_indicator = QLabel()
+        self.monitoring_indicator.setFixedSize(16, 16)
+        self.update_monitor_indicator(False)
+        
+        self.api_indicator = QLabel()
+        self.api_indicator.setFixedSize(16, 16)
+        self.update_api_indicator(False)
+        
+        status_panel = QWidget()
+        status_panel.setStyleSheet("QWidget { background-color: #151515; border-radius: 8px; border: 1px solid #2d2d2d; }")
+        status_panel_layout = QHBoxLayout(status_panel)
+        status_panel_layout.setContentsMargins(10, 6, 10, 6)
+        
+        for label_text, indicator in [
+            ("MONITORING", self.monitoring_indicator),
+            ("API CONNECTED", self.api_indicator)
+        ]:
+            label = QLabel(label_text)
+            label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
+            indicator_layout = QHBoxLayout()
+            indicator_layout.setSpacing(6)
+            indicator_layout.addWidget(indicator)
+            indicator_layout.addWidget(label)
+            status_panel_layout.addLayout(indicator_layout)
+            status_panel_layout.addSpacing(10)
+        
+        self.user_display = QLabel("User: Not logged in")
+        self.user_display.setStyleSheet(
+            "QLabel { color: #f0f0f0; background: transparent; border: none; }"
+        )
+        self.game_mode_display = QLabel("Mode: Unknown")
+        self.game_mode_display.setStyleSheet(
+            "QLabel { color: #00ccff; background: transparent; border: none; }"
+        )
+        
+        status_panel_layout.addWidget(self.user_display)
+        status_panel_layout.addStretch()
+        status_panel_layout.addWidget(self.game_mode_display)
+        
+        main_layout.addWidget(status_panel)
+        
+        self.stats_panel = QWidget()
+        self.stats_panel.setStyleSheet(
+            "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
+            "border: 1px solid #333333; }"
+        )
+        stats_layout = QHBoxLayout(self.stats_panel)
+        stats_layout.setContentsMargins(15, 10, 15, 10)
+        
+        kill_stats = QWidget()
+        kill_stats.setStyleSheet("border: none; background: transparent;")
+        kill_layout = QVBoxLayout(kill_stats)
+        kill_layout.setContentsMargins(0, 0, 0, 0)
+        kill_layout.setSpacing(2)
+        
+        self.kill_count_display = QLabel("0")
+        self.kill_count_display.setStyleSheet(
+            "QLabel { color: #66ff66; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
+        )
+        self.kill_count_display.setAlignment(Qt.AlignCenter)
+        
+        kill_label = QLabel("KILLS")
+        kill_label.setStyleSheet(
+            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
+        )
+        kill_label.setAlignment(Qt.AlignCenter)
+        
+        kill_layout.addWidget(self.kill_count_display)
+        kill_layout.addWidget(kill_label)
+        
+        death_stats = QWidget()
+        death_stats.setStyleSheet("border: none; background: transparent;")
+        death_layout = QVBoxLayout(death_stats)
+        death_layout.setContentsMargins(0, 0, 0, 0)
+        death_layout.setSpacing(2)
+        
+        self.death_count_display = QLabel("0")
+        self.death_count_display.setStyleSheet(
+            "QLabel { color: #f04747; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
+        )
+        self.death_count_display.setAlignment(Qt.AlignCenter)
+        
+        death_label = QLabel("DEATHS")
+        death_label.setStyleSheet(
+            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
+        )
+        death_label.setAlignment(Qt.AlignCenter)
+        
+        death_layout.addWidget(self.death_count_display)
+        death_layout.addWidget(death_label)
+
+        kd_stats = QWidget()
+        kd_stats.setStyleSheet("border: none; background: transparent;")
+        kd_layout = QVBoxLayout(kd_stats)
+        kd_layout.setContentsMargins(0, 0, 0, 0)
+        kd_layout.setSpacing(2)
+        
+        self.kd_ratio_display = QLabel("--")
+        self.kd_ratio_display.setStyleSheet(
+            "QLabel { color: #00ccff; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
+        )
+        self.kd_ratio_display.setAlignment(Qt.AlignCenter)
+        
+        kd_label = QLabel("K/D RATIO")
+        kd_label.setStyleSheet(
+            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
+        )
+        kd_label.setAlignment(Qt.AlignCenter)
+        
+        kd_layout.addWidget(self.kd_ratio_display)
+        kd_layout.addWidget(kd_label)
+
+        session_stats = QWidget()
+        session_stats.setStyleSheet("border: none; background: transparent;")
+        session_layout = QVBoxLayout(session_stats)
+        session_layout.setContentsMargins(0, 0, 0, 0)
+        session_layout.setSpacing(2)
+        
+        self.session_time_display = QLabel("00:00")
+        self.session_time_display.setStyleSheet(
+            "QLabel { color: #ffffff; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
+        )
+        self.session_time_display.setAlignment(Qt.AlignCenter)
+        
+        session_label = QLabel("SESSION TIME")
+        session_label.setStyleSheet(
+            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
+        )
+        session_label.setAlignment(Qt.AlignCenter)
+        
+        session_layout.addWidget(self.session_time_display)
+        session_layout.addWidget(session_label)
+        
+        self.toggle_stats_btn = QPushButton("▲")
+        self.toggle_stats_btn.setFixedSize(24, 24)
+        self.toggle_stats_btn.setStyleSheet(
+            "QPushButton { background-color: transparent; border: none; color: #aaaaaa; }"
+            "QPushButton:hover { color: #ffffff; }"
+        )
+        self.toggle_stats_btn.clicked.connect(self.toggle_stats_panel)
+        
+        stats_layout.addWidget(kill_stats)
+        stats_layout.addWidget(death_stats)
+        stats_layout.addWidget(kd_stats)
+        stats_layout.addWidget(session_stats)
+        stats_layout.addWidget(self.toggle_stats_btn, alignment=Qt.AlignTop)
+        
+        main_layout.addWidget(self.stats_panel)
+        
+        self.session_start_time = None
+        self.session_timer = QTimer()
+        self.session_timer.timeout.connect(self.update_session_time)
+
+        settings_container = QWidget()
+        settings_container.setStyleSheet("QWidget { background: transparent; border: none; }")
+        settings_container_layout = QVBoxLayout(settings_container)
+        settings_container_layout.setContentsMargins(0, 0, 0, 0)
+        settings_container_layout.setSpacing(8)
+
+        self.api_panel = CollapsibleSettingsPanel("API Settings")
+
         self.send_to_api_checkbox = QCheckBox("Send Kills to API")
         self.send_to_api_checkbox.setChecked(True)
         self.send_to_api_checkbox.setStyleSheet(
@@ -215,10 +429,8 @@ class KillLoggerGUI(QMainWindow):
             "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
             "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
         )
-        settings_layout.addRow(self.send_to_api_checkbox)
-
-        api_key_label = QLabel("API Key:")
-        api_key_label.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
+        self.api_panel.add_widget(self.send_to_api_checkbox)
+        
         self.api_key_input = QLineEdit()
         self.api_key_input.setPlaceholderText("Enter your API key here")
         self.api_key_input.setStyleSheet(
@@ -226,10 +438,11 @@ class KillLoggerGUI(QMainWindow):
             "border: 1px solid #2a2a2a; border-radius: 4px; }"
             "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
         )
-        settings_layout.addRow(api_key_label, self.api_key_input)
+        self.api_panel.add_row("API Key:", self.api_key_input)
+        settings_container_layout.addWidget(self.api_panel)
         
-        game_log_label = QLabel("Game.log Path:")
-        game_log_label.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
+        self.game_panel = CollapsibleSettingsPanel("Game Settings")
+        
         log_path_layout = QHBoxLayout()
         self.log_path_input = QLineEdit()
         self.log_path_input.setPlaceholderText("Enter path to your Game.log")
@@ -248,10 +461,8 @@ class KillLoggerGUI(QMainWindow):
         browse_log_btn.clicked.connect(self.browse_file)
         log_path_layout.addWidget(self.log_path_input)
         log_path_layout.addWidget(browse_log_btn)
-        settings_layout.addRow(game_log_label, log_path_layout)
+        self.game_panel.add_row("Game.log Path:", log_path_layout)
         
-        killer_ship_label = QLabel("Killer Ship:")
-        killer_ship_label.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
         self.ship_combo = QComboBox()
         self.ship_combo.setEditable(True)
         self.load_ship_options()
@@ -268,17 +479,13 @@ class KillLoggerGUI(QMainWindow):
             "QComboBox QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
             "QComboBox QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
             "QComboBox QScrollBar::handle:vertical:hover { background: #f04747; }"
-            "QComboBox QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
-            "QComboBox QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
+            "QComboBox QScrollBar::add-line:vertical, QComboBox QScrollBar::sub-line:vertical { height: 0px; }"
+            "QComboBox QScrollBar::add-page:vertical, QComboBox QScrollBar::sub-page:vertical { background: none; }"
         )
-        settings_layout.addRow(killer_ship_label, self.ship_combo)
+        self.game_panel.add_row("Killer Ship:", self.ship_combo)
+        settings_container_layout.addWidget(self.game_panel)
         
-        sound_group = QGroupBox()
-        sound_layout = QFormLayout()
-        sound_layout.setSpacing(10)
-        sound_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        sound_layout.setFormAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        sound_layout.setContentsMargins(10, 10, 10, 10)
+        self.sound_panel = CollapsibleSettingsPanel("Sound Settings")
         
         self.kill_sound_checkbox = QCheckBox("Enable Kill Sound")
         self.kill_sound_checkbox.setChecked(False)
@@ -290,10 +497,8 @@ class KillLoggerGUI(QMainWindow):
             "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
             "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
         )
-        sound_layout.addRow(self.kill_sound_checkbox)
-
-        sound_file_label = QLabel("Kill Sound File:")
-        sound_file_label.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
+        self.sound_panel.add_widget(self.kill_sound_checkbox)
+        
         sound_path_layout = QHBoxLayout()
         self.kill_sound_path_input = QLineEdit()
         self.kill_sound_path_input.setText(self.kill_sound_path)
@@ -311,10 +516,8 @@ class KillLoggerGUI(QMainWindow):
         sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
         sound_path_layout.addWidget(self.kill_sound_path_input)
         sound_path_layout.addWidget(sound_browse_btn)
-        sound_layout.addRow(sound_file_label, sound_path_layout)
+        self.sound_panel.add_row("Kill Sound File:", sound_path_layout)
         
-        volume_label = QLabel("Volume:")
-        volume_label.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(self.kill_sound_volume)
@@ -331,16 +534,10 @@ class KillLoggerGUI(QMainWindow):
             "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
             "stop:0 #ff5757, stop:1 #e04747); border: 1px solid #f04747; }"
         )
-        sound_layout.addRow(volume_label, self.volume_slider)
+        self.sound_panel.add_row("Volume:", self.volume_slider)
+        settings_container_layout.addWidget(self.sound_panel)
         
-        sound_group.setLayout(sound_layout)
-        sound_group.setStyleSheet(
-            "QGroupBox { background-color: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 6px; margin-top: 14px; padding-top: 16px; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; color: #f04747; "
-            "padding: 0 8px; background-color: #0f0f0f; font-weight: bold; }"
-            "QLabel { background: transparent; border: none; }"
-        )
-        settings_layout.addRow(sound_group)
+        self.action_panel = CollapsibleSettingsPanel("Controls")
         
         button_layout = QHBoxLayout()
         self.start_button = QPushButton("Start Monitoring")
@@ -382,62 +579,115 @@ class KillLoggerGUI(QMainWindow):
             "QPushButton:pressed { background: #d03737; }"
         )
         button_layout.addWidget(self.files_button)
+        self.action_panel.add_widget(button_layout)
+        settings_container_layout.addWidget(self.action_panel)
         
-        settings_layout.addRow(button_layout)
-        settings_group.setLayout(settings_layout)
-        settings_group.setStyleSheet(
-            "QGroupBox { background-color: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 6px; margin-top: 14px; padding-top: 16px; }"
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; color: #f04747; "
-            "padding: 0 8px; background-color: #0f0f0f; font-weight: bold; }"
-            "QLabel { background: transparent; border: none; }"
-        )
-        main_layout.addWidget(settings_group)
-        
+        main_layout.addWidget(settings_container)
+
         self.kill_display = QTextBrowser()
         self.kill_display.setReadOnly(True)
         self.kill_display.setOpenExternalLinks(True)
         self.kill_display.setStyleSheet(
-            "QTextBrowser { background-color: #121212; border: 1px solid #2a2a2a; border-radius: 4px; padding: 10px; }"
+            "QTextBrowser { background-color: #121212; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px; }"
             "QTextBrowser QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
             "QTextBrowser QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
             "QTextBrowser QScrollBar::handle:vertical:hover { background: #f04747; }"
-            "QTextBrowser QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
-            "QTextBrowser QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
+            "QTextBrowser QScrollBar::add-line:vertical, QTextBrowser QScrollBar::sub-line:vertical { height: 0px; }"
+            "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
         )
         main_layout.addWidget(self.kill_display, stretch=1)
-        
-        self.bottom_info_label = QLabel()
-        self.bottom_info_label.setStyleSheet(
-            "QLabel { color: #a0a0a0; background-color: #141414; "
-            "font-size: 13px; padding: 10px 15px; "
-            "border-top: 1px solid #2a2a2a; }"
-            "QLabel span { color: #f04747; font-weight: bold; }"
-        )
-        self.bottom_info_label.setText("")
-        main_layout.addWidget(self.bottom_info_label)
         
         self.send_to_api_checkbox.stateChanged.connect(self.update_api_status)
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
         self.setMinimumSize(900, 700)
 
+    def toggle_stats_panel(self):
+        self.stats_panel_visible = not self.stats_panel_visible
+        if self.stats_panel_visible:
+            self.stats_panel.setMaximumHeight(16777215)
+            self.toggle_stats_btn.setText("▲")
+        else:
+            self.stats_panel.setMaximumHeight(0)
+            self.toggle_stats_btn.setText("▼")
+    
+    def update_session_time(self):
+        if not self.session_start_time:
+            return
+            
+        elapsed = datetime.now() - self.session_start_time
+        hours, remainder = divmod(elapsed.total_seconds(), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        if hours > 0:
+            time_str = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+        else:
+            time_str = f"{int(minutes):02d}:{int(seconds):02d}"
+            
+        self.session_time_display.setText(time_str)
+    
+    def update_kill_death_stats(self):
+        self.kill_count_display.setText(str(self.kill_count))
+        
+        self.death_count_display.setText(str(self.death_count))
+
+        if self.death_count > 0:
+            ratio = self.kill_count / self.death_count
+            self.kd_ratio_display.setText(f"{ratio:.2f}")
+        else:
+            if self.kill_count > 0:
+                self.kd_ratio_display.setText(str(self.kill_count))
+            else:
+                self.kd_ratio_display.setText("--")
+
+    def update_monitor_indicator(self, is_monitoring: bool):
+        if is_monitoring:
+            self.monitoring_indicator.setStyleSheet(
+                "QLabel { background-color: #4CAF50; border-radius: 8px; border: 1px solid #388E3C; }"
+            )
+        else:
+            self.monitoring_indicator.setStyleSheet(
+                "QLabel { background-color: #F44336; border-radius: 8px; border: 1px solid #D32F2F; }"
+            )
+
+    def update_api_indicator(self, is_connected: bool):
+        if is_connected:
+            self.api_indicator.setStyleSheet(
+                "QLabel { background-color: #4CAF50; border-radius: 8px; border: 1px solid #388E3C; }"
+            )
+        else:
+            self.api_indicator.setStyleSheet(
+                "QLabel { background-color: #F44336; border-radius: 8px; border: 1px solid #D32F2F; }"
+            )
+
     def update_bottom_info(self, key: str, message: str) -> None:
         self.persistent_info[key] = message
+
+        if key == "monitoring":
+            is_monitoring = "started" in message.lower()
+            self.update_monitor_indicator(is_monitoring)
+            if is_monitoring and not self.session_timer.isActive():
+                self.session_start_time = datetime.now()
+                self.session_timer.start(1000)
+                self.kill_count = 0
+                self.death_count = 0
+                self.update_kill_death_stats()
+            elif not is_monitoring and self.session_timer.isActive():
+                self.session_timer.stop()
         
-        # Format with HTML to allow styled spans
-        info_items = []
-        for k in ["monitoring", "registered", "game_mode", "api_connection"]:
-            if self.persistent_info[k]:
-                # Extract label and value
-                parts = self.persistent_info[k].split(": ", 1)
-                if len(parts) == 2:
-                    label, value = parts
-                    info_items.append(f"{label}: <span>{value}</span>")
-                else:
-                    info_items.append(self.persistent_info[k])
+        if key == "api_connection":
+            is_connected = "connected" in message.lower()
+            self.update_api_indicator(is_connected)
         
-        info_text = " | ".join(info_items)
-        self.bottom_info_label.setText(info_text)
+        if key == "registered":
+            if ": " in message:
+                username = message.split(": ", 1)[1]
+                self.user_display.setText(f"User: {username}")
+        
+        if key == "game_mode":
+            if ": " in message:
+                mode = message.split(": ", 1)[1]
+                self.game_mode_display.setText(f"Mode: {mode}")
 
     def show_temporary_popup(self, message: str):
         msgBox = QMessageBox(self)
@@ -459,21 +709,152 @@ class KillLoggerGUI(QMainWindow):
     def apply_styles(self) -> None:
         style = """
             QWidget { background-color: #0d0d0d; color: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
-            QGroupBox { border: 1px solid #2a2a2a; border-radius: 8px; margin-top: 10px; background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a1a1a, stop:1 #141414); }
-            QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 10px; color: #f04747; font-weight: bold; }
-            QLineEdit { background-color: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px; color: #f0f0f0; }
-            QPushButton { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #303030, stop:1 #1e1e1e); border: 1px solid #2a2a2a; border-radius: 4px; padding: 8px 12px; color: #f0f0f0; font-weight: bold; }
-            QPushButton:hover { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #454545, stop:1 #303030); border-color: #f04747; }
-            QPushButton:pressed { background-color: #1e1e1e; }
-            QCheckBox { color: #f0f0f0; }
-            QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #2a2a2a; border-radius: 3px; background-color: #1e1e1e; }
-            QCheckBox::indicator:checked { background-color: #f04747; }
-            QTextBrowser { background-color: #121212; border: 1px solid #2a2a2a; border-radius: 4px; padding: 10px; font-family: 'Consolas', monospace; }
-            QComboBox { background-color: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px; color: #f0f0f0; }
-            QComboBox::drop-down { border: none; }
-            QComboBox::down-arrow { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #f04747; margin-right: 8px; }
-            QComboBox QAbstractItemView { background-color: #1e1e1e; color: #f0f0f0; selection-background-color: #f04747; }
-            a { color: #f04747; }
+            QGroupBox { 
+                border: 1px solid #2a2a2a; 
+                border-radius: 8px; 
+                margin-top: 10px; 
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                stop:0 #1a1a1a, stop:1 #141414); 
+                padding-top: 16px; 
+            }
+            QGroupBox::title { 
+                subcontrol-origin: margin; 
+                subcontrol-position: top left; 
+                padding: 0 10px; 
+                color: #f04747; 
+                font-weight: bold; 
+                background-color: #141414; 
+                border-radius: 4px;
+            }
+            QLineEdit { 
+                background-color: #1e1e1e; 
+                border: 1px solid #2a2a2a; 
+                border-radius: 4px; 
+                padding: 6px; 
+                color: #f0f0f0;
+            }
+            QLineEdit:hover, QLineEdit:focus { 
+                border-color: #f04747; 
+                background-color: #252525;
+            }
+            QPushButton { 
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                stop:0 #303030, stop:1 #1e1e1e); 
+                border: 1px solid #2a2a2a; 
+                border-radius: 4px; 
+                padding: 8px 12px; 
+                color: #f0f0f0; 
+                font-weight: bold;
+            }
+            QPushButton:hover { 
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                stop:0 #454545, stop:1 #303030); 
+                border-color: #f04747;
+            }
+            QPushButton:pressed { 
+                background-color: #1e1e1e; 
+            }
+            QCheckBox { 
+                color: #f0f0f0; 
+                spacing: 8px;
+            }
+            QCheckBox::indicator { 
+                width: 18px; 
+                height: 18px; 
+                border: 1px solid #2a2a2a; 
+                border-radius: 4px; 
+                background-color: #1e1e1e;
+            }
+            QCheckBox::indicator:checked { 
+                background-color: #f04747; 
+                border-color: #f04747;
+                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOCIgaGVpZ2h0PSIxOCIgdmlld0JveD0iMCAwIDE4IDE4Ij48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNi43IDEzbDYuOC02LjgtMS40LTEuNC01LjQgNS40LTIuNC0yLjQtMS40IDEuNHoiLz48L3N2Zz4=);
+            }
+            QCheckBox::indicator:hover { 
+                border-color: #f04747;
+            }
+            QTextBrowser { 
+                background-color: #121212; 
+                border: 1px solid #2a2a2a; 
+                border-radius: 8px; 
+                padding: 10px; 
+                font-family: 'Segoe UI', sans-serif;
+                selection-background-color: #f04747;
+                selection-color: #ffffff;
+            }
+            QComboBox { 
+                background-color: #1e1e1e; 
+                border: 1px solid #2a2a2a; 
+                border-radius: 4px; 
+                padding: 6px 12px; 
+                padding-right: 20px;
+                color: #f0f0f0;
+            }
+            QComboBox:hover { 
+                border-color: #f04747;
+                background-color: #252525; 
+            }
+            QComboBox::drop-down { 
+                border: none; 
+                width: 20px;
+            }
+            QComboBox::down-arrow { 
+                width: 0; 
+                height: 0; 
+                border-left: 5px solid transparent; 
+                border-right: 5px solid transparent; 
+                border-top: 5px solid #f04747; 
+                margin-right: 8px;
+            }
+            QScrollBar:vertical { 
+                background: #1a1a1a; 
+                width: 12px; 
+                margin: 0;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical { 
+                background: #2a2a2a; 
+                min-height: 20px; 
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical:hover { 
+                background: #f04747;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { 
+                height: 0; 
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { 
+                background: none;
+            }
+            QSlider::groove:horizontal {
+                height: 8px;
+                background: #1a1a1a;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #f04747;
+                border: 1px solid #d03737;
+                width: 16px;
+                height: 16px;
+                margin: -5px 0;
+                border-radius: 8px;
+            }
+            QSlider::sub-page:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #d03737, stop:1 #f04747);
+                border-radius: 4px;
+            }
+            QLabel {
+                background: transparent;
+                border: none;
+            }
+            a { 
+                color: #f04747; 
+                text-decoration: none;
+            }
+            a:hover {
+                text-decoration: underline;
+            }
         """
         self.setStyleSheet(style)
 
@@ -637,6 +1018,9 @@ class KillLoggerGUI(QMainWindow):
             self.delete_local_kills()
             self.delete_kill_logger_log()
             self.rescan_button.setEnabled(False)
+            
+            if self.session_timer.isActive():
+                self.session_timer.stop()
         else:
             self.update_bottom_info("api_connection", "")
             new_api_key = self.api_key_input.text().strip()
@@ -673,6 +1057,7 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.current_attacker_ship = killer_ship
             self.monitor_thread.ship_updated.connect(self.on_ship_updated)
             self.monitor_thread.payload_ready.connect(self.handle_payload)
+            self.monitor_thread.death_payload_ready.connect(self.handle_death_payload)  # Connect to new signal
             self.monitor_thread.kill_detected.connect(self.on_kill_detected)
             self.monitor_thread.death_detected.connect(self.on_death_detected)
             self.monitor_thread.player_registered.connect(self.on_player_registered)
@@ -683,6 +1068,12 @@ class KillLoggerGUI(QMainWindow):
             self.update_bottom_info("monitoring", "Monitoring started...")
             self.save_config()
             self.rescan_button.setEnabled(True)
+            
+            self.session_start_time = datetime.now()
+            self.session_timer.start(1000)
+            self.kill_count = 0
+            self.death_count = 0
+            self.update_kill_death_stats()
 
     def on_player_registered(self, text: str) -> None:
         match = re.search(r"Registered user:\s+(.+)$", text)
@@ -758,6 +1149,48 @@ class KillLoggerGUI(QMainWindow):
         else:
             logging.info("Send to API is disabled; kill payload not sent.")
 
+    def handle_death_payload(self, payload: dict, timestamp: str, attacker: str, readout: str) -> None:
+        """Process and send death events to the API"""
+        data = payload.get('log_line', '')
+        match = KILL_LOG_PATTERN.search(data)
+        if not match:
+            return
+
+        victim = payload.get('victim_name', '')
+        current_game_mode = payload.get('game_mode', 'Unknown')
+        local_key = f"death_{timestamp}::{victim}::{current_game_mode}"
+
+        if local_key in self.local_kills:
+            self.show_temporary_popup("Death already in local JSON. Skipping API call.")
+            return
+
+        self.local_kills[local_key] = {
+            "payload": payload,
+            "timestamp": timestamp,
+            "attacker": attacker,
+            "readout": readout,
+            "sent_to_api": False,
+            "event_type": "death"
+        }
+        
+        self.save_local_kills()
+        if self.send_to_api_checkbox.isChecked():
+            headers = {
+                'Content-Type': 'application/json',
+                'X-API-Key': self.api_key,
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+
+            deaths_endpoint = f"{self.api_endpoint.replace('/kills', '/deaths')}"
+            
+            api_thread = ApiSenderThread(deaths_endpoint, headers, payload, local_key, parent=self)
+            api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
+            api_thread.start()
+        else:
+            logging.info("Send to API is disabled; death payload not sent.")
+
     def handle_api_response(self, message: str, local_key: str, timestamp: str) -> None:
         normalized_message = message.strip().lower()
         ignore_responses = {"npc kill not logged.", "subside kill not logged.", "self kill not logged."}
@@ -770,8 +1203,40 @@ class KillLoggerGUI(QMainWindow):
             self.save_local_kills()
 
     def append_kill_readout(self, text: str) -> None:
+        is_kill = "YOU KILLED" in text
+        is_death = "YOU DIED" in text
+        
+        if is_kill:
+            self.kill_count += 1
+        elif is_death:
+            self.death_count += 1
+        
+        self.update_kill_death_stats()
+        
+        cursor = self.kill_display.textCursor()
+        cursor.movePosition(cursor.End)
+        self.kill_display.setTextCursor(cursor)
+
         self.kill_display.append(text)
-        self.kill_display.verticalScrollBar().setValue(self.kill_display.verticalScrollBar().maximum())
+        
+        if self.last_animation_timer:
+            self.last_animation_timer.stop()
+            
+        highlight_style = """
+            <style type='text/css'>
+                @keyframes fadeIn {
+                    0% { opacity: 0; transform: translateY(-10px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .newEntry {
+                    animation: fadeIn 0.5s ease-out;
+                }
+            </style>
+        """
+
+        self.kill_display.verticalScrollBar().setValue(
+            self.kill_display.verticalScrollBar().maximum()
+        )
 
     def closeEvent(self, event) -> None:
         if self.monitor_thread and self.monitor_thread.isRunning():
@@ -926,10 +1391,13 @@ class KillLoggerGUI(QMainWindow):
         if self.send_to_api_checkbox.isChecked():
             if self.ping_api():
                 self.update_bottom_info("api_connection", "API Connected")
+                self.update_api_indicator(True)
             else:
                 self.update_bottom_info("api_connection", "Error API not connected")
+                self.update_api_indicator(False)
         else:
             self.update_bottom_info("api_connection", "API Disabled")
+            self.update_api_indicator(False)
 
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")

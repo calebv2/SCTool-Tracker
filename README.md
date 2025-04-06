@@ -1,5 +1,9 @@
 # SCTool Tracker
 
+## Video instructions
+
+`https://www.youtube.com/watch?v=d8SwnmVPuGI`
+
 ## Overview
 
 SCTool Tracker is an application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics.
@@ -51,7 +55,9 @@ If you want to build your own tracker that integrates with the SCTool API, follo
 ### API Integration
 
 1. **Obtain an API Key**: Contact starcitizentool.com to get an API key
-2. **API Endpoint**: `https://starcitizentool.com/api/v1/kills`
+2. **API Endpoints**: 
+   - Kills: `https://starcitizentool.com/api/v1/kills`
+   - Deaths: `https://starcitizentool.com/api/v1/deaths`
 
 ### Required Headers
 
