@@ -212,6 +212,7 @@ class TailThread(QThread):
         if match:
             raw_ship = match.group('ship')
             cleaned_ship = raw_ship.replace('_', ' ')
+            cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
             self.current_attacker_ship = cleaned_ship
             logging.info(f"Jump Drive: Updated killer ship to: {cleaned_ship}")
             self.update_config_killer_ship(cleaned_ship)
@@ -229,6 +230,7 @@ class TailThread(QThread):
                     return
                 cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
                 cleaned_ship = cleaned_ship.replace('_', ' ')
+                cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
                 self.current_attacker_ship = cleaned_ship
                 logging.info(f"Interior zone update: Updated killer ship to: {cleaned_ship}")
                 self.update_config_killer_ship(cleaned_ship)

@@ -25,6 +25,8 @@ The tracker operates by:
 - Star Citizen installed
 - Python 3.8+ (if running from source)
 - PyQt5 (if running from source)
+- BeautifulSoup4 (if running from source)
+- Requests library (if running from source)
 
 ### Installation
 
@@ -47,6 +49,66 @@ The tracker operates by:
 - **Kill Sound**: Optional sound notification when you get a kill
 - **Missing Kill Detection**: Scan for kills that might have been missed
 - **Game Mode Detection**: Identifies which game mode you're playing (PU, Arena Commander, etc.)
+- **Session Statistics**: Track kills, deaths, and K/D ratio for your current session
+- **Rescan Capability**: Search through your game logs to find kills that may have been missed
+- **Export Functionality**: Save your combat logs as HTML for future reference
+- **Auto-Updates**: Automatically download and install the latest version
+
+## Technical Architecture
+
+The SCTool Tracker is built with a modular architecture consisting of several key components:
+
+### Core Components
+
+1. **Main Application (Kill_main.py)**: Entry point that initializes the GUI and monitoring systems
+2. **GUI Interface (Kill_form.py)**: PyQt5-based interface that displays kill/death events and provides user controls
+3. **Log Monitoring (Kill_thread.py)**: Background threads that monitor the game log file in real-time
+4. **Event Parser (kill_parser.py)**: Specialized parser that extracts combat data from log entries
+5. **Event Formatters (Registered_kill.py, Death_kill.py)**: Format extracted data into visual HTML displays
+
+### Data Flow
+
+1. TailThread monitors the Game.log file for new entries
+2. When a combat event is detected, the log line is parsed using regular expressions
+3. Extracted data is formatted into HTML and displayed in the application
+4. If API integration is enabled, the data is sent to the SCTool API
+5. Local statistics are updated and displayed in the session panel
+
+### File Structure
+
+- **Kill_main.py**: Main entry point of the application
+- **Kill_form.py**: Main GUI implementation and application logic
+- **Kill_thread.py**: Background monitoring threads and API communication
+- **kill_parser.py**: Log parsing and data extraction utilities
+- **Registered_kill.py**: Formats kill events for display
+- **Death_kill.py**: Formats death events for display
+- **README.md**: Documentation
+
+## Log File Parsing Details
+
+Star Citizen logs combat events in a specific format that the tracker parses. The key patterns include:
+
+### Kill Events
+
+```
+<timestamp> [Notice] <Actor Death> CActor::Kill: 'victim' [victim_geid] in zone 'zone' killed by 'attacker' [attacker_geid] using 'weapon' [...] with damage type 'damage_type' from direction x: X, y: Y, z: Z [...]
+```
+
+### Ship Detection
+
+The tracker identifies the player's current ship through:
+
+1. **Jump Drive Events**: When a player uses a quantum drive
+2. **Interior Zone Changes**: When a player enters or exits a ship
+3. **Manual Selection**: User can manually select their current ship
+
+### Game Mode Detection
+
+Game modes are detected through log entries following this pattern:
+
+```
+<timestamp> Loading GameModeRecord='game_mode' with EGameModeId='id'
+```
 
 ## Building Your Own Tracker
 
@@ -82,24 +144,49 @@ When sending a kill event to the API, your JSON payload should include:
 }
 ```
 
-### Log File Format
+When sending a death event to the API, your JSON payload should include:
 
-Star Citizen combat events follow this pattern in the log file:
-
+```json
+{
+  "log_line": "Raw log line from the game",
+  "game_mode": "Game mode (PU, Elimination, etc.)",
+  "victim_name": "Name of the victim",
+  "attacker_name": "Name of the attacker",
+  "weapon": "Weapon used",
+  "damage_type": "Type of damage",
+  "location": "Location of death",
+  "timestamp": "Timestamp of the death",
+  "event_type": "death"
+}
 ```
-<timestamp> [Notice] <Actor Death> CActor::Kill: 'victim' [victim_geid] in zone 'zone' killed by 'attacker' [attacker_geid] using 'weapon' [...] with damage type 'damage_type' from direction x: X, y: Y, z: Z [...]
-```
 
-You'll need to parse this format to extract the necessary information.
+### Development Setup
 
-### Implementation Tips
+1. Clone the repository or start a new Python project
+2. Install required dependencies:
+   ```
+   pip install PyQt5 beautifulsoup4 requests packaging
+   ```
+3. Implement the core components: log monitoring, parsing, and API integration
+4. Test with actual Star Citizen log files
 
-1. **Log File Monitoring**: Use file reading techniques that can handle file rotation and changes
-2. **Player Registration**: Look for login events to determine the local player's handle
-3. **Game Mode Detection**: Monitor for game mode change events
-4. **Ship Detection**: Parse relevant log entries to determine the player's current ship
-5. **Duplicate Prevention**: Track already-logged kills to prevent duplicates
-6. **Error Handling**: Implement retry logic for API requests
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Ship Not Detected**: Manually select your ship in the Killer Ship dropdown
+- **Kills Not Showing**: Verify the path to your Game.log file is correct
+- **API Connection Fails**: Check your network connection and API key
+- **Missed Kills**: Use the "Find Missed Kills" feature to scan for unregistered kills
+- **Application Crashes**: Check the kill_logger.log file in the application data folder for error details
+
+## Data Storage
+
+The application stores configuration and data in the following locations:
+
+- **Configuration**: `%APPDATA%\SCTool_Tracker\config.json`
+- **Local Kill Cache**: `%APPDATA%\SCTool_Tracker\logged_kills.json`
+- **Application Logs**: `%APPDATA%\SCTool_Tracker\kill_logger.log`
 
 ## Contributing
 
@@ -108,10 +195,6 @@ Contributions to SCTool Tracker are welcome! If you'd like to contribute:
 1. Fork the repository
 2. Create a feature branch
 3. Submit a pull request
-
-## License
-
-SCTool Tracker is proprietary software. Unauthorized distribution or modification is prohibited.
 
 ## Contact
 

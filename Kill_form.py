@@ -2,6 +2,7 @@
 
 import sys
 import os
+import subprocess
 import json
 import re
 import base64
@@ -20,11 +21,11 @@ from typing import Optional, Dict, Any, List
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
     QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QCheckBox,
-    QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy
+    QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog
 )
-from PyQt5.QtGui import QIcon, QDesktopServices
+from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath
 from PyQt5.QtCore import (
-    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize
+    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect
 )
 from PyQt5.QtMultimedia import QSoundEffect
 
@@ -163,6 +164,8 @@ class CollapsibleSettingsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
+        self.setMinimumWidth(400)
+        
         self.toggle_button = QPushButton(f"▼ {title}")
         self.toggle_button.setStyleSheet(
             "QPushButton { text-align: left; padding: 10px; font-weight: bold; "
@@ -171,11 +174,15 @@ class CollapsibleSettingsPanel(QWidget):
             "QPushButton:hover { background-color: #2a2a2a; }"
         )
         self.toggle_button.clicked.connect(self.toggle_content)
+        self.toggle_button.setMinimumWidth(300)
         layout.addWidget(self.toggle_button)
         
         self.content = QWidget()
+        self.content.setMinimumWidth(300)
         self.content_layout = QFormLayout(self.content)
         self.content_layout.setContentsMargins(15, 15, 15, 15)
+        self.content_layout.setVerticalSpacing(10)
+        self.content_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.content.setStyleSheet(
             "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
             "border-top: none; border-radius: 0 0 4px 4px; }"
@@ -192,7 +199,6 @@ class CollapsibleSettingsPanel(QWidget):
         self.toggle_button.setText(f"{arrow} {title}")
         
     def add_row(self, label, widget):
-        """Add a row with a label and widget to the content layout"""
         if isinstance(label, str):
             label_widget = QLabel(label)
             label_widget.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
@@ -209,11 +215,11 @@ class CollapsibleSettingsPanel(QWidget):
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "3.7"
+    __version__ = "4.0"
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 3.7")
+        self.setWindowTitle("SCTool Killfeed 4.0")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -249,7 +255,7 @@ class KillLoggerGUI(QMainWindow):
     def init_ui(self) -> None:
         main_widget = QWidget()
         main_widget.setStyleSheet(
-            "QWidget { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "QWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
             "stop:0 #1a1a1a, stop:1 #0d0d0d); "
             "border: 1px solid #2a2a2a; border-radius: 10px; }"
         )
@@ -308,6 +314,31 @@ class KillLoggerGUI(QMainWindow):
         stats_layout = QHBoxLayout(self.stats_panel)
         stats_layout.setContentsMargins(15, 10, 15, 10)
         
+        # Add user profile image container
+        self.user_profile_container = QWidget()
+        self.user_profile_container.setStyleSheet("border: none; background: transparent;")
+        user_profile_layout = QVBoxLayout(self.user_profile_container)
+        user_profile_layout.setContentsMargins(0, 0, 15, 0)
+        user_profile_layout.setSpacing(4)
+        
+        # Create user profile image label
+        self.user_profile_image = QLabel()
+        self.user_profile_image.setFixedSize(64, 64)
+        self.user_profile_image.setStyleSheet(
+            "QLabel { border-radius: 32px; border: 2px solid #333333; background-color: #1a1a1a; }"
+        )
+        self.user_profile_image.setAlignment(Qt.AlignCenter)
+        
+        # Add widget to layout
+        user_profile_layout.addWidget(self.user_profile_image, alignment=Qt.AlignCenter)
+        
+        # Set default image
+        self.set_default_user_image()
+        
+        # Add profile container to stats layout
+        stats_layout.addWidget(self.user_profile_container)
+        
+        # Continue with existing stats widgets
         kill_stats = QWidget()
         kill_stats.setStyleSheet("border: none; background: transparent;")
         kill_layout = QVBoxLayout(kill_stats)
@@ -418,8 +449,51 @@ class KillLoggerGUI(QMainWindow):
         settings_container_layout.setContentsMargins(0, 0, 0, 0)
         settings_container_layout.setSpacing(8)
 
-        self.api_panel = CollapsibleSettingsPanel("API Settings")
-
+        # Create tab bar layout
+        tab_bar = QWidget()
+        tab_bar.setStyleSheet("QWidget { background: transparent; border: none; }")
+        tab_layout = QHBoxLayout(tab_bar)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(2)
+        
+        # Add collapse indicator
+        self.settings_collapsed = False
+        self.collapse_indicator = QPushButton("▼")
+        self.collapse_indicator.setFixedSize(36, 36)  # Match tab button height
+        self.collapse_indicator.setToolTip("Collapse/Expand Settings Panels")
+        self.collapse_indicator.setStyleSheet(
+            "QPushButton { background-color: #1e1e1e; border: 1px solid #2a2a2a; color: #ffffff; border-radius: 3px; }"
+            "QPushButton:hover { color: #f04747; border-color: #f04747; }"
+        )
+        self.collapse_indicator.clicked.connect(self.toggle_settings_panels)
+        tab_layout.addWidget(self.collapse_indicator)
+        
+        # Content widget that will hold the active panel
+        self.settings_content = QWidget()
+        self.settings_content.setStyleSheet("QWidget { background: transparent; border: none; }")
+        self.settings_content_layout = QVBoxLayout(self.settings_content)
+        self.settings_content_layout.setContentsMargins(0, 0, 0, 0)
+        self.settings_content_layout.setSpacing(0)
+        
+        # Create tab buttons and panel contents
+        self.tab_buttons = []
+        self.panels = []
+        
+        # API Settings Tab
+        api_button = QPushButton("API SETTINGS")
+        api_button.setCheckable(True)
+        api_button.setObjectName("api_tab")
+        self.tab_buttons.append(api_button)
+        
+        api_panel = QWidget()
+        api_panel_layout = QFormLayout(api_panel)
+        api_panel_layout.setContentsMargins(15, 15, 15, 15)
+        api_panel_layout.setSpacing(10)
+        api_panel.setStyleSheet(
+            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
+            "border-top: none; border-radius: 0 0 8px 8px; }"
+        )
+        
         self.send_to_api_checkbox = QCheckBox("Send Kills to API")
         self.send_to_api_checkbox.setChecked(True)
         self.send_to_api_checkbox.setStyleSheet(
@@ -429,7 +503,7 @@ class KillLoggerGUI(QMainWindow):
             "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
             "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
         )
-        self.api_panel.add_widget(self.send_to_api_checkbox)
+        api_panel_layout.addRow("", self.send_to_api_checkbox)
         
         self.api_key_input = QLineEdit()
         self.api_key_input.setPlaceholderText("Enter your API key here")
@@ -438,10 +512,25 @@ class KillLoggerGUI(QMainWindow):
             "border: 1px solid #2a2a2a; border-radius: 4px; }"
             "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
         )
-        self.api_panel.add_row("API Key:", self.api_key_input)
-        settings_container_layout.addWidget(self.api_panel)
+        self.api_key_input.setMinimumWidth(200)
+        api_panel_layout.addRow(self.create_form_label("API Key:"), self.api_key_input)
         
-        self.game_panel = CollapsibleSettingsPanel("Game Settings")
+        self.panels.append(api_panel)
+        
+        # Game Settings Tab
+        game_button = QPushButton("GAME SETTINGS")
+        game_button.setCheckable(True)
+        game_button.setObjectName("game_tab")
+        self.tab_buttons.append(game_button)
+        
+        game_panel = QWidget()
+        game_panel_layout = QFormLayout(game_panel)
+        game_panel_layout.setContentsMargins(15, 15, 15, 15)
+        game_panel_layout.setSpacing(10)
+        game_panel.setStyleSheet(
+            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
+            "border-top: none; border-radius: 0 0 8px 8px; }"
+        )
         
         log_path_layout = QHBoxLayout()
         self.log_path_input = QLineEdit()
@@ -451,6 +540,7 @@ class KillLoggerGUI(QMainWindow):
             "border: 1px solid #2a2a2a; border-radius: 4px; }"
             "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
         )
+        self.log_path_input.setMinimumWidth(200)
         browse_log_btn = QPushButton("Browse")
         browse_log_btn.setIcon(QIcon(resource_path("browse_icon.png")))
         browse_log_btn.setStyleSheet(
@@ -458,10 +548,11 @@ class KillLoggerGUI(QMainWindow):
             "border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px; }"
             "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
         )
+        browse_log_btn.setMinimumWidth(80)
         browse_log_btn.clicked.connect(self.browse_file)
         log_path_layout.addWidget(self.log_path_input)
         log_path_layout.addWidget(browse_log_btn)
-        self.game_panel.add_row("Game.log Path:", log_path_layout)
+        game_panel_layout.addRow(self.create_form_label("Game.log Path:"), log_path_layout)
         
         self.ship_combo = QComboBox()
         self.ship_combo.setEditable(True)
@@ -482,22 +573,36 @@ class KillLoggerGUI(QMainWindow):
             "QComboBox QScrollBar::add-line:vertical, QComboBox QScrollBar::sub-line:vertical { height: 0px; }"
             "QComboBox QScrollBar::add-page:vertical, QComboBox QScrollBar::sub-page:vertical { background: none; }"
         )
-        self.game_panel.add_row("Killer Ship:", self.ship_combo)
-        settings_container_layout.addWidget(self.game_panel)
+        self.ship_combo.setMinimumWidth(200)
+        game_panel_layout.addRow(self.create_form_label("Killer Ship:"), self.ship_combo)
         
-        self.sound_panel = CollapsibleSettingsPanel("Sound Settings")
+        self.panels.append(game_panel)
+        
+        # Sound Settings Tab
+        sound_button = QPushButton("SOUND SETTINGS")
+        sound_button.setCheckable(True)
+        sound_button.setObjectName("sound_tab")
+        self.tab_buttons.append(sound_button)
+        
+        sound_panel = QWidget()
+        sound_panel_layout = QFormLayout(sound_panel)
+        sound_panel_layout.setContentsMargins(15, 15, 15, 15)
+        sound_panel_layout.setSpacing(10)
+        sound_panel.setStyleSheet(
+            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
+            "border-top: none; border-radius: 0 0 8px 8px; }"
+        )
         
         self.kill_sound_checkbox = QCheckBox("Enable Kill Sound")
         self.kill_sound_checkbox.setChecked(False)
         self.kill_sound_checkbox.stateChanged.connect(self.on_kill_sound_toggled)
         self.kill_sound_checkbox.setStyleSheet(
-            "QCheckBox { color: #ffffff; spacing: 5px; background: transparent; border: none; }"
             "QCheckBox::indicator { width: 16px; height: 16px; }"
             "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
             "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
             "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
         )
-        self.sound_panel.add_widget(self.kill_sound_checkbox)
+        sound_panel_layout.addRow("", self.kill_sound_checkbox)
         
         sound_path_layout = QHBoxLayout()
         self.kill_sound_path_input = QLineEdit()
@@ -507,16 +612,18 @@ class KillLoggerGUI(QMainWindow):
             "border: 1px solid #2a2a2a; border-radius: 4px; }"
             "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
         )
+        self.kill_sound_path_input.setMinimumWidth(200)
         sound_browse_btn = QPushButton("Browse")
         sound_browse_btn.setStyleSheet(
             "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
             "border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px; }"
             "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
         )
+        sound_browse_btn.setMinimumWidth(80)
         sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
         sound_path_layout.addWidget(self.kill_sound_path_input)
         sound_path_layout.addWidget(sound_browse_btn)
-        self.sound_panel.add_row("Kill Sound File:", sound_path_layout)
+        sound_panel_layout.addRow(self.create_form_label("Kill Sound File:"), sound_path_layout)
         
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
@@ -534,10 +641,25 @@ class KillLoggerGUI(QMainWindow):
             "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
             "stop:0 #ff5757, stop:1 #e04747); border: 1px solid #f04747; }"
         )
-        self.sound_panel.add_row("Volume:", self.volume_slider)
-        settings_container_layout.addWidget(self.sound_panel)
+        self.volume_slider.setMinimumWidth(200)
+        sound_panel_layout.addRow(self.create_form_label("Volume:"), self.volume_slider)
         
-        self.action_panel = CollapsibleSettingsPanel("Controls")
+        self.panels.append(sound_panel)
+        
+        # Controls Tab
+        controls_button = QPushButton("CONTROLS")
+        controls_button.setCheckable(True)
+        controls_button.setObjectName("controls_tab")
+        self.tab_buttons.append(controls_button)
+        
+        controls_panel = QWidget()
+        controls_panel_layout = QVBoxLayout(controls_panel)
+        controls_panel_layout.setContentsMargins(15, 15, 15, 15)
+        controls_panel_layout.setSpacing(10)
+        controls_panel.setStyleSheet(
+            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
+            "border-top: none; border-radius: 0 0 8px 8px; }"
+        )
         
         button_layout = QHBoxLayout()
         self.start_button = QPushButton("Start Monitoring")
@@ -551,12 +673,15 @@ class KillLoggerGUI(QMainWindow):
             "stop:0 #f04747, stop:1 #d03737); }"
             "QPushButton:pressed { background: #d03737; }"
         )
+        self.start_button.setMinimumWidth(120)
         button_layout.addWidget(self.start_button)
-        
+        button_layout.addSpacing(20)
+
         self.rescan_button = QPushButton("Find Missed Kills")
         self.rescan_button.setIcon(QIcon(resource_path("search_icon.png")))
         self.rescan_button.clicked.connect(self.on_rescan_button_clicked)
         self.rescan_button.setEnabled(False)
+        self.rescan_button.setToolTip("You must start monitoring first before searching for missed kills")
         self.rescan_button.setStyleSheet(
             "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
             "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
@@ -565,8 +690,25 @@ class KillLoggerGUI(QMainWindow):
             "stop:0 #f04747, stop:1 #d03737); }"
             "QPushButton:pressed { background: #d03737; }"
         )
+        self.rescan_button.setMinimumWidth(120)
         button_layout.addWidget(self.rescan_button)
-        
+        button_layout.addSpacing(20)
+
+        self.export_button = QPushButton("Export Logs")
+        self.export_button.setIcon(QIcon(resource_path("export_icon.png")))
+        self.export_button.clicked.connect(self.export_logs)
+        self.export_button.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
+            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
+            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 #f04747, stop:1 #d03737); }"
+            "QPushButton:pressed { background: #d03737; }"
+        )
+        self.export_button.setMinimumWidth(120)
+        button_layout.addWidget(self.export_button)
+        button_layout.addSpacing(20)
+
         self.files_button = QPushButton("SCTool Tracker Files")
         self.files_button.setIcon(QIcon(resource_path("files_icon.png")))
         self.files_button.clicked.connect(self.open_tracker_files)
@@ -578,10 +720,41 @@ class KillLoggerGUI(QMainWindow):
             "stop:0 #f04747, stop:1 #d03737); }"
             "QPushButton:pressed { background: #d03737; }"
         )
+        self.files_button.setMinimumWidth(120)
         button_layout.addWidget(self.files_button)
-        self.action_panel.add_widget(button_layout)
-        settings_container_layout.addWidget(self.action_panel)
+        controls_panel_layout.addLayout(button_layout)
         
+        self.panels.append(controls_panel)
+        
+        # Add tab buttons to tab layout
+        stretch_per_tab = 1
+        for button in self.tab_buttons:
+            button.setStyleSheet(
+                "QPushButton { background-color: #1a1a1a; color: #cccccc; font-weight: bold; "
+                "border: 1px solid #2a2a2a; border-radius: 4px 4px 0 0; padding: 8px 16px; }"
+                "QPushButton:hover { color: #f0f0f0; background-color: #222222; }"
+                "QPushButton:checked { color: #f0f0f0; background-color: #151515; border-bottom: none; }"
+            )
+            button.setMinimumWidth(100)
+            button.setFixedHeight(36)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.clicked.connect(self.on_tab_clicked)
+            tab_layout.addWidget(button, stretch_per_tab)
+        
+        # Set up layout
+        settings_container_layout.addWidget(tab_bar)
+        settings_container_layout.addWidget(self.settings_content)
+        
+        # Hide all panels initially
+        for panel in self.panels:
+            panel.hide()
+            self.settings_content_layout.addWidget(panel)
+        
+        # Select the first tab by default
+        if self.tab_buttons:
+            self.tab_buttons[0].click()
+            
+        self.send_to_api_checkbox.stateChanged.connect(self.update_api_status)
         main_layout.addWidget(settings_container)
 
         self.kill_display = QTextBrowser()
@@ -600,7 +773,21 @@ class KillLoggerGUI(QMainWindow):
         self.send_to_api_checkbox.stateChanged.connect(self.update_api_status)
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(600, 900)
+
+    def on_tab_clicked(self):
+        sender = self.sender()
+        
+        # If settings are collapsed, expand them first
+        if self.settings_collapsed:
+            self.settings_collapsed = False
+            self.collapse_indicator.setText("▼")
+        
+        # Update button states
+        for i, button in enumerate(self.tab_buttons):
+            checked = (button == sender)
+            button.setChecked(checked)
+            self.panels[i].setVisible(checked and not self.settings_collapsed)
 
     def toggle_stats_panel(self):
         self.stats_panel_visible = not self.stats_panel_visible
@@ -959,7 +1146,6 @@ class KillLoggerGUI(QMainWindow):
 
     def send_next_missing_kill(self) -> None:
         if not self.missing_kills_queue:
-            self.show_temporary_popup("All missing kills processed.")
             return
 
         kill = self.missing_kills_queue.pop(0)
@@ -1012,12 +1198,14 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.wait(3000)
             self.monitor_thread = None
             self.start_button.setText("Start Monitoring")
-            self.update_bottom_info("monitoring", "Monitoring stopped.")
+            self.start_button.setIcon(QIcon(resource_path("start_icon.png")))
+            self.update_bottom_info("monitoring", "Monitoring stopped")
             self.update_bottom_info("api_connection", "")
             self.save_config()
             self.delete_local_kills()
             self.delete_kill_logger_log()
             self.rescan_button.setEnabled(False)
+            self.set_default_user_image()  # Reset to default when monitoring stops
             
             if self.session_timer.isActive():
                 self.session_timer.stop()
@@ -1057,7 +1245,7 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.current_attacker_ship = killer_ship
             self.monitor_thread.ship_updated.connect(self.on_ship_updated)
             self.monitor_thread.payload_ready.connect(self.handle_payload)
-            self.monitor_thread.death_payload_ready.connect(self.handle_death_payload)  # Connect to new signal
+            self.monitor_thread.death_payload_ready.connect(self.handle_death_payload)
             self.monitor_thread.kill_detected.connect(self.on_kill_detected)
             self.monitor_thread.death_detected.connect(self.on_death_detected)
             self.monitor_thread.player_registered.connect(self.on_player_registered)
@@ -1065,6 +1253,7 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.start()
             self.on_ship_updated(killer_ship)
             self.start_button.setText("Stop Monitoring")
+            self.start_button.setIcon(QIcon(resource_path("stop_icon.png")))
             self.update_bottom_info("monitoring", "Monitoring started...")
             self.save_config()
             self.rescan_button.setEnabled(True)
@@ -1078,13 +1267,14 @@ class KillLoggerGUI(QMainWindow):
     def on_player_registered(self, text: str) -> None:
         match = re.search(r"Registered user:\s+(.+)$", text)
         if match:
-            handle = match.group(1).strip()
-            self.local_user_name = handle
-            if self.monitor_thread:
-                self.monitor_thread.registered_user = handle
-            logging.info(f"Local registered user set to: {handle}")
-            self.update_bottom_info("registered", f"Registered user: {handle}")
+            self.local_user_name = match.group(1).strip()
+            self.user_display.setText(f"User: {self.local_user_name}")
+            self.update_bottom_info("registered", text)
             self.save_config()
+            self.rescan_button.setEnabled(True)
+            
+            # Update the user profile image when user is registered
+            self.update_user_profile_image(self.local_user_name)
 
     def on_game_mode_changed(self, mode_msg: str) -> None:
         self.update_bottom_info("game_mode", mode_msg)
@@ -1321,31 +1511,64 @@ class KillLoggerGUI(QMainWindow):
             logging.error(f"Failed to delete kill_logger.log: {e}")
 
     def check_for_updates(self) -> None:
+        """Check for newer versions of the application"""
         try:
-            base_api_url = "https://starcitizentool.com/api/v1"
-            r = requests.get(f"{base_api_url}/latest_version", timeout=10)
-            r.raise_for_status()
-            data = r.json()
-            latest = data.get('latest_version')
-            if latest and version.parse(self.__version__) < version.parse(latest):
+            update_url = "https://starcitizentool.com/api/v1/latest_version"  # Correct endpoint
+            headers = {
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+            
+            response = requests.get(update_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                latest_version = data.get('latest_version')
                 download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
-                self.notify_update(latest_version=latest, download_url=download_url)
+                
+                if latest_version and version.parse(latest_version) > version.parse(self.__version__):
+                    logging.info(f"Update available: {latest_version} (current: {self.__version__})")
+                    self.notify_update(latest_version, download_url)
+                else:
+                    logging.info(f"No updates available. Current version: {self.__version__}, Latest: {latest_version}")
+            else:
+                logging.warning(f"Update check failed with status code: {response.status_code}")
         except Exception as e:
-            logging.error(f"Failed to check for updates: {e}")
+            logging.error(f"Error checking for updates: {e}")
 
     def notify_update(self, latest_version: str, download_url: str) -> None:
         update_message = (
             f"<p>A new version (<b>{latest_version}</b>) is available!</p>"
-            f"<p><a href='{download_url}'>Download latest update here</a></p>"
+            f"<p>An update is required to continue using SCTool Tracker.</p>"
+            f"<p>Please choose your update method:</p>"
         )
+        
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Update Available")
+        msg_box.setWindowTitle("Update Required")
         msg_box.setText(update_message)
-        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setIcon(QMessageBox.Warning)
         msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        msg_box.setStandardButtons(QMessageBox.Ok)
-        if msg_box.exec_() == QMessageBox.Ok:
+        
+        auto_btn = msg_box.addButton("Auto Update", QMessageBox.AcceptRole)
+        manual_btn = msg_box.addButton("Download Manually", QMessageBox.ActionRole)
+        close_btn = msg_box.addButton("Exit Application", QMessageBox.RejectRole)
+        
+        msg_box.setDefaultButton(auto_btn)
+        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowCloseButtonHint)
+        
+        msg_box.exec_()
+        
+        clicked_button = msg_box.clickedButton()
+        if clicked_button == auto_btn:
+            self.auto_update(latest_version, download_url)
+        elif clicked_button == manual_btn:
+            QDesktopServices.openUrl(QUrl(download_url))
+            self.save_config()
             sys.exit(0)
+        else:
+            self.save_config()
+            import os
+            os._exit(0)
 
     def load_ship_options(self) -> None:
         ships_file = os.path.join(TRACKER_DIR, "ships.json")
@@ -1399,19 +1622,426 @@ class KillLoggerGUI(QMainWindow):
             self.update_bottom_info("api_connection", "API Disabled")
             self.update_api_indicator(False)
 
+    def export_logs(self) -> None:
+        """Export the kill/death log entries to an HTML file."""
+        if not self.kill_display.document().isEmpty():
+            options = QFileDialog.Options()
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Export Logs", f"SCTool_Logs_{current_date}.html",
+                "HTML Files (*.html);;All Files (*)", options=options
+            )
+            
+            if file_path:
+                try:
+                    # Prepare the HTML content with CSS styling
+                    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SCTool Killfeed Export - {current_date}</title>
+    <style>
+        body {{
+            background-color: #0d0d0d;
+            color: #f0f0f0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }}
+        .header {{
+            background-color: #151515;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }}
+        .header h1 {{
+            color: #f04747;
+            margin: 0;
+            font-size: 24px;
+        }}
+        .header p {{
+            margin: 5px 0 0 0;
+            color: #aaaaaa;
+        }}
+        a {{
+            color: #f04747;
+            text-decoration: none;
+        }}
+        a:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SCTool Killfeed Export</h1>
+        <p>Date: {current_date}</p>
+        <p>User: {self.local_user_name or "Unknown"}</p>
+        <p>Session Stats: Kills: {self.kill_count} | Deaths: {self.death_count}</p>
+    </div>
+    {self.kill_display.toHtml()}
+</body>
+</html>"""
+
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    
+                    self.show_temporary_popup(f"Logs exported successfully to {file_path}")
+                    
+                    # Optionally open the file after saving
+                    try:
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    logging.error(f"Error exporting logs: {e}")
+                    self.showCustomMessageBox("Export Error", f"Failed to export logs: {str(e)}", QMessageBox.Critical)
+        else:
+            self.showCustomMessageBox("Nothing to Export", "There are no logs to export.", QMessageBox.Information)
+
+    def auto_update(self, latest_version: str, download_url: str) -> None:
+        """Download and install the latest version of the application without requiring admin rights"""      
+        try:
+            # Create a progress dialog
+            progress = QProgressDialog("Downloading update...", "Cancel", 0, 100, self)
+            progress.setWindowTitle(f"Updating to v{latest_version}")
+            progress.setWindowModality(Qt.WindowModal)
+            progress.setMinimumDuration(0)
+            progress.setValue(0)
+            progress.show()
+            
+            # Use the dedicated API endpoint for auto-updates
+            auto_update_url = "https://starcitizentool.com/api/v1/download-update"
+            logging.info(f"Using auto-update API endpoint: {auto_update_url}")
+            
+            # Always download to the user's own temp directory
+            user_temp_dir = os.path.join(TRACKER_DIR, "Updates")
+            os.makedirs(user_temp_dir, exist_ok=True)
+            downloaded_file = os.path.join(user_temp_dir, f"SCTool_Killfeed_{latest_version}_Setup.exe")
+            
+            # Set proper headers for the request
+            headers = {
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+            
+            # Stream download with progress updates
+            logging.info(f"Downloading update from: {auto_update_url}")
+            download_response = requests.get(auto_update_url, headers=headers, stream=True, timeout=30)
+            download_response.raise_for_status()
+            
+            # Get file size for progress tracking
+            file_size = int(download_response.headers.get('Content-Length', 0))
+            logging.info(f"Update file size: {file_size} bytes")
+            
+            # Download the file
+            downloaded_size = 0
+            with open(downloaded_file, 'wb') as f:
+                for chunk in download_response.iter_content(chunk_size=8192):
+                    if progress.wasCanceled():
+                        logging.info("Update canceled by user")
+                        if os.path.exists(downloaded_file):
+                            os.remove(downloaded_file)
+                        return
+                    if chunk:
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        if file_size > 0:
+                            percent = int((downloaded_size / file_size) * 100)
+                            progress.setValue(percent)
+            
+            # Verify download integrity
+            if os.path.getsize(downloaded_file) < 1000000:  # 1MB minimum
+                raise Exception("Downloaded file appears incomplete (too small)")
+                
+            progress.setValue(100)
+            
+            # Save current config before exiting
+            self.save_config()
+                
+            # Create a simple launcher script that always works
+            launcher_file = os.path.join(user_temp_dir, "update_launcher.bat")
+            with open(launcher_file, 'w') as f:
+                f.write('@echo off\n')
+                f.write('echo SCTool Tracker Update\n')
+                f.write('ping 127.0.0.1 -n 4 > nul\n')  # Wait for application to close
+                f.write(f'echo Running update: {downloaded_file}\n')
+                f.write(f'start "" "{downloaded_file}"\n')
+                f.write('echo Update process complete\n')
+                f.write('exit\n')
+            
+            # Show final message that won't be interrupted
+            self.showCustomMessageBox(
+                "Update Ready",
+                "The update has been downloaded and will start automatically after you close this application.",
+                QMessageBox.Information
+            )
+            
+            # Start the update process in a completely detached process
+            # This approach always works because it doesn't depend on the Python environment
+            subprocess.Popen(['cmd', '/c', 'start', '/min', '', launcher_file], 
+                            shell=True,
+                            stdin=None, stdout=None, stderr=None,
+                            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+            
+            # Use os._exit() to terminate immediately without cleanup
+            # This prevents the "Failed to load Python DLL" error
+            os._exit(0)
+            
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error during update: {e}")
+            self.showCustomMessageBox(
+                "Update Failed",
+                f"Network error: {str(e)}\n\nPlease update manually from:\nhttps://starcitizentool.com/download-sctool",
+                QMessageBox.Critical
+            )
+        except Exception as e:
+            logging.error(f"Auto-update failed: {e}")
+            self.showCustomMessageBox(
+                "Update Failed",
+                f"Could not update automatically: {str(e)}\n\nPlease update manually from:\nhttps://starcitizentool.com/download-sctool",
+                QMessageBox.Critical
+            )
+
+    def showCustomMessageBox(self, title, message, icon=QMessageBox.Information):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(icon)
+        
+        if icon == QMessageBox.Question:
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setDefaultButton(QMessageBox.Yes)
+        else:
+            msg_box.setStandardButtons(QMessageBox.Ok)
+        
+        msg_box.setStyleSheet(
+            "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
+            "QLabel { color: #f0f0f0; }"
+            "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+            "border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px 12px; }"
+            "QPushButton:hover { background-color: #f04747; }"
+        )
+        
+        return msg_box.exec_()
+
+    def create_circular_pixmap_from_data(self, image_data) -> QPixmap:
+        """Create a circular pixmap from image data"""
+        try:
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_data)
+            
+            # Scale the pixmap to fit the label
+            pixmap = pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            
+            # Create a mask for circular clipping
+            result = QPixmap(64, 64)
+            result.fill(Qt.transparent)
+            
+            painter = QPainter(result)
+            painter.setRenderHint(QPainter.Antialiasing)
+            
+            # Create a path for clipping
+            path = QPainterPath()
+            path.addEllipse(2, 2, 60, 60)
+            
+            # Set background
+            painter.setBrush(QBrush(QColor(26, 26, 26)))
+            painter.setPen(QPen(QColor(51, 51, 51), 2))
+            painter.drawEllipse(2, 2, 60, 60)
+            
+            # Now draw the scaled pixmap within the circle
+            painter.setClipPath(path)
+            painter.drawPixmap(2, 2, pixmap)
+            
+            painter.end()  # Important to end the painter
+            return result  # Return the created pixmap
+        except Exception as e:
+            logging.error(f"Error creating circular pixmap: {e}")
+            
+            # Create a fallback pixmap
+            result = QPixmap(64, 64)
+            result.fill(Qt.transparent)
+            
+            painter = QPainter(result)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QBrush(QColor(26, 26, 26)))
+            painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red border for visibility
+            painter.drawEllipse(2, 2, 60, 60)
+            painter.end()
+            
+            return result
+
+    def set_default_user_image(self) -> None:
+        try:
+            # Create a blank circular avatar with a visible border
+            pixmap = QPixmap(64, 64)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QBrush(QColor(26, 26, 26)))
+            painter.setPen(QPen(QColor(51, 51, 51), 2))
+            painter.drawEllipse(2, 2, 60, 60)
+            
+            # Draw a placeholder icon
+            painter.setPen(QPen(QColor(200, 200, 200), 2))
+            painter.drawText(QRect(0, 0, 64, 64), Qt.AlignCenter, "?")
+            
+            painter.end()
+            self.user_profile_image.setPixmap(pixmap)
+            
+            # Try to fetch the default image in the background
+            default_image_url = "https://cdn.robertsspaceindustries.com/static/images/account/avatar_default_big.jpg"
+            QTimer.singleShot(500, lambda: self.fetch_default_image(default_image_url))
+        except Exception as e:
+            logging.error(f"Error setting default user image: {e}")
+
+    def fetch_default_image(self, url):
+        try:
+            response = SESSION.get(url, timeout=10)
+            if response.status_code == 200:
+                pixmap = self.create_circular_pixmap_from_data(response.content)
+                self.user_profile_image.setPixmap(pixmap)
+        except Exception as e:
+            logging.error(f"Error fetching default image: {e}")
+
+    def update_user_profile_image(self, username: str) -> None:
+        try:
+            if not username:
+                self.set_default_user_image()
+                return
+                
+            # First set a visible placeholder image with the user's initial
+            pixmap = QPixmap(64, 64)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QBrush(QColor(26, 26, 26)))
+            painter.setPen(QPen(QColor(0, 255, 0), 2))  # Green border for visibility
+            painter.drawEllipse(2, 2, 60, 60)
+            painter.setPen(QPen(QColor(200, 200, 200), 2))
+            painter.drawText(QRect(0, 0, 64, 64), Qt.AlignCenter, username[0].upper())
+            painter.end()
+            self.user_profile_image.setPixmap(pixmap)
+            
+            # Try to get the user's profile image in the background
+            QTimer.singleShot(100, lambda: self.fetch_user_image(username))
+        except Exception as e:
+            logging.error(f"Error updating user profile image for {username}: {e}")
+            self.set_default_user_image()
+
+    def fetch_user_image(self, username: str) -> None:
+        try:
+            # Use proper browser-like headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+            
+            url = f"https://robertsspaceindustries.com/citizens/{quote(username)}"
+            response = SESSION.get(url, timeout=10, headers=headers)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Target the exact profile image structure
+                profile_img = soup.select_one('.profile.left-col .inner.clearfix .thumb img')
+                
+                if profile_img and profile_img.get('src'):
+                    image_url = profile_img.get('src')
+                    # Handle relative URLs
+                    if image_url.startswith('/'):
+                        image_url = f"https://robertsspaceindustries.com{image_url}"
+                    
+                    # Fetch the image data
+                    img_response = SESSION.get(image_url, timeout=10, headers=headers)
+                    if img_response.status_code == 200:
+                        pixmap = self.create_circular_pixmap_from_data(img_response.content)
+                        self.user_profile_image.setPixmap(pixmap)
+                        logging.info(f"Successfully loaded profile image for {username}")
+                        return
+                    else:
+                        logging.warning(f"Could not fetch image from {image_url}, status code: {img_response.status_code}")
+                else:
+                    logging.warning(f"Could not find profile image for user {username}")
+            else:
+                logging.warning(f"Failed to fetch profile page for {username}, status code: {response.status_code}")
+        
+        except Exception as e:
+            logging.error(f"Error fetching user image for {username}: {e}")
+
+    def toggle_settings_panels(self) -> None:
+        self.settings_collapsed = not self.settings_collapsed
+        
+        # Update collapse indicator
+        self.collapse_indicator.setText("▼" if not self.settings_collapsed else "▲")
+        
+        if self.settings_collapsed:
+            # Hide all panels when collapsed
+            for panel in self.panels:
+                panel.setVisible(False)
+                
+            # Uncheck all tab buttons when collapsed
+            for button in self.tab_buttons:
+                button.setChecked(False)
+        else:
+            # When expanding, show the previously selected panel
+            # Find if any button is already checked
+            checked_found = False
+            for i, button in enumerate(self.tab_buttons):
+                if button.isChecked():
+                    self.panels[i].setVisible(True)
+                    checked_found = True
+                    break
+                    
+            # If no button was checked, select the first one
+            if not checked_found and self.tab_buttons:
+                self.tab_buttons[0].setChecked(True)
+                self.panels[0].setVisible(True)
+
+    def create_form_label(self, text):
+        label = QLabel(text)
+        label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; }")
+        return label
+
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")
     return label
 
 def cleanup_log_file() -> None:
     try:
-        import logging
         logging.shutdown()
+
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            try:
+                handler.close()
+                root_logger.removeHandler(handler)
+            except Exception as e:
+                print(f"Error closing handler: {e}")
+
         if os.path.isfile(LOG_FILE):
-            os.remove(LOG_FILE)
-            print(f"{LOG_FILE} deleted successfully.")
+            max_retries = 5
+            for attempt in range(max_retries):
+                try:
+                    os.remove(LOG_FILE)
+                    print(f"Successfully deleted {LOG_FILE}")
+                    break
+                except PermissionError:
+                    if attempt < max_retries - 1:
+                        print(f"File still in use, retrying in 0.5s... (attempt {attempt+1}/{max_retries})")
+                        time.sleep(0.5)
+                    else:
+                        print(f"Could not delete {LOG_FILE} after {max_retries} attempts - file may still be locked")
+                except Exception as e:
+                    print(f"Error deleting {LOG_FILE}: {e}")
+                    break
     except Exception as e:
-        print(f"Failed to delete {LOG_FILE}: {e}")
+        print(f"Exception during cleanup of {LOG_FILE}: {e}")
 
 atexit.register(cleanup_log_file)
 

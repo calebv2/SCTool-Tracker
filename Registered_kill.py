@@ -11,6 +11,7 @@ def format_registered_kill(
     from urllib.parse import quote
     from Kill_form import fetch_player_details, fetch_victim_image_base64
     from kill_parser import KillParser
+    import re
 
     victim = data.get('victim', 'Unknown')
     zone = data.get('zone', 'Unknown')
@@ -18,7 +19,9 @@ def format_registered_kill(
     weapon = data.get('weapon', 'Unknown')
     
     killer_ship = data.get('killer_ship', "Player destruction")
+    killer_ship = re.sub(r'_\d+$', '', killer_ship)
     killer_ship = killer_ship.replace("_", " ")
+    killer_ship = re.sub(r'\s+\d+$', '', killer_ship)
     if killer_ship.lower() == "no ship":
         killer_ship = ""
     
