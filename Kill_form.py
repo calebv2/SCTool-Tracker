@@ -215,11 +215,11 @@ class CollapsibleSettingsPanel(QWidget):
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "4.0"
+    __version__ = "4.1"
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 4.0")
+        self.setWindowTitle("SCTool Killfeed 4.1")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0

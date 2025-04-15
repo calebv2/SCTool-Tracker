@@ -211,36 +211,22 @@ class TailThread(QThread):
         match = re.search(r'\(adam:\s+(?P<ship>(?:[A-Za-z0-9_]+?)(?=_\d+\s+in zone)|[A-Za-z0-9_]+)\s+in zone', line)
         if match:
             raw_ship = match.group('ship')
-            cleaned_ship = raw_ship.replace('_', ' ')
+            if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                logging.warning(f"Jump Drive: Ship name doesn't have a recognized manufacturer code: {raw_ship}")
+                return
+
+            cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
+            cleaned_ship = cleaned_ship.replace('_', ' ')
             cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
+            
             self.current_attacker_ship = cleaned_ship
             logging.info(f"Jump Drive: Updated killer ship to: {cleaned_ship}")
             self.update_config_killer_ship(cleaned_ship)
             self.ship_updated.emit(cleaned_ship)
 
-    def process_interior_zone_line(self, line: str) -> None:
-        if not self.registered_user:
-            return
-        m = re.search(r"-> Entity \[(?P<ship>[^\]]+)\].*m_ownerGEID\[(?P<owner>[^\]]+)\]", line)
-        if m:
-            owner = m.group("owner").strip()
-            if owner.lower() == self.registered_user.strip().lower():
-                raw_ship = m.group("ship")
-                if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
-                    return
-                cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
-                cleaned_ship = cleaned_ship.replace('_', ' ')
-                cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
-                self.current_attacker_ship = cleaned_ship
-                logging.info(f"Interior zone update: Updated killer ship to: {cleaned_ship}")
-                self.update_config_killer_ship(cleaned_ship)
-                self.ship_updated.emit(cleaned_ship)
-
     def process_line(self, line: str) -> None:
         if "<Jump Drive Requesting State Change>" in line:
             self.process_jump_drive_line(line)
-        if "CEntityComponentInstancedInterior" in line and "m_ownerGEID" in line:
-            self.process_interior_zone_line(line)
         legacy_login_match = re.search(
             r"<(?P<timestamp>[^>]+)> \[Notice\] <Legacy login response> \[CIG-net\] User Login Success - Handle\[(?P<handle>[^\]]+)\]",
             line
