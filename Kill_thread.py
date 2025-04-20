@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QMessageBox
 )
 
-from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT
+from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT, KillParser
 
 from Registered_kill import format_registered_kill
 
@@ -267,15 +267,11 @@ class TailThread(QThread):
 
         victim = data.get('victim', '').strip()
         attacker = data.get('attacker', '').strip()
-        if "pu_human" in victim.lower():
-            return
-        if attacker.lower() == victim.lower():
-            return
+        
+        # Only filter out obvious patterns locally - let the API handle NPC detection
         if "subside" in victim.lower() or "subside" in attacker.lower():
             return
         if not self.registered_user:
-            return
-        if "npc" in victim.lower():
             return
         if (attacker.lower() == self.registered_user.strip().lower() and
             victim.lower() == self.registered_user.strip().lower()):

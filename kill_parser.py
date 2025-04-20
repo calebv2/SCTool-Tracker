@@ -118,6 +118,30 @@ class KillParser:
             return "Other"
 
     @staticmethod
+    def is_npc(name, actor_id=None):
+        """
+        Determine if a player name is an NPC based on common patterns.
+        """
+        if not name:
+            return False
+
+        name_lower = name.lower()
+
+        if "kopion" in name_lower or "quasigrazer" in name_lower:
+            return True
+
+        npc_patterns = ["pu_", "npc", "enemy", "criminal", "soldier", "engineer",
+                        "gunner", "sniper", "shipjacker"]
+        for pattern in npc_patterns:
+            if pattern in name_lower:
+                return True
+
+        if re.search(r"\d{8,}$", name):
+            return True
+
+        return False
+
+    @staticmethod
     def parse_actor_death_event(log_line: str, handle: Optional[str] = None) -> dict:
         match = KILL_LOG_PATTERN.search(log_line)
         if not match:
@@ -126,6 +150,12 @@ class KillParser:
         data = match.groupdict()
         data['zone'] = KillParser.format_zone(data.get('zone', ''))
         data['weapon'] = KillParser.format_weapon(data.get('weapon', ''))
+
+        victim = data.get('victim', '')
+        data['victim_is_npc'] = KillParser.is_npc(victim, data.get('victim_geid'))
+
+        attacker = data.get('attacker', '')
+        data['attacker_is_npc'] = KillParser.is_npc(attacker, data.get('attacker_geid'))
 
         if handle:
             data['death_type'] = KillParser.determine_death_type(data, handle)

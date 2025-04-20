@@ -21,12 +21,12 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
     <div class="newEntry" style="width: 100%;">
         <table width="100%" cellspacing="0" cellpadding="15"
                style="background-color:#121212; font-family:'Segoe UI', Arial, sans-serif;
-                      color:#e0e0e0; box-shadow: 0 0 15px 5px #f04747, 0 0 25px 10px rgba(240, 71, 71, 0.7); 
+                      color:#e0e0e0; box-shadow: 0 0 15px 5px #f04747, 0 0 25px 10px #f04747; 
                       border-radius: 10px; margin-bottom: 15px; overflow: hidden;">
             <tr>
                 <td colspan="2" style="background: linear-gradient(135deg, #151515, #0d0d0d); border-bottom: 1px solid #333333; padding: 12px 15px;">
-                    <div style="font-size:24px; font-weight:bold; color: #f04747; text-shadow: 0 0 5px rgba(240, 71, 71, 0.7); display: flex; align-items: center;">
-                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #f04747; margin-right: 10px; box-shadow: 0 0 5px rgba(240, 71, 71, 0.8);"></span>
+                    <div style="font-size:24px; font-weight:bold; color: #f04747; text-shadow: 0 0 5px #f04747; display: flex; align-items: center;">
+                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #f04747; margin-right: 10px; box-shadow: 0 0 5px #f04747;"></span>
                         YOU DIED
                     </div>
                 </td>
@@ -35,13 +35,13 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
                 <td style="vertical-align:top; padding-top: 15px; width: 70%;">
                     <table style="width: 100%; border-collapse: separate; border-spacing: 0 8px;">
                         <tr>
-                            <td style="background-color: rgba(0, 204, 255, 0.05); padding: 12px; border-radius: 8px; border-left: 3px solid rgba(0, 204, 255, 0.5);">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">Game Mode:</b> <span style="color: #00ccff; text-shadow: 0 0 2px rgba(0, 204, 255, 0.3);">{last_game_mode if last_game_mode else 'Unknown'}</span></p>
+                            <td style="background-color: #0c2026; padding: 12px; border-radius: 8px; border-left: 3px solid #00ccff;">
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">Game Mode:</b> <span style="color: #00ccff; text-shadow: 0 0 2px #00ccff;">{last_game_mode if last_game_mode else 'Unknown'}</span></p>
                                 <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">Timestamp:</b> {timestamp}</p>
                             </td>
                         </tr>
                         <tr>
-                            <td style="background-color: rgba(240, 71, 71, 0.05); padding: 12px; border-radius: 8px; border-left: 3px solid rgba(240, 71, 71, 0.5);">
+                            <td style="background-color: #260c0c; padding: 12px; border-radius: 8px; border-left: 3px solid #f04747;">
                                 <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">Attacker:</b> {attacker_link}</p>
                                 <p style="font-size:14px; margin:4px 0;">
                                     <b style="color: #f04747;">Organization:</b> {details.get('org_name', 'None')} 
@@ -54,7 +54,7 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
                             </td>
                         </tr>
                         <tr>
-                            <td style="background-color: rgba(255, 204, 0, 0.05); padding: 12px; border-radius: 8px; border-left: 3px solid rgba(255, 204, 0, 0.5);">
+                            <td style="background-color: #262610; padding: 12px; border-radius: 8px; border-left: 3px solid #ffcc00;">
                                 <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">Location:</b> {formatted_zone}</p>
                                 <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">Damage Type:</b> {formatted_weapon}</p>
                             </td>
@@ -62,12 +62,12 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
                     </table>
                 </td>
                 <td style="vertical-align:top; text-align:right; padding-top: 15px; width: 30%;">
-                    <div style="border-radius: 50%; padding: 3px; box-shadow: 0 0 10px rgba(240, 71, 71, 0.8);">
+                    <div style="border-radius: 50%; padding: 3px; box-shadow: 0 0 10px #f04747;">
                         <div style="position: relative; overflow: hidden; border-radius: 50%;">
                             <img src="{attacker_image_data_uri}" width="110" height="110"
                                  style="object-fit:cover; border-radius: 50%;" alt="Profile Image">
                             <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-                                      border-radius: 50%; box-shadow: inset 0 0 20px rgba(240, 71, 71, 0.6);"></div>
+                                      border-radius: 50%; box-shadow: inset 0 0 20px #f04747;"></div>
                         </div>
                     </div>
                 </td>
