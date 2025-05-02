@@ -9,7 +9,7 @@ def format_registered_kill(
     success: bool = True
 ):
     from urllib.parse import quote
-    from Kill_form import fetch_player_details, fetch_victim_image_base64
+    from fetch import fetch_player_details, fetch_victim_image_base64
     from kill_parser import KillParser
     import re
 

@@ -53,6 +53,9 @@ The tracker operates by:
 - **Rescan Capability**: Search through your game logs to find kills that may have been missed
 - **Export Functionality**: Save your combat logs as HTML for future reference
 - **Auto-Updates**: Automatically download and install the latest version
+- **System Tray Integration**: Minimize to system tray for unobtrusive operation
+- **Twitch Integration**: Create clips and post kill messages to your Twitch chat
+- **User Profile Images**: Display profile images fetched from RSI website
 
 ## Technical Architecture
 
@@ -65,6 +68,8 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 3. **Log Monitoring (Kill_thread.py)**: Background threads that monitor the game log file in real-time
 4. **Event Parser (kill_parser.py)**: Specialized parser that extracts combat data from log entries
 5. **Event Formatters (Registered_kill.py, Death_kill.py)**: Format extracted data into visual HTML displays
+6. **Twitch Integration (twitch_integration.py)**: Handles Twitch authentication, chat messaging, and clip creation
+7. **Utility Functions (utlity.py)**: Common utilities and helper functions for UI and configuration
 
 ### Data Flow
 
@@ -73,6 +78,7 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 3. Extracted data is formatted into HTML and displayed in the application
 4. If API integration is enabled, the data is sent to the SCTool API
 5. Local statistics are updated and displayed in the session panel
+6. If Twitch integration is enabled, kill events can trigger clip creation and chat messages
 
 ### File Structure
 
@@ -82,6 +88,9 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 - **kill_parser.py**: Log parsing and data extraction utilities
 - **Registered_kill.py**: Formats kill events for display
 - **Death_kill.py**: Formats death events for display
+- **twitch_integration.py**: Twitch API integration for clips and chat
+- **fetch.py**: Functions for fetching profile data and images
+- **utlity.py**: Utility functions and UI helpers
 - **README.md**: Documentation
 
 ## Log File Parsing Details
@@ -179,6 +188,7 @@ Common issues and solutions:
 - **API Connection Fails**: Check your network connection and API key
 - **Missed Kills**: Use the "Find Missed Kills" feature to scan for unregistered kills
 - **Application Crashes**: Check the kill_logger.log file in the application data folder for error details
+- **Twitch Integration Issues**: Ensure your Twitch channel name is correct and try reconnecting
 
 ## Data Storage
 
@@ -187,6 +197,7 @@ The application stores configuration and data in the following locations:
 - **Configuration**: `%APPDATA%\SCTool_Tracker\config.json`
 - **Local Kill Cache**: `%APPDATA%\SCTool_Tracker\logged_kills.json`
 - **Application Logs**: `%APPDATA%\SCTool_Tracker\kill_logger.log`
+- **Updates**: `%APPDATA%\SCTool_Tracker\Updates\`
 
 ## Contributing
 

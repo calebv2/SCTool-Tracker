@@ -267,8 +267,11 @@ class TailThread(QThread):
 
         victim = data.get('victim', '').strip()
         attacker = data.get('attacker', '').strip()
-        
-        # Only filter out obvious patterns locally - let the API handle NPC detection
+
+        if KillParser.is_npc(victim):
+            logging.info(f"NPC kill detected (victim: {victim}). Not processing.")
+            return
+            
         if "subside" in victim.lower() or "subside" in attacker.lower():
             return
         if not self.registered_user:
@@ -276,6 +279,7 @@ class TailThread(QThread):
         if (attacker.lower() == self.registered_user.strip().lower() and
             victim.lower() == self.registered_user.strip().lower()):
             try:
+                from Death_kill import format_death_kill
                 captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
                 readout = format_death_kill(line, data, self.registered_user, display_timestamp, captured_game_mode)
                 self.death_detected.emit(readout, victim)
@@ -357,13 +361,21 @@ class RescanThread(QThread):
                     j_match = jump_drive_pattern.search(stripped)
                     if j_match:
                         raw_ship = j_match.group('ship')
+
+                        raw_ship = re.sub(r'_\d+$', '', raw_ship)
                         current_ship = raw_ship.replace('_', ' ')
+                        current_ship = re.sub(r'\s+\d+$', '', current_ship)
                     if "CActor::Kill:" in stripped:
                         kill_match = KILL_LOG_PATTERN.search(stripped)
                         if kill_match:
                             data = kill_match.groupdict()
                             attacker = data.get('attacker', '').lower().strip()
                             victim = data.get('victim', '').lower().strip()
+
+                            if KillParser.is_npc(victim):
+                                logging.info(f"NPC kill detected during rescan (victim: {victim}). Skipping.")
+                                continue
+                                
                             if attacker == self.registered_user:
                                 timestamp_iso = data.get('timestamp')
                                 try:
@@ -373,7 +385,13 @@ class RescanThread(QThread):
                                 local_key = f"{timestamp}::{victim}::{current_game_mode}"
                                 payload = {'log_line': stripped, 'game_mode': current_game_mode}
                                 if data.get("damage_type", "").lower() == "vehicledestruction":
-                                    payload["killer_ship"] = current_ship if current_ship else "Unknown Ship"
+                                    if current_ship:
+                                        cleaned_ship = re.sub(r'_\d+$', '', current_ship)
+                                        cleaned_ship = cleaned_ship.replace('_', ' ')
+                                        cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
+                                        payload["killer_ship"] = cleaned_ship
+                                    else:
+                                        payload["killer_ship"] = "Unknown Ship"
                                 else:
                                     payload["killer_ship"] = "Player destruction"
                                 self.found_kills.append({

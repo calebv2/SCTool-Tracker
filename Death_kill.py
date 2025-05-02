@@ -2,7 +2,7 @@
 
 def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp: str, last_game_mode: str):
     from urllib.parse import quote
-    from Kill_form import fetch_player_details, fetch_victim_image_base64
+    from fetch import fetch_player_details, fetch_victim_image_base64
     from kill_parser import KillParser
 
     attacker = data.get('attacker', 'Unknown')

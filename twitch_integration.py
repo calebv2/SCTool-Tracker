@@ -13,6 +13,12 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Callable, List
 from urllib.parse import urlparse, parse_qs
 
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
+    QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QCheckBox,
+    QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog
+)
+
 TWITCH_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "twitch_config.json")
 
 class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
@@ -573,7 +579,9 @@ class TwitchIntegration:
         try:
             scopes = [
                 "clips:edit",
-                "user:read:broadcast"
+                "user:read:broadcast",
+                "chat:edit",
+                "chat:read"
             ]
             
             scope_str = "+".join(scopes)
@@ -895,3 +903,172 @@ class TwitchIntegration:
         self.token_expiry = None
         self.broadcaster_id = ""
         self.save_config()
+
+    def send_chat_message(self, message: str) -> bool:
+        """Send a message to the broadcaster's Twitch chat"""
+        if not self.is_authenticated or not self.broadcaster_id or not self.broadcaster_name:
+            logging.error("Cannot send chat message: Not authenticated or no broadcaster info")
+            return False
+            
+        try:
+            import socket
+            import time
+            
+            server = "irc.chat.twitch.tv"
+            port = 6667
+            nickname = "sctoolbot"
+            channel = f"#{self.broadcaster_name.lower()}"
+            
+            logging.debug(f"Connecting to Twitch IRC server: {server}:{port} as {nickname} for channel {channel}")
+            
+            irc_sock = socket.socket()
+            irc_sock.settimeout(10)
+            irc_sock.connect((server, port))
+            logging.debug(f"Connected to IRC server {server}:{port}")
+            
+            if self.token_expiry and datetime.now() > self.token_expiry:
+                logging.info("Token expired, refreshing before sending chat message")
+                if not self._refresh_auth_token():
+                    logging.error("Failed to refresh token for chat message")
+                    return False
+            
+            auth_token = self.access_token
+            if not auth_token.startswith("oauth:"):
+                auth_token = f"oauth:{auth_token}"
+                
+            auth_command = f"PASS {auth_token}\r\n"
+            logging.debug(f"Sending auth command to IRC server (token hidden)")
+            irc_sock.send(auth_command.encode('utf-8'))
+            
+            nick_command = f"NICK {nickname}\r\n"
+            logging.debug(f"Sending nick command: {nick_command.strip()}")
+            irc_sock.send(nick_command.encode('utf-8'))
+            
+            response = ""
+            try:
+                start_time = time.time()
+                while time.time() - start_time < 5:
+                    try:
+                        part = irc_sock.recv(2048).decode('utf-8', errors='ignore')
+                        if not part:
+                            break
+                        
+                        response += part
+                        logging.debug(f"IRC server response: {part}")
+                        
+                        if "authentication failed" in part.lower():
+                            logging.error(f"Twitch IRC authentication failed: {part}")
+                            return False
+
+                        if " 001 " in part:
+                            logging.debug("Successfully authenticated with Twitch IRC")
+                            break
+                            
+                    except socket.timeout:
+                        break
+            except socket.timeout:
+                logging.warning("Timeout waiting for IRC server response")
+
+            join_command = f"JOIN {channel}\r\n"
+            logging.debug(f"Sending join command: {join_command.strip()}")
+            irc_sock.send(join_command.encode('utf-8'))
+            
+            try:
+                join_response = ""
+                start_time = time.time()
+                join_successful = False
+                
+                while time.time() - start_time < 3:
+                    try:
+                        part = irc_sock.recv(2048).decode('utf-8', errors='ignore')
+                        if not part:
+                            break
+                            
+                        join_response += part
+                        logging.debug(f"IRC join response: {part}")
+
+                        if f":{nickname}!{nickname}@{nickname}.tmi.twitch.tv JOIN {channel}" in part or f"JOIN {channel}" in part:
+                            join_successful = True
+                            logging.debug(f"Successfully joined channel {channel}")
+                            break
+                            
+                    except socket.timeout:
+                        break
+                        
+                if not join_successful:
+                    logging.warning(f"No explicit join confirmation received for {channel}, attempting to send message anyway")
+
+                time.sleep(0.5)
+            except socket.timeout:
+                logging.warning("Timeout waiting for join confirmation - attempting to send message anyway")
+            
+            chat_message = f"PRIVMSG {channel} :{message}\r\n"
+            logging.debug(f"Sending chat message: {chat_message.strip()}")
+            irc_sock.send(chat_message.encode('utf-8'))
+
+            try:
+                msg_response = irc_sock.recv(2048).decode('utf-8', errors='ignore')
+                logging.debug(f"Message response: {msg_response}")
+            except socket.timeout:
+                pass
+
+            time.sleep(0.5)
+
+            quit_cmd = "QUIT :Disconnecting\r\n"
+            try:
+                irc_sock.send(quit_cmd.encode('utf-8'))
+            except:
+                pass
+
+            irc_sock.close()
+            
+            logging.info(f"Message sent to Twitch chat ({channel}): {message}")
+            return True
+            
+        except socket.gaierror:
+            logging.error(f"DNS resolution failed for Twitch IRC server. Check your network connection.")
+            return False
+        except socket.timeout:
+            logging.error(f"Connection to Twitch IRC server timed out")
+            return False
+        except Exception as e:
+            logging.error(f"Failed to send chat message: {e}", exc_info=True)
+            return False
+            
+    def post_kill_to_chat(self, message: str) -> None:
+        """Post a kill notification to Twitch chat"""
+        if not self.is_ready():
+            logging.warning("Tried to post to chat but Twitch integration is not ready")
+            return
+            
+        try:
+            result = self.send_chat_message(message)
+            if result:
+                logging.info("Successfully sent kill message to Twitch chat")
+            else:
+                logging.error("Failed to send kill message to Twitch chat")
+                raise Exception("Failed to send chat message")
+        except Exception as e:
+            logging.error(f"Error posting kill to Twitch chat: {e}")
+            raise e
+
+def process_twitch_callbacks(self) -> None:
+    """Process any pending Twitch callbacks (auth or clip results) in the main thread"""
+    auth_result = self.twitch.process_auth_callback()
+    if auth_result is not None:
+        if auth_result:
+            self.update_bottom_info("twitch_connected", "Twitch Connected")
+            self.showCustomMessageBox("Twitch Integration", 
+                                    "Successfully connected to Twitch!\n\nKill clips will be created automatically.", 
+                                    QMessageBox.Information)
+            self.save_config()
+        else:
+            self.update_bottom_info("twitch_connected", "Twitch Not Connected")
+            self.showCustomMessageBox("Twitch Integration", 
+                                        "Failed to connect to Twitch. Check your credentials and try again.", 
+                                        QMessageBox.Warning)
+    
+    clip_results = self.twitch.process_clip_callbacks()
+    for clip_url, kill_data in clip_results:
+        if clip_url:
+            self.on_create_clip_finished(clip_url, kill_data)

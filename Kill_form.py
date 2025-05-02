@@ -1,4 +1,4 @@
-# Kill_form.py #2
+# Kill_form.py
 
 import sys
 import os
@@ -21,7 +21,8 @@ from typing import Optional, Dict, Any, List
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
     QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QCheckBox,
-    QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog
+    QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog,
+    QSystemTrayIcon, QMenu, QAction
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath
 from PyQt5.QtCore import (
@@ -31,7 +32,37 @@ from PyQt5.QtMultimedia import QSoundEffect
 
 from Kill_thread import ApiSenderThread, TailThread, RescanThread, MissingKillsDialog
 from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT
-from twitch_integration import TwitchIntegration
+from twitch_integration import TwitchIntegration, process_twitch_callbacks
+
+from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel
+
+APP_MUTEX_NAME = "SCToolKillfeedMutex_A5F301E7-D3E9-4F6F-BD57-4A114F103240"
+
+def is_already_running():
+    """Check if another instance of the application is already running"""
+    if sys.platform.startswith('win'):
+        mutex = ctypes.windll.kernel32.CreateMutexW(None, False, APP_MUTEX_NAME)
+        last_error = ctypes.windll.kernel32.GetLastError()
+        if last_error == 183:
+            return True
+    return False
+
+def find_existing_window():
+    """Find and activate the existing application window"""
+    if sys.platform.startswith('win'):
+        try:
+            FindWindow = ctypes.windll.user32.FindWindowW
+            SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
+            ShowWindow = ctypes.windll.user32.ShowWindow
+            hwnd = FindWindow(None, "SCTool Killfeed 4.5")
+            
+            if hwnd:
+                ShowWindow(hwnd, 9)
+                SetForegroundWindow(hwnd)
+                return True
+        except Exception as e:
+            logging.error(f"Error finding existing window: {e}")
+    return False
 
 def dark_title_bar_for_pyqt5(widget: QWidget) -> None:
     if sys.platform.startswith("win"):
@@ -78,149 +109,13 @@ SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
 PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
-def fetch_player_details(playername: str) -> Dict[str, str]:
-    if playername in PLAYER_DETAILS_CACHE:
-        return PLAYER_DETAILS_CACHE[playername]
-
-    details = {"enlistment_date": "None", "occupation": "None", "org_name": "None", "org_tag": "None"}
-    try:
-        url = f"https://robertsspaceindustries.com/citizens/{playername}"
-        response = SESSION.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            enlistment_label = soup.find("span", class_="label", string="Enlisted")
-            if enlistment_label:
-                enlistment_date_elem = enlistment_label.find_next("strong", class_="value")
-                if enlistment_date_elem:
-                    details["enlistment_date"] = enlistment_date_elem.text.strip()
-
-        api_url = "https://robertsspaceindustries.com/api/spectrum/search/member/autocomplete"
-        autocomplete_name = playername[:-1] if len(playername) > 1 else playername
-        payload = {"community_id": "1", "text": autocomplete_name}
-        headers2 = {"Content-Type": "application/json"}
-        response2 = SESSION.post(api_url, headers=headers2, json=payload, timeout=10)
-        if response2.status_code == 200:
-            data = response2.json()
-            correct_player = None
-            for member in data.get("data", {}).get("members", []):
-                if member.get("nickname", "").lower() == playername.lower():
-                    correct_player = member
-                    break
-            if correct_player:
-                badges = correct_player.get("meta", {}).get("badges", [])
-                for badge in badges:
-                    if "url" in badge and "/orgs/" in badge["url"]:
-                        details["org_name"] = badge.get("name", "None")
-                        parts = badge["url"].split('/')
-                        details["org_tag"] = parts[-1] if parts[-1] else "None"
-                    elif "name" in badge and details["occupation"] == "None":
-                        details["occupation"] = badge.get("name", "None")
-        else:
-            logging.error(f"Autocomplete API request failed for {playername} with status code {response2.status_code}")
-    except Exception as e:
-        logging.error(f"Error fetching player details for {playername}: {e}")
-
-    PLAYER_DETAILS_CACHE[playername] = details
-    return details
-
-def fetch_victim_image_base64(victim_name: str) -> str:
-    default_image_url = "https://cdn.robertsspaceindustries.com/static/images/account/avatar_default_big.jpg"
-    url = f"https://robertsspaceindustries.com/citizens/{quote(victim_name)}"
-    final_url = default_image_url
-    try:
-        response = SESSION.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            profile_pic = soup.select_one('.thumb img')
-            if profile_pic and profile_pic.has_attr("src"):
-                src = profile_pic['src']
-                if src.startswith("http://") or src.startswith("https://"):
-                    final_url = src
-                else:
-                    if not src.startswith("/"):
-                        src = "/" + src
-                    final_url = f"https://robertsspaceindustries.com{src}"
-    except Exception as e:
-        logging.error(f"Error determining victim image URL for {victim_name}: {e}")
-        final_url = default_image_url
-    try:
-        r = SESSION.get(final_url, timeout=10)
-        if r.status_code == 200:
-            content_type = r.headers.get("Content-Type", "image/jpeg")
-            if not content_type or "image" not in content_type:
-                content_type = "image/jpeg"
-            b64_data = base64.b64encode(r.content).decode("utf-8")
-            return f"data:{content_type};base64,{b64_data}"
-    except Exception as e:
-        logging.error(f"Error fetching actual image data for {victim_name}: {e}")
-    return default_image_url
-
-class CollapsibleSettingsPanel(QWidget):
-    """A custom widget that represents a collapsible panel for settings"""
-    
-    def __init__(self, title, parent=None):
-        super().__init__(parent)
-        self.setObjectName(f"panel_{title.lower().replace(' ', '_')}")
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        self.setMinimumWidth(400)
-        
-        self.toggle_button = QPushButton(f"▼ {title}")
-        self.toggle_button.setStyleSheet(
-            "QPushButton { text-align: left; padding: 10px; font-weight: bold; "
-            "background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #2a2a2a; "
-            "border-radius: 4px 4px 0 0; }"
-            "QPushButton:hover { background-color: #2a2a2a; }"
-        )
-        self.toggle_button.clicked.connect(self.toggle_content)
-        self.toggle_button.setMinimumWidth(300)
-        layout.addWidget(self.toggle_button)
-        
-        self.content = QWidget()
-        self.content.setMinimumWidth(300)
-        self.content_layout = QFormLayout(self.content)
-        self.content_layout.setContentsMargins(15, 15, 15, 15)
-        self.content_layout.setVerticalSpacing(10)
-        self.content_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        self.content.setStyleSheet(
-            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
-            "border-top: none; border-radius: 0 0 4px 4px; }"
-        )
-        self.content.setVisible(False)
-        layout.addWidget(self.content)
-        
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-    
-    def toggle_content(self):
-        self.content.setVisible(not self.content.isVisible())
-        arrow = "▲" if self.content.isVisible() else "▼"
-        title = self.toggle_button.text()[2:]
-        self.toggle_button.setText(f"{arrow} {title}")
-        
-    def add_row(self, label, widget):
-        if isinstance(label, str):
-            label_widget = QLabel(label)
-            label_widget.setStyleSheet("color: #ffffff; font-weight: bold; background: transparent; border: none;")
-            self.content_layout.addRow(label_widget, widget)
-        else:
-            self.content_layout.addRow(label, widget)
-    
-    def add_widget(self, widget, stretch=False):
-        """Add a single widget that spans the entire row"""
-        if stretch:
-            self.content_layout.addRow("", widget)
-        else:
-            self.content_layout.addRow(widget)
-
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "4.2"
+    __version__ = "4.5"
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 4.2")
+        self.setWindowTitle("SCTool Killfeed 4.5")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -246,61 +141,158 @@ class KillLoggerGUI(QMainWindow):
             "api_connection": "",
             "twitch_connected": ""
         }
+
+        self.minimize_to_tray = False
+        self.start_with_system = False
+        self.tray_icon = None
+        self.tray_menu = None
+        
         self.last_animation_timer = None
         self.stats_panel_visible = True
         self.twitch_enabled = False
         self.twitch = TwitchIntegration()
         self.clip_creation_enabled = True
+        self.chat_posting_enabled = True
         self.clips: Dict[str, str] = {}
         self.twitch_callback_timer = QTimer()
-        self.twitch_callback_timer.timeout.connect(self.process_twitch_callbacks)
+        self.twitch_callback_timer.timeout.connect(lambda: process_twitch_callbacks(self))
         self.twitch_callback_timer.start(1000)
+        self.last_clip_creation_time = 0
+        self.current_clip_group_id = ""
+        self.clip_group_window_seconds = 10
+        self.clip_groups: Dict[str, List[str]] = {}
 
-        self.init_ui()
-        self.load_config()
-        self.load_local_kills()
-        self.apply_styles()
+        init_ui(self)
+        load_config(self)
+        load_local_kills(self)
+        apply_styles(self)
+        self.initialize_system_tray()
 
-    def load_config(self) -> None:
-        if os.path.isfile(CONFIG_FILE):
+    def create_nav_button(self, text, obj_name=None):
+        """Create a styled navigation button for the sidebar"""
+        button = QPushButton(text)
+        button.setStyleSheet(
+            "QPushButton { text-align: left; padding: 12px 15px; font-weight: bold; color: #bbbbbb; "
+            "background-color: transparent; border: none; border-left: 3px solid transparent; }"
+            "QPushButton:hover { color: #ffffff; background-color: #222222; border-left: 3px solid #f04747; }"
+            "QPushButton:checked { color: #ffffff; background-color: #252525; border-left: 3px solid #f04747; }"
+        )
+        if obj_name:
+            button.setObjectName(obj_name)
+        return button
+
+    def create_stat_card(self, label_text, value_text, value_color):
+        """Create a styled stat card widget"""
+        card = QWidget()
+        card.setStyleSheet("border: none; background: #1a1a1a; border-radius: 8px;")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(5)
+        
+        value = QLabel(value_text)
+        value.setObjectName("stat_value")
+        value.setStyleSheet(
+            f"QLabel {{ color: {value_color}; font-size: 24px; font-weight: bold; background: transparent; border: none; }}"
+        )
+        value.setAlignment(Qt.AlignCenter)
+        
+        label = QLabel(label_text)
+        label.setStyleSheet(
+            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
+        )
+        label.setAlignment(Qt.AlignCenter)
+        
+        layout.addWidget(value)
+        layout.addWidget(label)
+        
+        return card
+
+    def initialize_system_tray(self) -> None:
+        """Set up the system tray icon and menu"""
+        if QSystemTrayIcon.isSystemTrayAvailable():
+
+            self.tray_icon = QSystemTrayIcon(self)
+            self.tray_icon.setIcon(QIcon(resource_path("chris2.ico")))
+            self.tray_icon.setToolTip("SCTool Killfeed")
+            self.tray_menu = QMenu()
+            show_action = QAction("Open SCTool", self)
+            show_action.triggered.connect(self.show_from_tray)
+            stats_action = QAction(f"Kills: {self.kill_count} | Deaths: {self.death_count}", self)
+            stats_action.setEnabled(False)
+            
+            quit_action = QAction("Quit", self)
+            quit_action.triggered.connect(self.quit_application)
+
+            self.tray_menu.addAction(show_action)
+            self.tray_menu.addAction(stats_action)
+            self.tray_menu.addSeparator()
+            self.tray_menu.addAction(quit_action)
+            self.tray_icon.setContextMenu(self.tray_menu)
+            self.tray_stats_timer = QTimer(self)
+            self.tray_stats_timer.timeout.connect(lambda: self.update_tray_stats(stats_action))
+            self.tray_stats_timer.start(5000)
+            self.tray_icon.activated.connect(self.on_tray_icon_activated)
+            
+            self.tray_icon.show()
+            
+            logging.info("System tray icon initialized")
+            
+    def update_tray_stats(self, stats_action: QAction) -> None:
+        """Update the kill/death stats in the tray menu"""
+        if self.tray_icon and stats_action:
+            stats_action.setText(f"Kills: {self.kill_count} | Deaths: {self.death_count}")
+            
+    def on_tray_icon_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Handle activation of the tray icon"""
+        if reason == QSystemTrayIcon.DoubleClick:
+            self.show_from_tray()
+            
+    def show_from_tray(self) -> None:
+        """Show the main window when activated from tray"""
+        self.showNormal()
+        self.activateWindow()
+        
+    def quit_application(self) -> None:
+        """Completely quit the application including tray icon"""
+        if self.tray_icon:
+            self.tray_icon.hide()
+        self.close()
+        
+    def setup_autostart(self, enable: bool) -> None:
+        """Set up or remove the autostart entry for Windows"""
+        if sys.platform.startswith("win"):
+            import winreg
+            
             try:
-                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                    config = json.load(f)  # This line was missing
-                    
-                self.kill_sound_enabled = config.get('kill_sound', False)
-                self.kill_sound_checkbox.setChecked(self.kill_sound_enabled)
-                self.kill_sound_path = config.get('kill_sound_path', resource_path("kill.wav"))
-                self.kill_sound_volume = config.get('kill_sound_volume', 100)
-                self.log_path_input.setText(config.get('log_path', ''))
-                self.api_key = config.get('api_key', '')
-                self.api_key_input.setText(self.api_key)
-                self.local_user_name = config.get('local_user_name', '')
-                self.kill_sound_path_input.setText(self.kill_sound_path)
-                self.volume_slider.setValue(self.kill_sound_volume)
-                self.send_to_api_checkbox.setChecked(config.get('send_to_api', True))
-                self.ship_combo.setCurrentText(config.get('killer_ship', 'No Ship'))
-                self.twitch_enabled = config.get('twitch_enabled', False)
-                self.twitch_enabled_checkbox.setChecked(self.twitch_enabled)
-                self.clip_creation_enabled = config.get('clip_creation_enabled', True)
-                self.clip_creation_checkbox.setChecked(self.clip_creation_enabled)
-                self.clips = config.get('clips', {})
-                self.twitch.clip_delay_seconds = config.get('clip_delay_seconds', 0)
-                self.clip_delay_slider.setValue(self.twitch.clip_delay_seconds)
-                self.clip_delay_value.setText(f"{self.twitch.clip_delay_seconds} seconds")
-
-                twitch_channel = config.get('twitch_channel', '')
-                if twitch_channel:
-                    self.twitch_channel_input.setText(twitch_channel)
-                    self.twitch.set_broadcaster_name(twitch_channel)
-
-                if self.twitch.is_ready():
-                    self.update_bottom_info("twitch_connected", "Twitch Connected")
+                app_path = os.path.abspath(sys.executable)
+                app_name = "SCTool_Killfeed"
+                
+                registry_key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Run",
+                    0,
+                    winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE
+                )
+                
+                if enable:
+                    winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, f'"{app_path}"')
+                    logging.info(f"Added application to startup: {app_path}")
                 else:
-                    self.update_bottom_info("twitch_connected", "Twitch Not Connected")
-
-                self.twitch_enabled_checkbox.stateChanged.connect(self.on_twitch_enabled_changed)
+                    try:
+                        winreg.DeleteValue(registry_key, app_name)
+                        logging.info("Removed application from startup")
+                    except FileNotFoundError:
+                        pass
+                    
+                winreg.CloseKey(registry_key)
+                return True
+                
             except Exception as e:
-                logging.error(f"Failed to load config: {e}")
+                logging.error(f"Error managing autostart: {e}")
+                return False
+        else:
+            logging.warning("Autostart is only supported on Windows")
+            return False
 
     def save_config(self) -> None:
         ship_value = self.ship_combo.currentText().strip()
@@ -319,8 +311,11 @@ class KillLoggerGUI(QMainWindow):
             'twitch_enabled': self.twitch_enabled,
             'twitch_channel': self.twitch_channel_input.text().strip(),
             'clip_creation_enabled': self.clip_creation_enabled,
+            'chat_posting_enabled': self.chat_posting_enabled,
             'clips': self.clips,
-            'clip_delay_seconds': self.clip_delay_slider.value()
+            'clip_delay_seconds': self.clip_delay_slider.value(),
+            'minimize_to_tray': self.minimize_to_tray,
+            'start_with_system': self.start_with_system
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -619,36 +614,29 @@ class KillLoggerGUI(QMainWindow):
     def handle_api_response(self, message: str, local_key: str, timestamp: str) -> None:
         normalized_message = message.strip().lower()
         
-        # Check if the API identified an NPC kill
-        if "npc kill not logged" in normalized_message:
+
+        if "npc kill not logged" in normalized_message or "npc not logged" in normalized_message:
             logging.info(f"API identified NPC kill: {local_key}")
-            
-            # Find and remove the kill from the kill display
+
             if local_key in self.local_kills and "readout" in self.local_kills[local_key]:
                 readout_to_remove = self.local_kills[local_key]["readout"]
                 
-                # Get current HTML content
                 html_content = self.kill_display.toHtml()
                 
-                # Remove the kill entry from display
                 if readout_to_remove in html_content:
                     new_html = html_content.replace(readout_to_remove, "")
                     self.kill_display.setHtml(new_html)
-                    
-                    # Reduce kill count since it was an NPC kill
                     self.kill_count -= 1
                     if self.kill_count < 0:
                         self.kill_count = 0
                     self.update_kill_death_stats()
                     logging.info(f"Removed NPC kill from display and adjusted kill count to {self.kill_count}")
-                
-                # Remove from local kills collection
+
                 del self.local_kills[local_key]
                 self.save_local_kills()
                 logging.info(f"Removed NPC kill from local storage: {local_key}")
             return
-            
-        # Handle other API response types
+
         ignore_responses = {"subside kill not logged.", "self kill not logged."}
         if normalized_message in ignore_responses:
             logging.info(f"Ignored kill event for {local_key} with message: {message}")
@@ -732,19 +720,6 @@ class KillLoggerGUI(QMainWindow):
         except Exception as e:
             logging.error(f"Error fetching user image for {username}: {e}")
 
-    def load_local_kills(self):
-        if os.path.isfile(self.kills_local_file):
-            try:
-                with open(self.kills_local_file, 'r', encoding='utf-8') as f:
-                    self.local_kills = json.load(f)
-                logging.info(f"Loaded {len(self.local_kills)} kills from local JSON.")
-            except Exception as e:
-                logging.error(f"Failed to load local kills: {e}")
-                self.local_kills = {}
-        else:
-            self.local_kills = {}
-            self.save_local_kills()
-
     def save_local_kills(self):
         try:
             with open(self.kills_local_file, 'w', encoding='utf-8') as f:
@@ -753,183 +728,65 @@ class KillLoggerGUI(QMainWindow):
         except Exception as e:
             logging.error(f"Failed to save local kills: {e}")
 
-    def apply_styles(self) -> None:
-        style = """
-            QWidget { background-color: #0d0d0d; color: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
-            QGroupBox { 
-                border: 1px solid #2a2a2a; 
-                border-radius: 8px; 
-                margin-top: 10px; 
-                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                stop:0 #1a1a1a, stop:1 #141414); 
-                padding-top: 16px; 
-            }
-            QGroupBox::title { 
-                subcontrol-origin: margin; 
-                subcontrol-position: top left; 
-                padding: 0 10px; 
-                color: #f04747; 
-                font-weight: bold; 
-                background-color: #141414; 
-                border-radius: 4px;
-            }
-            QLineEdit { 
-                background-color: #1e1e1e; 
-                border: 1px solid #2a2a2a; 
-                border-radius: 4px; 
-                padding: 6px; 
-                color: #f0f0f0;
-            }
-            QLineEdit:hover, QLineEdit:focus { 
-                border-color: #f04747; 
-                background-color: #252525;
-            }
-            QPushButton { 
-                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                stop:0 #303030, stop:1 #1e1e1e); 
-                border: 1px solid #2a2a2a; 
-                border-radius: 4px; 
-                padding: 8px 12px; 
-                color: #f0f0f0; 
-                font-weight: bold;
-            }
-            QPushButton:hover { 
-                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                stop:0 #454545, stop:1 #303030); 
-                border-color: #f04747;
-            }
-            QPushButton:pressed { 
-                background-color: #1e1e1e; 
-            }
-            QCheckBox { 
-                color: #f0f0f0; 
-                spacing: 8px;
-            }
-            QCheckBox::indicator { 
-                width: 18px; 
-                height: 18px; 
-                border: 1px solid #2a2a2a; 
-                border-radius: 4px; 
-                background-color: #1e1e1e;
-            }
-            QCheckBox::indicator:checked { 
-                background-color: #f04747; 
-                border-color: #f04747;
-                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOCIgaGVpZ2h0PSIxOCIgdmlld0JveD0iMCAwIDE4IDE4Ij48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNi43IDEzbDYuOC02LjgtMS40LTEuNC01LjQgNS40LTIuNC0yLjQtMS40IDEuNHoiLz48L3N2Zz4=);
-            }
-            QCheckBox::indicator:hover { 
-                border-color: #f04747;
-            }
-            QTextBrowser { 
-                background-color: #121212; 
-                border: 1px solid #2a2a2a; 
-                border-radius: 8px; 
-                padding: 10px; 
-                font-family: 'Segoe UI', sans-serif;
-                selection-background-color: #f04747;
-                selection-color: #ffffff;
-            }
-            QComboBox { 
-                background-color: #1e1e1e; 
-                border: 1px solid #2a2a2a; 
-                border-radius: 4px; 
-                padding: 6px 12px; 
-                padding-right: 20px;
-                color: #f0f0f0;
-            }
-            QComboBox:hover { 
-                border-color: #f04747;
-                background-color: #252525; 
-            }
-            QComboBox::drop-down { 
-                border: none; 
-                width: 20px;
-            }
-            QComboBox::down-arrow { 
-                width: 0; 
-                height: 0; 
-                border-left: 5px solid transparent; 
-                border-right: 5px solid transparent; 
-                border-top: 5px solid #f04747; 
-                margin-right: 8px;
-            }
-            QScrollBar:vertical { 
-                background: #1a1a1a; 
-                width: 12px; 
-                margin: 0;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical { 
-                background: #2a2a2a; 
-                min-height: 20px; 
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical:hover { 
-                background: #f04747;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { 
-                height: 0; 
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { 
-                background: none;
-            }
-            QSlider::groove:horizontal {
-                height: 8px;
-                background: #1a1a1a;
-                border-radius: 4px;
-            }
-            QSlider::handle:horizontal {
-                background: #f04747;
-                border: 1px solid #d03737;
-                width: 16px;
-                height: 16px;
-                margin: -5px 0;
-                border-radius: 8px;
-            }
-            QSlider::sub-page:horizontal {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #d03737, stop:1 #f04747);
-                border-radius: 4px;
-            }
-            QLabel {
-                background: transparent;
-                border: none;
-            }
-            a { 
-                color: #f04747; 
-                text-decoration: none;
-            }
-            a:hover {
-                text-decoration: underline;
-            }
-        """
-        self.setStyleSheet(style)
-
     def check_for_updates(self) -> None:
-        """Check for newer versions of the application"""
-        try:
-            update_url = "https://starcitizentool.com/api/v1/latest_version"  # Correct endpoint
-            headers = {
-                'User-Agent': self.user_agent,
-                'X-Client-ID': self.__client_id__,
-                'X-Client-Version': self.__version__
-            }
-            
-            response = requests.get(update_url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                latest_version = data.get('latest_version')
-                download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
-                
-                if latest_version and version.parse(latest_version) > version.parse(self.__version__):
-                    logging.info(f"Update available: {latest_version} (current: {self.__version__})")
-                    self.notify_update(latest_version, download_url)
-                else:
-                    logging.info(f"No updates available. Current version: {self.__version__}, Latest: {latest_version}")
-            else:
-                logging.warning(f"Update check failed with status code: {response.status_code}")
-        except Exception as e:
-            logging.error(f"Error checking for updates: {e}")
+         """Check for newer versions of the application"""
+         try:
+             update_url = "https://starcitizentool.com/api/v1/latest_version"  # Correct endpoint
+             headers = {
+                 'User-Agent': self.user_agent,
+                 'X-Client-ID': self.__client_id__,
+                 'X-Client-Version': self.__version__
+             }
+ 
+             response = requests.get(update_url, headers=headers, timeout=10)
+             if response.status_code == 200:
+                 data = response.json()
+                 latest_version = data.get('latest_version')
+                 download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
+ 
+                 if latest_version and version.parse(latest_version) > version.parse(self.__version__):
+                     logging.info(f"Update available: {latest_version} (current: {self.__version__})")
+                     self.notify_update(latest_version, download_url)
+                 else:
+                     logging.info(f"No updates available. Current version: {self.__version__}, Latest: {latest_version}")
+             else:
+                 logging.warning(f"Update check failed with status code: {response.status_code}")
+         except Exception as e:
+             logging.error(f"Error checking for updates: {e}")
+ 
+    def notify_update(self, latest_version: str, download_url: str) -> None:
+        update_message = (
+            f"<p>A new version (<b>{latest_version}</b>) is available!</p>"
+            f"<p>An update is required to continue using SCTool Tracker.</p>"
+            f"<p>Please choose your update method:</p>"
+        )
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Update Required")
+        msg_box.setText(update_message)
+        msg_box.setIcon(QMessageBox.Warning)
+        msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+        auto_btn = msg_box.addButton("Auto Update", QMessageBox.AcceptRole)
+        manual_btn = msg_box.addButton("Download Manually", QMessageBox.ActionRole)
+        close_btn = msg_box.addButton("Exit Application", QMessageBox.RejectRole)
+
+        msg_box.setDefaultButton(auto_btn)
+        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowCloseButtonHint)
+
+        msg_box.exec_()
+
+        clicked_button = msg_box.clickedButton()
+        if clicked_button == auto_btn:
+            self.auto_update(latest_version, download_url)
+        elif clicked_button == manual_btn:
+            QDesktopServices.openUrl(QUrl(download_url))
+            self.save_config()
+            sys.exit(0)
+        else:
+            self.save_config()
+            import os
+            os._exit(0)
 
     def showCustomMessageBox(self, title, message, icon=QMessageBox.Information):
         msg_box = QMessageBox(self)
@@ -940,7 +797,7 @@ class KillLoggerGUI(QMainWindow):
             "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
             "QLabel { color: #f0f0f0; }"
             "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px 12px; }"
+            "border: 1px solid #ffffff; border-radius: 4px; padding: 6px 12px; }"
             "QPushButton:hover { background-color: #f04747; }"
         )
         
@@ -1066,620 +923,6 @@ class KillLoggerGUI(QMainWindow):
         except Exception as e:
             logging.error(f"Error updating API with clip URL: {e}")
 
-    def init_ui(self) -> None:
-        main_widget = QWidget()
-        main_widget.setStyleSheet(
-            "QWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
-            "stop:0 #1a1a1a, stop:1 #0d0d0d); "
-            "border: 1px solid #2a2a2a; border-radius: 10px; }"
-        )
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(15)
-        
-        status_layout = QHBoxLayout()
-
-        self.monitoring_indicator = QLabel()
-        self.monitoring_indicator.setFixedSize(16, 16)
-        self.update_monitor_indicator(False)
-        
-        self.api_indicator = QLabel()
-        self.api_indicator.setFixedSize(16, 16)
-        self.update_api_indicator(False)
-        
-        self.twitch_indicator = QLabel()
-        self.twitch_indicator.setFixedSize(16, 16)
-        self.update_twitch_indicator(False)
-        
-        status_panel = QWidget()
-        status_panel.setStyleSheet("QWidget { background-color: #151515; border-radius: 8px; border: 1px solid #2d2d2d; }")
-        status_panel_layout = QHBoxLayout(status_panel)
-        status_panel_layout.setContentsMargins(10, 6, 10, 6)
-        
-        for label_text, indicator in [
-            ("MONITORING", self.monitoring_indicator),
-            ("API CONNECTED", self.api_indicator),
-            ("TWITCH CONNECTED", self.twitch_indicator)
-        ]:
-            label = QLabel(label_text)
-            label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
-            indicator_layout = QHBoxLayout()
-            indicator_layout.setSpacing(6)
-            indicator_layout.addWidget(indicator)
-            indicator_layout.addWidget(label)
-            status_panel_layout.addLayout(indicator_layout)
-            status_panel_layout.addSpacing(10)
-        
-        self.user_display = QLabel("User: Not logged in")
-        self.user_display.setStyleSheet(
-            "QLabel { color: #f0f0f0; background: transparent; border: none; }"
-        )
-        self.game_mode_display = QLabel("Mode: Unknown")
-        self.game_mode_display.setStyleSheet(
-            "QLabel { color: #00ccff; background: transparent; border: none; }"
-        )
-        
-        status_panel_layout.addWidget(self.user_display)
-        status_panel_layout.addStretch()
-        status_panel_layout.addWidget(self.game_mode_display)
-        
-        main_layout.addWidget(status_panel)
-        
-        self.stats_panel = QWidget()
-        self.stats_panel.setStyleSheet(
-            "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
-            "border: 1px solid #333333; }"
-        )
-        stats_layout = QHBoxLayout(self.stats_panel)
-        stats_layout.setContentsMargins(15, 10, 15, 10)
-        self.user_profile_container = QWidget()
-        self.user_profile_container.setStyleSheet("border: none; background: transparent;")
-        user_profile_layout = QVBoxLayout(self.user_profile_container)
-        user_profile_layout.setContentsMargins(0, 0, 15, 0)
-        user_profile_layout.setSpacing(4)
-        self.user_profile_image = QLabel()
-        self.user_profile_image.setFixedSize(64, 64)
-        self.user_profile_image.setStyleSheet(
-            "QLabel { border-radius: 32px; border: 2px solid #333333; background-color: #1a1a1a; }"
-        )
-        self.user_profile_image.setAlignment(Qt.AlignCenter)
-        
-        user_profile_layout.addWidget(self.user_profile_image, alignment=Qt.AlignCenter)
-        self.set_default_user_image()
-        stats_layout.addWidget(self.user_profile_container)
-        
-        kill_stats = QWidget()
-        kill_stats.setStyleSheet("border: none; background: transparent;")
-        kill_layout = QVBoxLayout(kill_stats)
-        kill_layout.setContentsMargins(0, 0, 0, 0)
-        kill_layout.setSpacing(2)
-        
-        self.kill_count_display = QLabel("0")
-        self.kill_count_display.setStyleSheet(
-            "QLabel { color: #66ff66; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
-        )
-        self.kill_count_display.setAlignment(Qt.AlignCenter)
-        
-        kill_label = QLabel("KILLS")
-        kill_label.setStyleSheet(
-            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
-        )
-        kill_label.setAlignment(Qt.AlignCenter)
-        
-        kill_layout.addWidget(self.kill_count_display)
-        kill_layout.addWidget(kill_label)
-        
-        death_stats = QWidget()
-        death_stats.setStyleSheet("border: none; background: transparent;")
-        death_layout = QVBoxLayout(death_stats)
-        death_layout.setContentsMargins(0, 0, 0, 0)
-        death_layout.setSpacing(2)
-        
-        self.death_count_display = QLabel("0")
-        self.death_count_display.setStyleSheet(
-            "QLabel { color: #f04747; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
-        )
-        self.death_count_display.setAlignment(Qt.AlignCenter)
-        
-        death_label = QLabel("DEATHS")
-        death_label.setStyleSheet(
-            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
-        )
-        death_label.setAlignment(Qt.AlignCenter)
-        
-        death_layout.addWidget(self.death_count_display)
-        death_layout.addWidget(death_label)
-
-        kd_stats = QWidget()
-        kd_stats.setStyleSheet("border: none; background: transparent;")
-        kd_layout = QVBoxLayout(kd_stats)
-        kd_layout.setContentsMargins(0, 0, 0, 0)
-        kd_layout.setSpacing(2)
-        
-        self.kd_ratio_display = QLabel("--")
-        self.kd_ratio_display.setStyleSheet(
-            "QLabel { color: #00ccff; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
-        )
-        self.kd_ratio_display.setAlignment(Qt.AlignCenter)
-        
-        kd_label = QLabel("K/D RATIO")
-        kd_label.setStyleSheet(
-            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
-        )
-        kd_label.setAlignment(Qt.AlignCenter)
-        
-        kd_layout.addWidget(self.kd_ratio_display)
-        kd_layout.addWidget(kd_label)
-
-        session_stats = QWidget()
-        session_stats.setStyleSheet("border: none; background: transparent;")
-        session_layout = QVBoxLayout(session_stats)
-        session_layout.setContentsMargins(0, 0, 0, 0)
-        session_layout.setSpacing(2)
-        
-        self.session_time_display = QLabel("00:00")
-        self.session_time_display.setStyleSheet(
-            "QLabel { color: #ffffff; font-size: 24px; font-weight: bold; background: transparent; border: none; }"
-        )
-        self.session_time_display.setAlignment(Qt.AlignCenter)
-        
-        session_label = QLabel("SESSION TIME")
-        session_label.setStyleSheet(
-            "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
-        )
-        session_label.setAlignment(Qt.AlignCenter)
-        
-        session_layout.addWidget(self.session_time_display)
-        session_layout.addWidget(session_label)
-        
-        self.toggle_stats_btn = QPushButton("▲")
-        self.toggle_stats_btn.setFixedSize(24, 24)
-        self.toggle_stats_btn.setStyleSheet(
-            "QPushButton { background-color: transparent; border: none; color: #aaaaaa; }"
-            "QPushButton:hover { color: #ffffff; }"
-        )
-        self.toggle_stats_btn.clicked.connect(self.toggle_stats_panel)
-        
-        stats_layout.addWidget(kill_stats)
-        stats_layout.addWidget(death_stats)
-        stats_layout.addWidget(kd_stats)
-        stats_layout.addWidget(session_stats)
-        stats_layout.addWidget(self.toggle_stats_btn, alignment=Qt.AlignTop)
-        
-        main_layout.addWidget(self.stats_panel)
-        
-        self.session_start_time = None
-        self.session_timer = QTimer()
-        self.session_timer.timeout.connect(self.update_session_time)
-
-        settings_container = QWidget()
-        settings_container.setStyleSheet("QWidget { background: transparent; border: none; }")
-        settings_container_layout = QVBoxLayout(settings_container)
-        settings_container_layout.setContentsMargins(0, 0, 0, 0)
-        settings_container_layout.setSpacing(8)
-
-        tab_bar = QWidget()
-        tab_bar.setStyleSheet("QWidget { background: transparent; border: none; }")
-        tab_layout = QHBoxLayout(tab_bar)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.setSpacing(2)
-        
-        self.settings_collapsed = False
-        self.collapse_indicator = QPushButton("▼")
-        self.collapse_indicator.setFixedSize(36, 36)  # Match tab button height
-        self.collapse_indicator.setToolTip("Collapse/Expand Settings Panels")
-        self.collapse_indicator.setStyleSheet(
-            "QPushButton { background-color: #1e1e1e; border: 1px solid #2a2a2a; color: #ffffff; border-radius: 3px; }"
-            "QPushButton:hover { color: #f04747; border-color: #f04747; }"
-        )
-        self.collapse_indicator.clicked.connect(self.toggle_settings_panels)
-        tab_layout.addWidget(self.collapse_indicator)
-        
-        self.settings_content = QWidget()
-        self.settings_content.setStyleSheet("QWidget { background: transparent; border: none; }")
-        self.settings_content_layout = QVBoxLayout(self.settings_content)
-        self.settings_content_layout.setContentsMargins(0, 0, 0, 0)
-        self.settings_content_layout.setSpacing(0)
-        
-        self.tab_buttons = []
-        self.panels = []
-
-        controls_button = QPushButton("CONTROLS")
-        controls_button.setCheckable(True)
-        controls_button.setObjectName("controls_tab")
-        self.tab_buttons.append(controls_button)
-        
-        controls_panel = QWidget()
-        controls_panel_layout = QVBoxLayout(controls_panel)
-        controls_panel_layout.setContentsMargins(15, 15, 15, 15)
-        controls_panel_layout.setSpacing(10)
-        controls_panel.setStyleSheet(
-            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
-            "border-top: none; border-radius: 0 0 8px 8px; }"
-        )
-        
-        button_layout = QHBoxLayout()
-        self.start_button = QPushButton("Start Monitoring")
-        self.start_button.setIcon(QIcon(resource_path("start_icon.png")))
-        self.start_button.clicked.connect(self.toggle_monitoring)
-        self.start_button.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #f04747, stop:1 #d03737); }"
-            "QPushButton:pressed { background: #d03737; }"
-        )
-        self.start_button.setMinimumWidth(120)
-        button_layout.addWidget(self.start_button)
-        button_layout.addSpacing(20)
-
-        self.rescan_button = QPushButton("Find Missed Kills")
-        self.rescan_button.setIcon(QIcon(resource_path("search_icon.png")))
-        self.rescan_button.clicked.connect(self.on_rescan_button_clicked)
-        self.rescan_button.setEnabled(False)
-        self.rescan_button.setToolTip("You must start monitoring first before searching for missed kills")
-        self.rescan_button.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #f04747, stop:1 #d03737); }"
-            "QPushButton:pressed { background: #d03737; }"
-        )
-        self.rescan_button.setMinimumWidth(120)
-        button_layout.addWidget(self.rescan_button)
-        button_layout.addSpacing(20)
-
-        self.export_button = QPushButton("Export Logs")
-        self.export_button.setIcon(QIcon(resource_path("export_icon.png")))
-        self.export_button.clicked.connect(self.export_logs)
-        self.export_button.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #f04747, stop:1 #d03737); }"
-            "QPushButton:pressed { background: #d03737; }"
-        )
-        self.export_button.setMinimumWidth(120)
-        button_layout.addWidget(self.export_button)
-        button_layout.addSpacing(20)
-
-        self.files_button = QPushButton("SCTool Tracker Files")
-        self.files_button.setIcon(QIcon(resource_path("files_icon.png")))
-        self.files_button.clicked.connect(self.open_tracker_files)
-        self.files_button.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #323232, stop:1 #232323); color: white; border: none; "
-            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #f04747, stop:1 #d03737); }"
-            "QPushButton:pressed { background: #d03737; }"
-        )
-        self.files_button.setMinimumWidth(120)
-        button_layout.addWidget(self.files_button)
-        controls_panel_layout.addLayout(button_layout)
-        
-        self.panels.append(controls_panel)
-
-        api_button = QPushButton("API SETTINGS")
-        api_button.setCheckable(True)
-        api_button.setObjectName("api_tab")
-        self.tab_buttons.append(api_button)
-        
-        api_panel = QWidget()
-        api_panel_layout = QFormLayout(api_panel)
-        api_panel_layout.setContentsMargins(15, 15, 15, 15)
-        api_panel_layout.setSpacing(10)
-        api_panel.setStyleSheet(
-            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
-            "border-top: none; border-radius: 0 0 8px 8px; }"
-        )
-        
-        self.send_to_api_checkbox = QCheckBox("Send Kills to API")
-        self.send_to_api_checkbox.setChecked(True)
-        self.send_to_api_checkbox.setStyleSheet(
-            "QCheckBox { color: #ffffff; spacing: 5px; background: transparent; border: none; }"
-            "QCheckBox::indicator { width: 16px; height: 16px; }"
-            "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
-            "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
-            "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
-        )
-        api_panel_layout.addRow("", self.send_to_api_checkbox)
-        
-        self.api_key_input = QLineEdit()
-        self.api_key_input.setPlaceholderText("Enter your API key here")
-        self.api_key_input.setStyleSheet(
-            "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 6px; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; }"
-            "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
-        )
-        self.api_key_input.setMinimumWidth(200)
-        api_panel_layout.addRow(self.create_form_label("API Key:"), self.api_key_input)
-        
-        self.panels.append(api_panel)
-        
-        game_button = QPushButton("GAME SETTINGS")
-        game_button.setCheckable(True)
-        game_button.setObjectName("game_tab")
-        self.tab_buttons.append(game_button)
-        
-        game_panel = QWidget()
-        game_panel_layout = QFormLayout(game_panel)
-        game_panel_layout.setContentsMargins(15, 15, 15, 15)
-        game_panel_layout.setSpacing(10)
-        game_panel.setStyleSheet(
-            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
-            "border-top: none; border-radius: 0 0 8px 8px; }"
-        )
-        
-        log_path_layout = QHBoxLayout()
-        self.log_path_input = QLineEdit()
-        self.log_path_input.setPlaceholderText("Enter path to your Game.log")
-        self.log_path_input.setStyleSheet(
-            "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 6px; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; }"
-            "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
-        )
-        self.log_path_input.setMinimumWidth(200)
-        browse_log_btn = QPushButton("Browse")
-        browse_log_btn.setIcon(QIcon(resource_path("browse_icon.png")))
-        browse_log_btn.setStyleSheet(
-            "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px; }"
-            "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
-        )
-        browse_log_btn.setMinimumWidth(80)
-        browse_log_btn.clicked.connect(self.browse_file)
-        log_path_layout.addWidget(self.log_path_input)
-        log_path_layout.addWidget(browse_log_btn)
-        game_panel_layout.addRow(self.create_form_label("Game.log Path:"), log_path_layout)
-        
-        self.ship_combo = QComboBox()
-        self.ship_combo.setEditable(True)
-        self.load_ship_options()
-        self.ship_combo.currentTextChanged.connect(self.on_ship_combo_changed)
-        self.ship_combo.setStyleSheet(
-            "QComboBox { background-color: #1e1e1e; color: #f0f0f0; padding: 6px; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; padding-right: 20px; }"
-            "QComboBox:hover { border-color: #f04747; }"
-            "QComboBox::drop-down { border: none; width: 20px; }"
-            "QComboBox::down-arrow { width: 0; height: 0; border-left: 5px solid transparent; "
-            "   border-right: 5px solid transparent; border-top: 5px solid #f04747; margin-right: 8px; }"
-            "QComboBox QAbstractItemView { background-color: #1e1e1e; color: #f0f0f0; "
-            "selection-background-color: #f04747; selection-color: white; border: 1px solid #2a2a2a; }"
-            "QComboBox QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
-            "QComboBox QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
-            "QComboBox QScrollBar::handle:vertical:hover { background: #f04747; }"
-            "QComboBox QScrollBar::add-line:vertical, QComboBox QScrollBar::sub-line:vertical { height: 0px; }"
-            "QComboBox QScrollBar::add-page:vertical, QComboBox QScrollBar::sub-page:vertical { background: none; }"
-        )
-        self.ship_combo.setMinimumWidth(200)
-        game_panel_layout.addRow(self.create_form_label("Killer Ship:"), self.ship_combo)
-        
-        self.panels.append(game_panel)
-
-        twitch_button = QPushButton("TWITCH INTEGRATION")
-        twitch_button.setCheckable(True)
-        twitch_button.setObjectName("twitch_tab")
-        self.tab_buttons.append(twitch_button)
-
-        twitch_panel = QWidget()
-        twitch_panel_layout = QFormLayout(twitch_panel)
-        twitch_panel_layout.setContentsMargins(15, 15, 15, 15)
-        twitch_panel_layout.setSpacing(10)
-        twitch_panel.setStyleSheet(
-            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
-            "border-top: none; border-radius: 0 0 8px 8px; }"
-        )
-
-        self.twitch_enabled_checkbox = QCheckBox("Enable Twitch Integration")
-        self.twitch_enabled_checkbox.setChecked(False)
-        self.twitch_enabled_checkbox.setStyleSheet(
-            "QCheckBox { color: #ffffff; spacing: 5px; background: transparent; border: none; }"
-            "QCheckBox::indicator { width: 16px; height: 16px; }"
-            "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
-            "QCheckBox::indicator:checked { border: 1px solid #6441A5; background-color: #6441A5; border-radius: 3px; }"
-            "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
-        )
-        twitch_panel_layout.addRow("", self.twitch_enabled_checkbox)
-
-        self.twitch_channel_input = QLineEdit()
-        self.twitch_channel_input.setPlaceholderText("Enter your Twitch channel name")
-        self.twitch_channel_input.setStyleSheet(
-            "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 6px; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; }"
-            "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
-        )
-        self.twitch_channel_input.setMinimumWidth(200)
-        twitch_panel_layout.addRow(self.create_form_label("Twitch Channel:"), self.twitch_channel_input)
-
-        twitch_button_layout = QHBoxLayout()
-        self.twitch_connect_button = QPushButton("Connect Twitch")
-        self.twitch_connect_button.clicked.connect(self.connect_to_twitch)
-        self.twitch_connect_button.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #6441A5, stop:1 #4b367c); color: white; border: none; "
-            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #7C5DC7, stop:1 #6441A5); }"
-            "QPushButton:pressed { background: #4b367c; }"
-        )
-
-        self.twitch_disconnect_button = QPushButton("Disconnect Twitch")
-        self.twitch_disconnect_button.clicked.connect(self.disconnect_from_twitch)
-        self.twitch_disconnect_button.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-            "border-radius: 4px; padding: 8px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #f04747, stop:1 #d03737); }"
-            "QPushButton:pressed { background: #d03737; }"
-        )
-
-        twitch_button_layout.addWidget(self.twitch_connect_button)
-        twitch_button_layout.addWidget(self.twitch_disconnect_button)
-        twitch_panel_layout.addRow("", twitch_button_layout)
-        
-        self.clip_creation_checkbox = QCheckBox("Create clips when getting a kill")
-        self.clip_creation_checkbox.setChecked(True)
-        self.clip_creation_checkbox.setStyleSheet(
-            "QCheckBox { color: #ffffff; spacing: 5px; background: transparent; border: none; }"
-            "QCheckBox::indicator { width: 16px; height: 16px; }"
-            "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
-            "QCheckBox::indicator:checked { border: 1px solid #6441A5; background-color: #6441A5; border-radius: 3px; }"
-            "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
-        )
-        self.clip_creation_checkbox.stateChanged.connect(self.on_clip_creation_toggled)
-        twitch_panel_layout.addRow("", self.clip_creation_checkbox)
-        
-        clip_delay_layout = QHBoxLayout()
-        self.clip_delay_slider = QSlider(Qt.Horizontal)
-        self.clip_delay_slider.setRange(0, 60)
-        self.clip_delay_slider.setValue(self.twitch.clip_delay_seconds)
-        self.clip_delay_slider.setStyleSheet(
-            "QSlider::groove:horizontal { border: 1px solid #2a2a2a; height: 10px; "
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a1a1a, stop:1 #2a2a2a); "
-            "margin: 2px 0; border-radius: 5px; }"
-            "QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #6441A5, stop:1 #4b367c); border: 1px solid #2a2a2a; "
-            "width: 20px; height: 20px; margin: -6px 0; border-radius: 10px; }"
-            "QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-            "stop:0 #4b367c, stop:1 #6441A5); border-radius: 5px; }"
-            "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #7C5DC7, stop:1 #6441A5); border: 1px solid #6441A5; }"
-        )
-        
-        self.clip_delay_value = QLabel(f"{self.twitch.clip_delay_seconds} seconds")
-        self.clip_delay_value.setStyleSheet("color: #ffffff;")
-        self.clip_delay_slider.valueChanged.connect(self.on_clip_delay_changed)
-        
-        clip_delay_layout.addWidget(self.clip_delay_slider)
-        clip_delay_layout.addWidget(self.clip_delay_value)
-        
-        twitch_panel_layout.addRow(self.create_form_label("Delay after kill:"), clip_delay_layout)
-
-        note_label = QLabel("Note: Clip creation requires you to be streaming on Twitch")
-        note_label.setStyleSheet("color: #aaaaaa; font-style: italic;")
-        note_label.setWordWrap(True)
-        twitch_panel_layout.addRow("", note_label)
-
-        self.panels.append(twitch_panel)
-
-        sound_button = QPushButton("SOUND SETTINGS")
-        sound_button.setCheckable(True)
-        sound_button.setObjectName("sound_tab")
-        self.tab_buttons.append(sound_button)
-        
-        sound_panel = QWidget()
-        sound_panel_layout = QFormLayout(sound_panel)
-        sound_panel_layout.setContentsMargins(15, 15, 15, 15)
-        sound_panel_layout.setSpacing(10)
-        sound_panel.setStyleSheet(
-            "QWidget { background-color: #151515; border: 1px solid #2a2a2a; "
-            "border-top: none; border-radius: 0 0 8px 8px; }"
-        )
-        
-        self.kill_sound_checkbox = QCheckBox("Enable Kill Sound")
-        self.kill_sound_checkbox.setChecked(False)
-        self.kill_sound_checkbox.stateChanged.connect(self.on_kill_sound_toggled)
-        self.kill_sound_checkbox.setStyleSheet(
-            "QCheckBox::indicator { width: 16px; height: 16px; }"
-            "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
-            "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
-            "QCheckBox::indicator:checked:disabled { border: 1px solid #666666; background-color: #333333; border-radius: 3px; }"
-        )
-        sound_panel_layout.addRow("", self.kill_sound_checkbox)
-        
-        sound_path_layout = QHBoxLayout()
-        self.kill_sound_path_input = QLineEdit()
-        self.kill_sound_path_input.setText(self.kill_sound_path)
-        self.kill_sound_path_input.setStyleSheet(
-            "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 6px; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; }"
-            "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
-        )
-        self.kill_sound_path_input.setMinimumWidth(200)
-        sound_browse_btn = QPushButton("Browse")
-        sound_browse_btn.setStyleSheet(
-            "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
-            "border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px; }"
-            "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
-        )
-        sound_browse_btn.setMinimumWidth(80)
-        sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
-        sound_path_layout.addWidget(self.kill_sound_path_input)
-        sound_path_layout.addWidget(sound_browse_btn)
-        sound_panel_layout.addRow(self.create_form_label("Kill Sound File:"), sound_path_layout)
-        
-        self.volume_slider = QSlider(Qt.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(self.kill_sound_volume)
-        self.volume_slider.valueChanged.connect(self.on_kill_sound_volume_changed)
-        self.volume_slider.setStyleSheet(
-            "QSlider::groove:horizontal { border: 1px solid #2a2a2a; height: 10px; "
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a1a1a, stop:1 #2a2a2a); "
-            "margin: 2px 0; border-radius: 5px; }"
-            "QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #f04747, stop:1 #d03737); border: 1px solid #2a2a2a; "
-            "width: 20px; height: 20px; margin: -6px 0; border-radius: 10px; }"
-            "QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-            "stop:0 #d03737, stop:1 #f04747); border-radius: 5px; }"
-            "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-            "stop:0 #ff5757, stop:1 #e04747); border: 1px solid #f04747; }"
-        )
-        self.volume_slider.setMinimumWidth(200)
-        sound_panel_layout.addRow(self.create_form_label("Volume:"), self.volume_slider)
-        
-        self.panels.append(sound_panel)
-
-        stretch_per_tab = 1
-        for button in self.tab_buttons:
-            button.setStyleSheet(
-                "QPushButton { background-color: #1a1a1a; color: #cccccc; font-weight: bold; "
-                "border: 1px solid #2a2a2a; border-radius: 4px 4px 0 0; padding: 8px 16px; }"
-                "QPushButton:hover { color: #f0f0f0; background-color: #222222; }"
-                "QPushButton:checked { color: #f0f0f0; background-color: #151515; border-bottom: none; }"
-            )
-            button.setMinimumWidth(100)
-            button.setFixedHeight(36)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            button.clicked.connect(self.on_tab_clicked)
-            tab_layout.addWidget(button, stretch_per_tab)
-        
-
-        settings_container_layout.addWidget(tab_bar)
-        settings_container_layout.addWidget(self.settings_content)
-        
-        for panel in self.panels:
-            panel.hide()
-            self.settings_content_layout.addWidget(panel)
-        
-        if self.tab_buttons:
-            self.tab_buttons[0].click()
-            
-        self.send_to_api_checkbox.stateChanged.connect(self.update_api_status)
-        main_layout.addWidget(settings_container)
-
-        self.kill_display = QTextBrowser()
-        self.kill_display.setReadOnly(True)
-        self.kill_display.setOpenExternalLinks(True)
-        self.kill_display.setStyleSheet(
-            "QTextBrowser { background-color: #121212; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px; }"
-            "QTextBrowser QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
-            "QTextBrowser QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
-            "QTextBrowser QScrollBar::handle:vertical:hover { background: #f04747; }"
-            "QTextBrowser QScrollBar::add-line:vertical, QTextBrowser QScrollBar::sub-line:vertical { height: 0px; }"
-            "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
-        )
-        main_layout.addWidget(self.kill_display, stretch=1)
-        
-        self.send_to_api_checkbox.stateChanged.connect(self.update_api_status)
-        main_widget.setLayout(main_layout)
-        self.setCentralWidget(main_widget)
-        self.setMinimumSize(1000, 900)
-
     def on_tab_clicked(self):
         sender = self.sender()
         
@@ -1752,13 +995,11 @@ class KillLoggerGUI(QMainWindow):
 
     def update_twitch_indicator(self, is_connected: bool):
         if is_connected:
-            # Twitch purple color
             self.twitch_indicator.setStyleSheet(
                 "background-color: #9146FF; border-radius: 4px; padding: 4px;"
             )
             self.twitch_indicator.setText("Twitch Connected")
         else:
-            # Red color for disconnected state
             self.twitch_indicator.setStyleSheet(
                 "background-color: #f04747; border-radius: 4px; padding: 4px;"
             )
@@ -1888,6 +1129,10 @@ class KillLoggerGUI(QMainWindow):
             self.rescan_thread.wait(3000)
             self.rescan_thread = None
 
+        self.clips = {}
+        self.clip_groups = {}
+        self.save_config()
+        
         self.delete_local_kills()
         self.delete_kill_logger_log()
         event.accept()
@@ -1900,7 +1145,6 @@ class KillLoggerGUI(QMainWindow):
             
         channel_name = self.twitch_channel_input.text().strip()
         if not channel_name:
-            self.showCustomMessageBox("Twitch Integration", "Please enter your Twitch channel name", QMessageBox.Warning)
             return
             
         self.twitch.set_broadcaster_name(channel_name)
@@ -1921,13 +1165,12 @@ class KillLoggerGUI(QMainWindow):
         if self.twitch:
             try:
                 self.twitch.disconnect()
-                # Update UI indicators to show disconnected state
                 self.update_twitch_indicator(False)
                 self.update_bottom_info("twitch_connected", "Twitch Not Connected")
                 self.twitch_enabled = False
                 self.twitch_enabled_checkbox.setChecked(False)
                 self.show_temporary_popup("Disconnected from Twitch")
-                self.save_config()  # Save the updated configuration
+                self.save_config()
                 logging.info("Disconnected from Twitch")
             except Exception as e:
                 logging.error(f"Error disconnecting from Twitch: {e}")
@@ -2043,7 +1286,7 @@ class KillLoggerGUI(QMainWindow):
             self.set_default_user_image()
 
     def create_kill_clip(self, kill_data: Dict[str, Any]) -> None:
-        """Create a Twitch clip for a kill event"""
+        """Create a Twitch clip for a kill event or assign to an existing clip group"""
         if not self.twitch_enabled or not self.clip_creation_enabled:
             return
             
@@ -2051,11 +1294,67 @@ class KillLoggerGUI(QMainWindow):
             logging.warning("Tried to create clip but Twitch integration is not ready")
             return
             
-        self.twitch.create_clip(kill_data, self.on_create_clip_finished)
+        local_key = kill_data.get("local_key", "")
+        timestamp = kill_data.get("timestamp", "")
+
+        current_time = time.time()
+
+        if (current_time - self.last_clip_creation_time) <= self.clip_group_window_seconds and self.current_clip_group_id:
+
+            logging.info(f"Adding kill {local_key} to existing clip group {self.current_clip_group_id}")
+            
+            if self.current_clip_group_id not in self.clip_groups:
+                self.clip_groups[self.current_clip_group_id] = []
+                
+            self.clip_groups[self.current_clip_group_id].append(local_key)
+
+            if self.current_clip_group_id in self.clips:
+                clip_url = self.clips[self.current_clip_group_id]
+                if clip_url:
+                    self.on_create_clip_finished(clip_url, kill_data)
+                    logging.info(f"Applied existing clip URL to kill in same group: {local_key}")
+                    return
+            return
+
+        self.last_clip_creation_time = current_time
+        self.current_clip_group_id = f"clip_group_{timestamp}"
+        self.clip_groups[self.current_clip_group_id] = [local_key]
+        logging.info(f"Created new clip group {self.current_clip_group_id} for kill {local_key}")
+
+        self.twitch.create_clip(kill_data, lambda url, data: self.handle_clip_created_for_group(url, data, self.current_clip_group_id))
+
+    def handle_clip_created_for_group(self, clip_url: str, kill_data: Dict[str, Any], group_id: str) -> None:
+        """Handle clip creation for a kill group - applies clip URL to all kills in the group"""
+        if not clip_url or not group_id:
+            return
+
+        self.clips[group_id] = clip_url
+        self.on_create_clip_finished(clip_url, kill_data)
+
+        if group_id in self.clip_groups:
+            for local_key in self.clip_groups[group_id]:
+                if kill_data.get("local_key") == local_key:
+                    continue
+
+                if local_key in self.local_kills:
+                    group_kill_data = {
+                        "local_key": local_key,
+                        "readout": self.local_kills[local_key].get("readout", "")
+                    }
+                    self.on_create_clip_finished(clip_url, group_kill_data)
+                    logging.info(f"Applied group clip URL to kill: {local_key}")
+        
+        logging.info(f"Processed clip for kill group {group_id} with {len(self.clip_groups.get(group_id, []))} kills")
 
     def on_clip_creation_toggled(self, state: int) -> None:
         """Handle clip creation enabled/disabled"""
         self.clip_creation_enabled = (state == Qt.Checked)
+        self.save_config()
+
+    def on_chat_posting_toggled(self, state: int) -> None:
+        """Handle chat posting enabled/disabled"""
+        self.chat_posting_enabled = (state == Qt.Checked)
+        logging.info(f"Twitch chat posting set to: {self.chat_posting_enabled}")
         self.save_config()
 
     def on_clip_delay_changed(self, value: int) -> None:
@@ -2078,7 +1377,7 @@ class KillLoggerGUI(QMainWindow):
             self.delete_local_kills()
             self.delete_kill_logger_log()
             self.rescan_button.setEnabled(False)
-            self.set_default_user_image()  # Reset to default when monitoring stops
+            self.set_default_user_image()
             
             if self.session_timer.isActive():
                 self.session_timer.stop()
@@ -2100,6 +1399,9 @@ class KillLoggerGUI(QMainWindow):
                         "Unable to connect to the API. Check your network and API key."
                     )
                     return
+
+            if self.twitch_enabled and self.clip_creation_enabled and not self.twitch_channel_input.text().strip():
+                QMessageBox.warning(self, "Twitch Integration", "Please enter a Twitch channel name in the Twitch settings to enable clip creation and chat messages.")
 
             if not new_log_path or not os.path.isfile(new_log_path):
                 QMessageBox.warning(self, "Input Error", "Please enter a valid path to your Game.log file.")
@@ -2139,65 +1441,76 @@ class KillLoggerGUI(QMainWindow):
             self.update_kill_death_stats()
 
     def handle_payload(self, payload: dict, timestamp: str, attacker: str, readout: str) -> None:
-        match = KILL_LOG_PATTERN.search(payload.get('log_line', ''))
-        if not match:
-            return
+            match = KILL_LOG_PATTERN.search(payload.get('log_line', ''))
+            if not match:
+                return
 
-        if not payload.get("killer_ship"):
-            payload["killer_ship"] = (
-                self.monitor_thread.current_attacker_ship
-                if self.monitor_thread and self.monitor_thread.current_attacker_ship
-                else "No Ship"
+            if not payload.get("killer_ship"):
+                payload["killer_ship"] = (
+                    self.monitor_thread.current_attacker_ship
+                    if self.monitor_thread and self.monitor_thread.current_attacker_ship
+                    else "No Ship"
+                )
+
+            if payload.get("killer_ship") == "No Ship":
+                payload.pop("killer_ship")
+
+            data = match.groupdict()
+            victim = data.get('victim', '').lower().strip()
+            current_game_mode = (
+                self.monitor_thread.last_game_mode
+                if self.monitor_thread and self.monitor_thread.last_game_mode
+                else "Unknown"
             )
+            local_key = f"{timestamp}::{victim}::{current_game_mode}"
 
-        if payload.get("killer_ship") == "No Ship":
-            payload.pop("killer_ship")
+            if local_key in self.local_kills:
+                self.show_temporary_popup("Kill already in local JSON. Skipping API call.")
+                return
 
-        data = match.groupdict()
-        victim = data.get('victim', '').lower().strip()
-        current_game_mode = (
-            self.monitor_thread.last_game_mode
-            if self.monitor_thread and self.monitor_thread.last_game_mode
-            else "Unknown"
-        )
-        local_key = f"{timestamp}::{victim}::{current_game_mode}"
-
-        if local_key in self.local_kills:
-            self.show_temporary_popup("Kill already in local JSON. Skipping API call.")
-            return
-
-        self.local_kills[local_key] = {
-            "payload": payload,
-            "timestamp": timestamp,
-            "attacker": attacker,
-            "readout": readout,
-            "sent_to_api": False,
-            "local_key": local_key
-        }
-        self.save_local_kills()
-        
-        if self.twitch_enabled and self.clip_creation_enabled and self.twitch.is_ready():
-            kill_data = {
-                "local_key": local_key,
-                "victim": victim,
+            self.local_kills[local_key] = {
+                "payload": payload,
                 "timestamp": timestamp,
-                "readout": readout
+                "attacker": attacker,
+                "readout": readout,
+                "sent_to_api": False,
+                "local_key": local_key
             }
-            self.create_kill_clip(kill_data)
+            self.save_local_kills()
+            
+            if self.twitch_enabled and self.twitch.is_ready():
+                kill_data = {
+                    "local_key": local_key,
+                    "victim": victim,
+                    "timestamp": timestamp,
+                    "readout": readout
+                }
+                
+                if self.clip_creation_enabled:
+                    self.create_kill_clip(kill_data)
 
-        if self.send_to_api_checkbox.isChecked():
-            headers = {
-                'Content-Type': 'application/json',
-                'X-API-Key': self.api_key,
-                'User-Agent': self.user_agent,
-                'X-Client-ID': self.__client_id__,
-                'X-Client-Version': self.__version__
-            }
-            api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
-            api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
-            api_thread.start()
-        else:
-            logging.info("Send to API is disabled; kill payload not sent.")
+                if self.chat_posting_enabled:
+                    rsi_url = f"https://robertsspaceindustries.com/en/citizens/{victim}"
+                    message = f"🔫 {self.local_user_name} just killed {victim}! 🚀 {rsi_url}"
+                    try:
+                        self.twitch.post_kill_to_chat(message)
+                        logging.info(f"Posted kill message to Twitch chat with profile link: {message}")
+                    except Exception as e:
+                        logging.error(f"Error posting kill to Twitch chat: {e}")
+
+            if self.send_to_api_checkbox.isChecked():
+                headers = {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': self.api_key,
+                    'User-Agent': self.user_agent,
+                    'X-Client-ID': self.__client_id__,
+                    'X-Client-Version': self.__version__
+                }
+                api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+                api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
+                api_thread.start()
+            else:
+                logging.info("Send to API is disabled; kill payload not sent.")
 
     def browse_file(self) -> None:
         options = QFileDialog.Options()
@@ -2262,28 +1575,39 @@ class KillLoggerGUI(QMainWindow):
         self.kill_sound_volume = value
         self.save_config()
 
-    def process_twitch_callbacks(self) -> None:
-        """Process any pending Twitch callbacks (auth or clip results) in the main thread"""
-        auth_result = self.twitch.process_auth_callback()
-        if auth_result is not None:
-            if auth_result:
-                self.update_bottom_info("twitch_connected", "Twitch Connected")
-                self.showCustomMessageBox("Twitch Integration", 
-                                        "Successfully connected to Twitch!\n\nKill clips will be created automatically.", 
-                                        QMessageBox.Information)
-                self.save_config()
-            else:
-                self.update_bottom_info("twitch_connected", "Twitch Not Connected")
-                self.showCustomMessageBox("Twitch Integration", 
-                                         "Failed to connect to Twitch. Check your credentials and try again.", 
-                                         QMessageBox.Warning)
+    def on_minimize_to_tray_changed(self, state: int) -> None:
+        """Handle minimize to tray checkbox state change"""
+        self.minimize_to_tray = (state == Qt.Checked)
+        self.save_config()
+        logging.info(f"Minimize to tray set to: {self.minimize_to_tray}")
+
+    def on_start_with_system_changed(self, state: int) -> None:
+        """Handle start with system checkbox state change"""
+        self.start_with_system = (state == Qt.Checked)
+        self.setup_autostart(self.start_with_system)
+        self.save_config()
+        logging.info(f"Start with system set to: {self.start_with_system}")
         
-        clip_results = self.twitch.process_clip_callbacks()
-        for clip_url, kill_data in clip_results:
-            if clip_url:
-                self.on_create_clip_finished(clip_url, kill_data)
+    def changeEvent(self, event) -> None:
+        """Handle window state change events for minimizing to tray"""
+        if event.type() == 105:
+            if self.minimize_to_tray and self.windowState() & Qt.WindowMinimized:
+                QTimer.singleShot(100, self.hide)
+                if self.tray_icon:
+                    self.tray_icon.showMessage(
+                        "SCTool Killfeed",
+                        "Application minimized to system tray",
+                        QIcon(resource_path("chris2.ico")),
+                        3000
+                    )
+        super().changeEvent(event)
 
-
+    def switch_page(self, index):
+        """Switch to the specified page and update selected navigation button state"""
+        self.content_stack.setCurrentIndex(index)
+        
+        for i, button in enumerate(self.nav_buttons):
+            button.setChecked(i == index)
 
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")
@@ -2323,6 +1647,11 @@ def cleanup_log_file() -> None:
 atexit.register(cleanup_log_file)
 
 def main() -> None:
+    if is_already_running():
+        logging.info("Another instance of SCTool Killfeed is already running.")
+        find_existing_window()
+        sys.exit(0)
+
     app = QApplication(sys.argv)
     gui = KillLoggerGUI()
     gui.check_for_updates()
