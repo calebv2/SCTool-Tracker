@@ -1,0 +1,5 @@
+# Python 3.10+ recommended
+PyQt5>=5.15.0
+requests>=2.25.0
+beautifulsoup4>=4.9.0
+packaging>=20.0
