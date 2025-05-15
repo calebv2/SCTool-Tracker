@@ -881,7 +881,6 @@ class KillLoggerGUI(QMainWindow):
                 "QPushButton:hover { background-color: #f04747; }"
             )
             
-            # Scale the message box size
             min_width = ScreenScaler.scale_size(300, self.scale_factor)
             msg_box.setMinimumWidth(min_width)
         else:
@@ -1682,7 +1681,6 @@ class KillLoggerGUI(QMainWindow):
         top_row.addWidget(close_btn)
         layout.addLayout(top_row)
         
-        # Use responsive popup sizing based on scale factor
         popup_width = ScreenScaler.scale_size(300, self.scale_factor)
         popup_height = ScreenScaler.scale_size(100, self.scale_factor)
         
@@ -1805,7 +1803,6 @@ class KillLoggerGUI(QMainWindow):
             font.setPointSize(ScreenScaler.scale_font_size(12, self.scale_factor))
             self.kill_display.setFont(font)
         
-        # Fix for the "smushed" game log path - ensure it scales with different resolutions
         if hasattr(self, 'log_path_input'):
             min_width = ScreenScaler.scale_size(300, self.scale_factor)
             self.log_path_input.setMinimumWidth(min_width)
