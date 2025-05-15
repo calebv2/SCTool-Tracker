@@ -6,18 +6,34 @@ import sys
 import json
 import time
 import logging
+
+from responsive_ui import ScreenScaler
+from PyQt5.QtGui import QKeyEvent
 from datetime import datetime, timedelta
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QKeySequence
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QLineEdit, QFormLayout, QComboBox, QCheckBox,
-    QSlider, QFileDialog, QTextBrowser, QScrollArea,
-    QSizePolicy, QApplication, QStackedWidget
+    QSlider, QFileDialog, QTextBrowser, QScrollArea, QFrame,
+    QSizePolicy, QApplication, QStackedWidget, QMessageBox
 )
 
 from PyQt5.QtCore import (
     Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect
 )
+
+class ScreenScaler:
+    @staticmethod
+    def get_screen_info():
+        """Fallback method"""
+        screen = QApplication.primaryScreen()
+        screen_size = screen.availableGeometry()
+        return screen_size.width(), screen_size.height(), 1.0
+        
+    @staticmethod
+    def scale_size(size, scale_factor):
+        """Fallback method"""
+        return int(size * scale_factor)
 
 def get_appdata_paths() -> tuple[str, str, str]:
     appdata_dir = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
@@ -193,6 +209,7 @@ def init_ui(self) -> None:
     sound_btn.setCheckable(True)
     self.nav_buttons.append(sound_btn)
     sidebar_layout.addWidget(sound_btn)
+    
     twitch_btn = self.create_nav_button("Twitch Integration", "twitch_tab")
     twitch_btn.setCheckable(True)
     self.nav_buttons.append(twitch_btn)
@@ -578,8 +595,7 @@ def init_ui(self) -> None:
     
     api_layout.addWidget(api_card)
     api_layout.addStretch(1)
-    
-    # === SOUND SETTINGS PAGE ===
+
     sound_page = QWidget()
     sound_layout = QVBoxLayout(sound_page)
     sound_layout.setContentsMargins(0, 0, 0, 0)
@@ -778,16 +794,17 @@ def init_ui(self) -> None:
         "QLabel { color: #9146FF; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 10px; }"
     )
     twitch_card_layout.addRow(clip_section_label)
-    
-    self.clip_creation_checkbox = QCheckBox("Create clips when getting a kill")
-    self.clip_creation_checkbox.setChecked(True)
+
+    self.clip_creation_checkbox = QCheckBox("Create Twitch clips on kill")
+    self.clip_creation_checkbox.setChecked(self.clip_creation_enabled)
+    self.clip_creation_checkbox.stateChanged.connect(self.on_clip_creation_toggled)
     self.clip_creation_checkbox.setStyleSheet(
         "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
         "QCheckBox::indicator { width: 20px; height: 20px; }"
         "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
         "QCheckBox::indicator:checked { border: 1px solid #9146FF; background-color: #9146FF; border-radius: 3px; }"
     )
-    self.clip_creation_checkbox.stateChanged.connect(self.on_clip_creation_toggled)
+
     twitch_card_layout.addRow("", self.clip_creation_checkbox)
     
     self.chat_posting_checkbox = QCheckBox("Post kills to Twitch chat")
@@ -801,6 +818,27 @@ def init_ui(self) -> None:
     )
     twitch_card_layout.addRow("", self.chat_posting_checkbox)
     
+    chat_message_label = QLabel("Customize Twitch chat message:")
+    chat_message_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+
+    self.twitch_message_input = QLineEdit()
+    self.twitch_message_input.setPlaceholderText("E.g.: 🔫 {username} just killed {victim}! 🚀 {profile_url}")
+    self.twitch_message_input.setText(self.twitch_chat_message_template)
+    self.twitch_message_input.setStyleSheet(
+        "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
+        "QLineEdit:hover, QLineEdit:focus { border-color: #9146FF; }"
+    )
+    self.twitch_message_input.setMinimumWidth(300)
+    self.twitch_message_input.editingFinished.connect(self.on_twitch_message_changed)
+
+    message_help = QLabel("Available placeholders: {username}, {victim}, {profile_url}")
+    message_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
+    message_help.setWordWrap(True)
+
+    twitch_card_layout.addRow(chat_message_label, self.twitch_message_input)
+    twitch_card_layout.addRow("", message_help)
+
     clip_delay_label = QLabel("Delay after kill:")
     clip_delay_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
@@ -843,22 +881,70 @@ def init_ui(self) -> None:
     twitch_layout.addWidget(twitch_card)
     twitch_layout.addStretch(1)
     
-    self.content_stack.addWidget(killfeed_page)
-    self.content_stack.addWidget(killfeed_settings_page)
-    self.content_stack.addWidget(api_page)
-    self.content_stack.addWidget(sound_page)
-    self.content_stack.addWidget(twitch_page)
+    killfeed_scroll = QScrollArea()
+    killfeed_scroll.setWidget(killfeed_page)
+    killfeed_scroll.setWidgetResizable(True)
+    killfeed_scroll.setFrameShape(QScrollArea.NoFrame)
+    killfeed_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+    killfeed_settings_scroll = QScrollArea()
+    killfeed_settings_scroll.setWidget(killfeed_settings_page)
+    killfeed_settings_scroll.setWidgetResizable(True)
+    killfeed_settings_scroll.setFrameShape(QScrollArea.NoFrame)
+    killfeed_settings_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+    api_scroll = QScrollArea()
+    api_scroll.setWidget(api_page)
+    api_scroll.setWidgetResizable(True)
+    api_scroll.setFrameShape(QScrollArea.NoFrame)
+    api_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+    sound_scroll = QScrollArea()
+    sound_scroll.setWidget(sound_page)
+    sound_scroll.setWidgetResizable(True)
+    sound_scroll.setFrameShape(QScrollArea.NoFrame)
+    sound_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+    twitch_scroll = QScrollArea()
+    twitch_scroll.setWidget(twitch_page)
+    twitch_scroll.setWidgetResizable(True)
+    twitch_scroll.setFrameShape(QScrollArea.NoFrame)
+    twitch_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+    # Add scroll areas to the stack
+    self.content_stack.addWidget(killfeed_scroll)
+    self.content_stack.addWidget(killfeed_settings_scroll)
+    self.content_stack.addWidget(api_scroll)
+    self.content_stack.addWidget(sound_scroll)
+    self.content_stack.addWidget(twitch_scroll)
     self.content_stack.setCurrentIndex(0)
     
     for i, button in enumerate(self.nav_buttons):
         button.clicked.connect(lambda checked, index=i: self.switch_page(index))
     
     content_layout.addWidget(self.content_stack)
-    
     main_layout.addWidget(content_area, stretch=1)
     main_widget.setLayout(main_layout)
     self.setCentralWidget(main_widget)
-    self.setMinimumSize(1000, 700)
+    screen = QApplication.primaryScreen()
+    screen_size = screen.availableGeometry()
+    screen_width = screen_size.width()
+    screen_height = screen_size.height()
+    
+    if hasattr(self, 'scale_factor'):
+        scale = self.scale_factor
+    else:
+        base_width = 1920
+        base_height = 1080
+        width_scale = screen_width / base_width
+        height_scale = screen_height / base_height
+        scale = min(width_scale, height_scale)
+        if scale < 0.7:
+            scale = 0.7
+    
+    min_width = int(600 * scale)
+    min_height = int(500 * scale)
+    self.setMinimumSize(min_width, min_height)
 
     self.session_start_time = None
     self.session_timer = QTimer()
@@ -947,6 +1033,7 @@ def load_config(self) -> None:
             
             self.kill_sound_volume = config.get('kill_sound_volume', 100)
             self.volume_slider.setValue(self.kill_sound_volume)
+            
             self.twitch_enabled = config.get('twitch_enabled', False)
             self.twitch_enabled_checkbox.setChecked(self.twitch_enabled)
             
@@ -966,6 +1053,7 @@ def load_config(self) -> None:
             self.twitch.set_clip_delay(clip_delay)
             self.clip_delay_slider.setValue(clip_delay)
             self.clip_delay_value.setText(f"{clip_delay} seconds")
+            
             self.minimize_to_tray = config.get('minimize_to_tray', False)
             self.minimize_to_tray_checkbox.setChecked(self.minimize_to_tray)
             self.start_with_system = config.get('start_with_system', False)
@@ -995,22 +1083,107 @@ def load_local_kills(self) -> None:
         logging.error(f"Failed to load local kills: {e}")
         self.local_kills = {}
 
+def styled_message_box(parent, title, text, icon=QMessageBox.Information, buttons=QMessageBox.Ok):
+    """Create a stylish message box with consistent styling"""
+    msg_box = QMessageBox(parent)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(text)
+    msg_box.setIcon(icon)
+    msg_box.setStandardButtons(buttons)
+    
+    msg_box.setStyleSheet("""
+        QMessageBox {
+            background-color: #222222;
+            color: #ffffff;
+            border: 1px solid #444444;
+        }
+        QLabel {
+            color: #ffffff;
+            font-size: 14px;
+        }
+        QPushButton {
+            background-color: #2a2a2a;
+            color: white;
+            border: 1px solid #555555;
+            border-radius: 4px;
+            padding: 5px 15px;
+            margin: 5px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #3a3a3a;
+            border: 1px solid #777777;
+        }
+        QPushButton:pressed {
+            background-color: #f04747;
+        }
+    """)
+    
+    return msg_box
+
 def apply_styles(self) -> None:
     """Apply additional custom styles to the application"""
-    app_style = """
-        QMainWindow {
+    scale_factor = 1.0
+    if hasattr(self, 'scale_factor'):
+        scale_factor = self.scale_factor
+    
+    padding = int(5 * scale_factor)
+    border_radius = int(4 * scale_factor)
+    
+    app_style = f"""
+        QMainWindow {{
             background-color: #0d0d0d;
-        }
-        QToolTip {
+        }}
+        QToolTip {{
             background-color: #1e1e1e;
             color: #f0f0f0;
             border: 1px solid #3a3a3a;
-            padding: 5px;
-            border-radius: 4px;
-        }
+            padding: {padding}px;
+            border-radius: {border_radius}px;
+        }}
+        QPushButton {{
+            padding: {padding}px {int(padding*2)}px;
+        }}
+        QLabel {{
+            font-size: {int(12 * scale_factor)}px;
+        }}
+        QLineEdit, QComboBox, QTextEdit, QTextBrowser {{
+            font-size: {int(12 * scale_factor)}px;
+            padding: {int(4 * scale_factor)}px;
+        }}
     """
     self.setStyleSheet(app_style)
     self.setWindowOpacity(0.98)
+    
+    dialog_style = """
+        QDialog {
+            background-color: #222222;
+            color: #ffffff;
+        }
+        QDialog QLabel {
+            color: #ffffff;
+        }
+        QDialog QPushButton {
+            background-color: #2a2a2a;
+            color: white;
+            border: 1px solid #555555;
+            border-radius: 4px;
+            padding: 5px 15px;
+            font-weight: bold;
+        }
+        QDialog QPushButton:hover {
+            background-color: #3a3a3a;
+        }
+        QDialog QPushButton:pressed {
+            background-color: #f04747;
+        }
+        QMessageBox {
+            background-color: #222222;
+        }
+    """
+    QApplication.instance().setStyleSheet(
+        QApplication.instance().styleSheet() + dialog_style
+    )
 
 class CollapsibleSettingsPanel(QWidget):
     """Legacy class for backwards compatibility"""

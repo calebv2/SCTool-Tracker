@@ -18,23 +18,27 @@ from bs4 import BeautifulSoup
 from urllib.parse import quote
 from typing import Optional, Dict, Any, List
 
+from utlity import apply_styles as apply_styles_func
+from Registered_kill import format_registered_kill
+
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
     QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QCheckBox,
     QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog,
-    QSystemTrayIcon, QMenu, QAction
+    QSystemTrayIcon, QMenu, QAction, QFrame, QGraphicsOpacityEffect
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath
 from PyQt5.QtCore import (
-    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect
+    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect, QPropertyAnimation, QEasingCurve
 )
 from PyQt5.QtMultimedia import QSoundEffect
 
 from Kill_thread import ApiSenderThread, TailThread, RescanThread, MissingKillsDialog
 from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT
 from twitch_integration import TwitchIntegration, process_twitch_callbacks
+from responsive_ui import ScreenScaler, ResponsiveUIHelper, make_popup_responsive
 
-from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel
+from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel, styled_message_box
 
 APP_MUTEX_NAME = "SCToolKillfeedMutex_A5F301E7-D3E9-4F6F-BD57-4A114F103240"
 
@@ -54,7 +58,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 4.5")
+            hwnd = FindWindow(None, "SCTool Killfeed 4.7")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -111,11 +115,11 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "4.5"
-
+    __version__ = "4.7"    
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SCTool Killfeed 4.5")
+        self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
+        self.setWindowTitle("SCTool Killfeed 4.7")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -126,6 +130,9 @@ class KillLoggerGUI(QMainWindow):
         self.user_agent = CHROME_USER_AGENT
         self.local_user_name = ""
         self.dark_mode_enabled = True
+        
+        _, _, self.scale_factor = ScreenScaler.get_screen_info()
+        self.ui_helper = ResponsiveUIHelper(self)
         self.kill_sound_enabled = False
         self.kill_sound_effect = QSoundEffect()
         self.kill_sound_path = resource_path("kill.wav")
@@ -161,12 +168,16 @@ class KillLoggerGUI(QMainWindow):
         self.current_clip_group_id = ""
         self.clip_group_window_seconds = 10
         self.clip_groups: Dict[str, List[str]] = {}
-
+        self.apply_styles = lambda: apply_styles_func(self)
+        
         init_ui(self)
         load_config(self)
         load_local_kills(self)
         apply_styles(self)
         self.initialize_system_tray()
+        self.rescan_button.setEnabled(False)
+        
+        self.update_ui_scaling()
 
     def create_nav_button(self, text, obj_name=None):
         """Create a styled navigation button for the sidebar"""
@@ -315,7 +326,8 @@ class KillLoggerGUI(QMainWindow):
             'clips': self.clips,
             'clip_delay_seconds': self.clip_delay_slider.value(),
             'minimize_to_tray': self.minimize_to_tray,
-            'start_with_system': self.start_with_system
+            'start_with_system': self.start_with_system,
+            'twitch_chat_message_template': self.twitch_chat_message_template
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -358,17 +370,62 @@ class KillLoggerGUI(QMainWindow):
                 selected_kills = dialog.getSelectedKills()
                 if selected_kills:
                     self.send_missing_kills(selected_kills)
-                else:
-                    self.show_temporary_popup("No kills selected to send.")
+                else:            self.show_temporary_popup("No kills selected to send.")
             else:
                 self.show_temporary_popup("Missing kills were not sent.")
         else:
             self.show_temporary_popup("No missing kills found.")
-
+            
     def send_missing_kills(self, missing_kills: List[dict]) -> None:
-        self.missing_kills_queue = missing_kills
-        self.send_next_missing_kill()
-
+        self.missing_kills_queue = missing_kills.copy()
+        
+        for index, kill in enumerate(missing_kills):
+            kill_copy = kill.copy()
+            QTimer.singleShot(index * 500, lambda k=kill_copy: self.display_missing_kill(k))
+        
+        QTimer.singleShot(len(missing_kills) * 500 + 100, self.send_next_missing_kill)
+    
+    def display_missing_kill(self, kill: dict) -> None:
+        """Display a missing kill in the kill feed"""
+        try:
+            payload = kill.get("payload", {})
+            local_key = kill.get("local_key", "")
+            
+            timestamp = kill.get("timestamp", "")
+            parts = local_key.split("::")
+            game_mode = parts[2] if len(parts) >= 3 else "Unknown"
+            
+            log_line = payload.get("log_line", "")
+            
+            match = KILL_LOG_PATTERN.search(log_line)
+            if match:
+                data = match.groupdict()
+                attacker = data.get('attacker', '').strip()
+                
+                if "killer_ship" not in data and "killer_ship" in payload:
+                    data["killer_ship"] = payload["killer_ship"]
+                
+                readout, _ = format_registered_kill(
+                    log_line, data, self.local_user_name, timestamp, game_mode, success=True
+                )
+                
+                self.append_kill_readout(readout)
+            
+                if local_key not in self.local_kills:
+                    self.local_kills[local_key] = {
+                        "payload": payload,
+                        "timestamp": timestamp,
+                        "attacker": attacker,
+                        "readout": readout,
+                        "sent_to_api": False,
+                        "local_key": local_key
+                    }
+                    self.save_local_kills()
+                
+                logging.info(f"Displayed missing kill in feed: {local_key}")
+        except Exception as e:
+            logging.error(f"Error displaying missing kill: {e}")
+    
     def send_next_missing_kill(self) -> None:
         if not self.missing_kills_queue:
             return
@@ -385,15 +442,32 @@ class KillLoggerGUI(QMainWindow):
         }
         api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
         api_thread.apiResponse.connect(lambda msg, key=local_key: self.handle_missing_api_response(msg, key))
-        api_thread.start()
-
+        api_thread.start()    
+        
     def handle_missing_api_response(self, msg: str, local_key: str) -> None:
-        self.show_temporary_popup(msg)
         if msg.startswith("Duplicate kill"):
-            self.local_kills[local_key] = True
+            parts = local_key.split("::")
+            victim_name = parts[1] if len(parts) >= 2 else "unknown"
+            
+            msgBox = styled_message_box(
+                self,
+                "Duplicate Kill",
+                f"Duplicate kill detected for victim: {victim_name}",
+                QMessageBox.Information,
+                QMessageBox.Ok
+            )
+            msgBox.exec_()
+            
+            if isinstance(self.local_kills.get(local_key), dict):
+                self.local_kills[local_key]["sent_to_api"] = True
+            else:
+                self.local_kills[local_key] = True
             self.save_local_kills()
+        else:
 
-        QTimer.singleShot(500, self.send_next_missing_kill)
+            self.show_temporary_popup(msg)
+
+        QTimer.singleShot(100, self.send_next_missing_kill)
 
     def on_player_registered(self, text: str) -> None:
         match = re.search(r"Registered user:\s+(.+)$", text)
@@ -731,7 +805,7 @@ class KillLoggerGUI(QMainWindow):
     def check_for_updates(self) -> None:
          """Check for newer versions of the application"""
          try:
-             update_url = "https://starcitizentool.com/api/v1/latest_version"  # Correct endpoint
+             update_url = "https://starcitizentool.com/api/v1/latest_version"
              headers = {
                  'User-Agent': self.user_agent,
                  'X-Client-ID': self.__client_id__,
@@ -786,20 +860,38 @@ class KillLoggerGUI(QMainWindow):
         else:
             self.save_config()
             import os
-            os._exit(0)
-
+            os._exit(0)    
+    
     def showCustomMessageBox(self, title, message, icon=QMessageBox.Information):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle(title)
         msg_box.setText(message)
         msg_box.setIcon(icon)
-        msg_box.setStyleSheet(
-            "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
-            "QLabel { color: #f0f0f0; }"
-            "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
-            "border: 1px solid #ffffff; border-radius: 4px; padding: 6px 12px; }"
-            "QPushButton:hover { background-color: #f04747; }"
-        )
+        
+        if hasattr(self, 'scale_factor'):
+            padding = ScreenScaler.scale_size(6, self.scale_factor)
+            border_radius = ScreenScaler.scale_size(4, self.scale_factor)
+            
+            msg_box.setStyleSheet(
+                "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
+                f"QLabel {{ color: #f0f0f0; font-size: {ScreenScaler.scale_font_size(11, self.scale_factor)}px; }}"
+                f"QPushButton {{ background-color: #1e1e1e; color: #f0f0f0; "
+                f"border: 1px solid #ffffff; border-radius: {border_radius}px; "
+                f"padding: {padding}px {padding*2}px; font-size: {ScreenScaler.scale_font_size(10, self.scale_factor)}px; }}"
+                "QPushButton:hover { background-color: #f04747; }"
+            )
+            
+            # Scale the message box size
+            min_width = ScreenScaler.scale_size(300, self.scale_factor)
+            msg_box.setMinimumWidth(min_width)
+        else:
+            msg_box.setStyleSheet(
+                "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
+                "QLabel { color: #f0f0f0; }"
+                "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+                "border: 1px solid #ffffff; border-radius: 4px; padding: 6px 12px; }"
+                "QPushButton:hover { background-color: #f04747; }"
+            )
         
         return msg_box.exec_()
 
@@ -1441,76 +1533,80 @@ class KillLoggerGUI(QMainWindow):
             self.update_kill_death_stats()
 
     def handle_payload(self, payload: dict, timestamp: str, attacker: str, readout: str) -> None:
-            match = KILL_LOG_PATTERN.search(payload.get('log_line', ''))
-            if not match:
-                return
+        match = KILL_LOG_PATTERN.search(payload.get('log_line', ''))
+        if not match:
+            return
 
-            if not payload.get("killer_ship"):
-                payload["killer_ship"] = (
-                    self.monitor_thread.current_attacker_ship
-                    if self.monitor_thread and self.monitor_thread.current_attacker_ship
-                    else "No Ship"
-                )
-
-            if payload.get("killer_ship") == "No Ship":
-                payload.pop("killer_ship")
-
-            data = match.groupdict()
-            victim = data.get('victim', '').lower().strip()
-            current_game_mode = (
-                self.monitor_thread.last_game_mode
-                if self.monitor_thread and self.monitor_thread.last_game_mode
-                else "Unknown"
+        if not payload.get("killer_ship"):
+            payload["killer_ship"] = (
+                self.monitor_thread.current_attacker_ship
+                if self.monitor_thread and self.monitor_thread.current_attacker_ship
+                else "No Ship"
             )
-            local_key = f"{timestamp}::{victim}::{current_game_mode}"
 
-            if local_key in self.local_kills:
-                self.show_temporary_popup("Kill already in local JSON. Skipping API call.")
-                return
+        if payload.get("killer_ship") == "No Ship":
+            payload.pop("killer_ship")
 
-            self.local_kills[local_key] = {
-                "payload": payload,
-                "timestamp": timestamp,
-                "attacker": attacker,
-                "readout": readout,
-                "sent_to_api": False,
-                "local_key": local_key
+        data = match.groupdict()
+        victim = data.get('victim', '').lower().strip()
+        current_game_mode = (
+            self.monitor_thread.last_game_mode
+            if self.monitor_thread and self.monitor_thread.last_game_mode
+            else "Unknown"
+        )
+        local_key = f"{timestamp}::{victim}::{current_game_mode}"
+
+        if local_key in self.local_kills:
+            self.show_temporary_popup("Kill already in local JSON. Skipping API call.")
+            return
+
+        self.local_kills[local_key] = {
+            "payload": payload,
+            "timestamp": timestamp,
+            "attacker": attacker,
+            "readout": readout,
+            "sent_to_api": False,
+            "local_key": local_key
+        }
+        self.save_local_kills()
+
+        kill_data = {
+            "local_key": local_key,
+            "victim": victim,
+            "timestamp": timestamp,
+            "readout": readout
+        }
+
+        if self.twitch_enabled and self.twitch.is_ready():
+            if self.clip_creation_enabled:
+                self.create_kill_clip(kill_data)
+
+            if self.chat_posting_enabled:
+                rsi_url = f"https://robertsspaceindustries.com/en/citizens/{victim}"
+                message = self.twitch_chat_message_template.format(
+                    username=self.local_user_name,
+                    victim=victim,
+                    profile_url=rsi_url
+                )
+                try:
+                    self.twitch.post_kill_to_chat(message)
+                    logging.info(f"Posted kill message to Twitch chat with profile link: {message}")
+                except Exception as e:
+                    logging.error(f"Error posting kill to Twitch chat: {e}")
+
+        if self.send_to_api_checkbox.isChecked():
+            headers = {
+                'Content-Type': 'application/json',
+                'X-API-Key': self.api_key,
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
             }
-            self.save_local_kills()
-            
-            if self.twitch_enabled and self.twitch.is_ready():
-                kill_data = {
-                    "local_key": local_key,
-                    "victim": victim,
-                    "timestamp": timestamp,
-                    "readout": readout
-                }
-                
-                if self.clip_creation_enabled:
-                    self.create_kill_clip(kill_data)
-
-                if self.chat_posting_enabled:
-                    rsi_url = f"https://robertsspaceindustries.com/en/citizens/{victim}"
-                    message = f"🔫 {self.local_user_name} just killed {victim}! 🚀 {rsi_url}"
-                    try:
-                        self.twitch.post_kill_to_chat(message)
-                        logging.info(f"Posted kill message to Twitch chat with profile link: {message}")
-                    except Exception as e:
-                        logging.error(f"Error posting kill to Twitch chat: {e}")
-
-            if self.send_to_api_checkbox.isChecked():
-                headers = {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': self.api_key,
-                    'User-Agent': self.user_agent,
-                    'X-Client-ID': self.__client_id__,
-                    'X-Client-Version': self.__version__
-                }
-                api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
-                api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
-                api_thread.start()
-            else:
-                logging.info("Send to API is disabled; kill payload not sent.")
+            api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+            api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
+            api_thread.start()
+        else:
+            logging.info("Send to API is disabled; kill payload not sent.")
 
     def browse_file(self) -> None:
         options = QFileDialog.Options()
@@ -1535,15 +1631,80 @@ class KillLoggerGUI(QMainWindow):
                     if isinstance(ships, list) and ships:
                         self.ship_combo.addItems(ships)
         except Exception as e:
-            logging.error(f"Error loading ship options from {ships_file}: {e}")
+            logging.error(f"Error loading ship options from {ships_file}: {e}")    
+            
+    def show_temporary_popup(self, message, duration=2000):
+        """Show a stylish temporary popup message that fades out"""
+        popup = QFrame(self)
 
-    def show_temporary_popup(self, message: str):
-        msgBox = QMessageBox(self)
-        msgBox.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        msgBox.setWindowTitle("Info")
-        msgBox.setText(message)
-        msgBox.setStandardButtons(QMessageBox.Ok)
-        msgBox.show()
+        border_radius = ScreenScaler.scale_size(8, self.scale_factor)
+        popup.setStyleSheet(f"""
+            QFrame {{
+                background-color: rgba(34, 34, 34, 220);
+                border: 1px solid #444444;
+                border-radius: {border_radius}px;
+            }}
+        """)
+        popup.setFrameShape(QFrame.StyledPanel)
+        
+        layout = QVBoxLayout(popup)
+
+        margin = ScreenScaler.scale_size(10, self.scale_factor)
+        layout.setContentsMargins(margin, margin, margin, margin)
+        
+        top_row = QHBoxLayout()
+        label = QLabel(message)
+
+        font_size = ScreenScaler.scale_font_size(14, self.scale_factor)
+        padding = ScreenScaler.scale_size(10, self.scale_factor)
+        label.setStyleSheet(f"color: #ffffff; font-size: {font_size}px; background: transparent; padding: {padding}px;")
+        label.setAlignment(Qt.AlignCenter)
+        top_row.addWidget(label, 1)
+
+        close_btn_size = ScreenScaler.scale_size(20, self.scale_factor)
+        close_btn = QPushButton("×")
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                color: #aaaaaa;
+                font-size: {ScreenScaler.scale_font_size(16, self.scale_factor)}px;
+                font-weight: bold;
+                border: none;
+                background: transparent;
+                width: {close_btn_size}px;
+                height: {close_btn_size}px;
+            }}
+            QPushButton:hover {{
+                color: #ffffff;
+            }}
+        """)
+        close_btn.setFixedSize(close_btn_size, close_btn_size)
+        close_btn.clicked.connect(popup.hide)
+        top_row.addWidget(close_btn)
+        layout.addLayout(top_row)
+        
+        # Use responsive popup sizing based on scale factor
+        popup_width = ScreenScaler.scale_size(300, self.scale_factor)
+        popup_height = ScreenScaler.scale_size(100, self.scale_factor)
+        
+        popup.setGeometry(
+            (self.width() - popup_width) // 2,
+            (self.height() - popup_height) // 2,
+            popup_width, popup_height
+        )
+        popup.show()
+        
+        self.popup_opacity = QGraphicsOpacityEffect(popup)
+        popup.setGraphicsEffect(self.popup_opacity)
+        self.popup_opacity.setOpacity(1.0)
+        
+        self.fade_animation = QPropertyAnimation(self.popup_opacity, b"opacity")
+        self.fade_animation.setDuration(duration)
+        self.fade_animation.setStartValue(1.0)
+        self.fade_animation.setEndValue(0.0)
+        self.fade_animation.setEasingCurve(QEasingCurve.OutQuad)
+        self.fade_animation.finished.connect(popup.deleteLater)
+        
+        QTimer.singleShot(500, self.fade_animation.start)
 
     def on_ship_combo_changed(self, new_ship: str) -> None:
         self.save_config()
@@ -1587,7 +1748,7 @@ class KillLoggerGUI(QMainWindow):
         self.setup_autostart(self.start_with_system)
         self.save_config()
         logging.info(f"Start with system set to: {self.start_with_system}")
-        
+
     def changeEvent(self, event) -> None:
         """Handle window state change events for minimizing to tray"""
         if event.type() == 105:
@@ -1608,6 +1769,67 @@ class KillLoggerGUI(QMainWindow):
         
         for i, button in enumerate(self.nav_buttons):
             button.setChecked(i == index)
+
+    def resizeEvent(self, event) -> None:
+        """Handle window resize events to adjust UI elements"""
+        super().resizeEvent(event)
+
+        if hasattr(self, 'ui_helper') and self.ui_helper:
+            width = self.width()
+            if width < 800:
+                font_size = 10
+            elif width < 1200:
+                font_size = 12
+            else:
+                font_size = 14
+                
+            font_size = ScreenScaler.scale_font_size(font_size, self.scale_factor)
+
+            if hasattr(self, 'kill_display'):
+                font = self.kill_display.font()
+                font.setPointSize(font_size)
+                self.kill_display.setFont(font)
+
+                if hasattr(self, 'log_path_input'):
+                    min_width = ScreenScaler.scale_size(300, self.scale_factor)
+                    self.log_path_input.setMinimumWidth(min_width)
+                
+    def update_ui_scaling(self) -> None:
+        """Update UI elements according to current scale factor"""
+        if not hasattr(self, 'scale_factor') or not hasattr(self, 'ui_helper'):
+            _, _, self.scale_factor = ScreenScaler.get_screen_info()
+            self.ui_helper = ResponsiveUIHelper(self)
+            
+        if hasattr(self, 'kill_display'):
+            font = self.kill_display.font()
+            font.setPointSize(ScreenScaler.scale_font_size(12, self.scale_factor))
+            self.kill_display.setFont(font)
+        
+        # Fix for the "smushed" game log path - ensure it scales with different resolutions
+        if hasattr(self, 'log_path_input'):
+            min_width = ScreenScaler.scale_size(300, self.scale_factor)
+            self.log_path_input.setMinimumWidth(min_width)
+        
+        for panel in getattr(self, 'panels', []):
+            if hasattr(panel, 'setMinimumHeight'):
+                min_height = ScreenScaler.scale_size(200, self.scale_factor)
+                panel.setMinimumHeight(min_height)
+                
+        for btn in getattr(self, 'nav_buttons', []):
+            font = btn.font()
+            font.setPointSize(ScreenScaler.scale_font_size(10, self.scale_factor))
+            btn.setFont(font)
+            
+        self.apply_styles()
+
+    def on_twitch_message_changed(self) -> None:
+        """Handle Twitch chat message template changes"""
+        self.twitch_chat_message_template = self.twitch_message_input.text()
+        if not self.twitch_chat_message_template:
+            self.twitch_chat_message_template = config.get('twitch_chat_message_template', "🔫 {username} just killed {victim}! 🚀 {profile_url}")
+            self.twitch_message_input.setText(self.twitch_chat_message_template)
+        
+        self.save_config()
 
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")
@@ -1653,8 +1875,18 @@ def main() -> None:
         sys.exit(0)
 
     app = QApplication(sys.argv)
+    
+    screen = QApplication.primaryScreen()
+    if screen:
+        screen_rect = screen.availableGeometry()
+        logging.info(f"Screen resolution: {screen_rect.width()}x{screen_rect.height()}")
+    
     gui = KillLoggerGUI()
     gui.check_for_updates()
     dark_title_bar_for_pyqt5(gui)
+    
+    if hasattr(gui, 'update_ui_scaling'):
+        gui.update_ui_scaling()
+
     gui.show()
     sys.exit(app.exec_())
