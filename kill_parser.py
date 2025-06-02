@@ -25,6 +25,7 @@ GAME_MODE_MAPPING = {
     'SC_Default': 'PU',
     'EA_FPSGunGame': 'Gun Rush',
     'EA_TonkRoyale_TeamBattle': 'Tonk Royale',
+    'EA_TonkRoyale_FreeForAll': 'Tonk Royale Free For All',
     'EA_FreeFlight': 'Free Flight',
     'EA_SquadronBattle': 'Squadron Battle',
     'EA_VehicleKillConfirmed': 'Vehicle Kill Confirmed',

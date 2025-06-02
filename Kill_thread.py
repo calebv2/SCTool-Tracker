@@ -429,11 +429,15 @@ class ApiSenderThread(QThread):
                     server_msg = data_resp.get("message", "")
                     if "duplicate" in server_msg.lower():
                         self.apiResponse.emit("Duplicate kill. Not logged (server).")
+                    else:
+                        self.apiResponse.emit("Kill logged successfully.")
                     return
                 elif resp.status_code == 200:
                     data_resp = resp.json()
                     if data_resp.get("message") == "NPC not logged":
                         self.apiResponse.emit("NPC kill not logged.")
+                    else:
+                        self.apiResponse.emit("Kill logged successfully.")
                     return
                 elif 400 <= resp.status_code < 500:
                     error_text = f"Failed to log kill: {resp.status_code} - {resp.text}"

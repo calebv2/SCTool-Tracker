@@ -498,7 +498,7 @@ class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
 class TwitchIntegration:
     def __init__(self, broadcaster_name: str = "") -> None:
         self.client_id = "jf48jb0492olg9gb8kz57qe4k4xqxd"
-        self.client_secret = "6azfpniy0pvktlu84u0bhrpl5s3kgm"
+        self.client_secret = "t732sj2a3leroxv8bwatfxzes7dwfh"
         self.redirect_uri = "http://localhost:17563"
         
         self.broadcaster_name = broadcaster_name

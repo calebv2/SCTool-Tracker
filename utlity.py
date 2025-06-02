@@ -8,6 +8,7 @@ import time
 import logging
 
 from responsive_ui import ScreenScaler
+from overlay import GameOverlay, OverlayControlPanel
 from PyQt5.QtGui import QKeyEvent
 from datetime import datetime, timedelta
 from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QKeySequence
@@ -214,6 +215,11 @@ def init_ui(self) -> None:
     twitch_btn.setCheckable(True)
     self.nav_buttons.append(twitch_btn)
     sidebar_layout.addWidget(twitch_btn)
+    
+    overlay_btn = self.create_nav_button("Game Overlay", "overlay_tab")
+    overlay_btn.setCheckable(True)
+    self.nav_buttons.append(overlay_btn)
+    sidebar_layout.addWidget(overlay_btn)
     sidebar_layout.addStretch(1)
     main_layout.addWidget(sidebar)
 
@@ -257,9 +263,9 @@ def init_ui(self) -> None:
     killfeed_page = QWidget()
     killfeed_layout = QVBoxLayout(killfeed_page)
     killfeed_layout.setContentsMargins(0, 0, 0, 0)
-    killfeed_layout.setSpacing(15)
-
+    killfeed_layout.setSpacing(15)    
     kill_feed_container = QWidget()
+    kill_feed_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     kill_feed_container.setStyleSheet(
         "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
         "border: 1px solid #333333; }"
@@ -267,7 +273,6 @@ def init_ui(self) -> None:
     kill_feed_layout = QVBoxLayout(kill_feed_container)
     kill_feed_layout.setContentsMargins(15, 15, 15, 15)
     kill_feed_layout.setSpacing(10)
-    
     kill_feed_header = QLabel("KILL FEED")
     kill_feed_header.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 14px; font-weight: bold; "
@@ -278,6 +283,8 @@ def init_ui(self) -> None:
     self.kill_display = QTextBrowser()
     self.kill_display.setReadOnly(True)
     self.kill_display.setOpenExternalLinks(True)
+    self.kill_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    self.kill_display.setMinimumHeight(200)
     self.kill_display.setStyleSheet(
         "QTextBrowser { background-color: #121212; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px; }"
         "QTextBrowser QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
@@ -286,7 +293,7 @@ def init_ui(self) -> None:
         "QTextBrowser QScrollBar::add-line:vertical, QTextBrowser QScrollBar::sub-line:vertical { height: 0px; }"
         "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
     )
-    kill_feed_layout.addWidget(self.kill_display)
+    kill_feed_layout.addWidget(self.kill_display, 1)
     
     killfeed_layout.addWidget(kill_feed_container, 1)
 
@@ -728,7 +735,7 @@ def init_ui(self) -> None:
     twitch_desc = QLabel("Connect your Twitch account to automatically create clips of your kills during your stream.")
     twitch_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
-    )
+        )
     twitch_desc.setWordWrap(True)
     twitch_card_layout.addRow(twitch_desc)
     
@@ -741,6 +748,16 @@ def init_ui(self) -> None:
         "QCheckBox::indicator:checked { border: 1px solid #9146FF; background-color: #9146FF; border-radius: 3px; }"
     )
     twitch_card_layout.addRow("", self.twitch_enabled_checkbox)
+    
+    self.auto_connect_twitch_checkbox = QCheckBox("Auto-connect to Twitch on launch")
+    self.auto_connect_twitch_checkbox.setChecked(False)
+    self.auto_connect_twitch_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #9146FF; background-color: #9146FF; border-radius: 3px; }"
+    )
+    twitch_card_layout.addRow("", self.auto_connect_twitch_checkbox)
     
     twitch_channel_label = QLabel("Twitch Channel:")
     twitch_channel_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
@@ -872,7 +889,6 @@ def init_ui(self) -> None:
     clip_delay_layout.addWidget(self.clip_delay_value)
     
     twitch_card_layout.addRow(clip_delay_label, clip_delay_container)
-    
     note_label = QLabel("Note: Clip creation requires you to be actively streaming on Twitch")
     note_label.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
     note_label.setWordWrap(True)
@@ -880,6 +896,42 @@ def init_ui(self) -> None:
     
     twitch_layout.addWidget(twitch_card)
     twitch_layout.addStretch(1)
+    
+    overlay_page = QWidget()
+    overlay_layout = QVBoxLayout(overlay_page)
+    overlay_layout.setContentsMargins(0, 0, 0, 0)
+    overlay_layout.setSpacing(15)
+    
+    overlay_card = QWidget()
+    overlay_card.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
+        "border: 1px solid #333333; }"
+    )
+    overlay_card_layout = QFormLayout(overlay_card)
+    overlay_card_layout.setContentsMargins(20, 20, 20, 20)
+    overlay_card_layout.setSpacing(15)
+    overlay_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+    
+    overlay_header = QLabel("GAME OVERLAY")
+    overlay_header.setStyleSheet(
+        "QLabel { color: #00ff41; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
+    )
+    overlay_card_layout.addRow(overlay_header)
+    
+    overlay_desc = QLabel("Configure the in-game overlay that displays your kill/death statistics in real-time while playing Star Citizen.")
+    overlay_desc.setStyleSheet(
+        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
+    )
+    overlay_desc.setWordWrap(True)
+    overlay_card_layout.addRow(overlay_desc)
+    self.game_overlay = GameOverlay(None)
+    self.game_overlay.parent_tracker = self
+    self.overlay_settings = OverlayControlPanel(self.game_overlay, self)
+    self.overlay_settings.overlay_toggled.connect(self.toggle_overlay)
+    
+    overlay_card_layout.addRow("", self.overlay_settings)
+    
+    overlay_layout.addWidget(overlay_card)
     
     killfeed_scroll = QScrollArea()
     killfeed_scroll.setWidget(killfeed_page)
@@ -891,14 +943,13 @@ def init_ui(self) -> None:
     killfeed_settings_scroll.setWidget(killfeed_settings_page)
     killfeed_settings_scroll.setWidgetResizable(True)
     killfeed_settings_scroll.setFrameShape(QScrollArea.NoFrame)
-    killfeed_settings_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-
+    killfeed_settings_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")    
     api_scroll = QScrollArea()
     api_scroll.setWidget(api_page)
     api_scroll.setWidgetResizable(True)
     api_scroll.setFrameShape(QScrollArea.NoFrame)
     api_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-
+    
     sound_scroll = QScrollArea()
     sound_scroll.setWidget(sound_page)
     sound_scroll.setWidgetResizable(True)
@@ -910,13 +961,21 @@ def init_ui(self) -> None:
     twitch_scroll.setWidgetResizable(True)
     twitch_scroll.setFrameShape(QScrollArea.NoFrame)
     twitch_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+    
+    overlay_scroll = QScrollArea()
+    overlay_scroll.setWidget(overlay_page)
+    overlay_scroll.setWidgetResizable(True)
+    overlay_scroll.setFrameShape(QScrollArea.NoFrame)    
+    overlay_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
-    # Add scroll areas to the stack
     self.content_stack.addWidget(killfeed_scroll)
     self.content_stack.addWidget(killfeed_settings_scroll)
+    
     self.content_stack.addWidget(api_scroll)
     self.content_stack.addWidget(sound_scroll)
+    
     self.content_stack.addWidget(twitch_scroll)
+    self.content_stack.addWidget(overlay_scroll)
     self.content_stack.setCurrentIndex(0)
     
     for i, button in enumerate(self.nav_buttons):
@@ -925,9 +984,12 @@ def init_ui(self) -> None:
     content_layout.addWidget(self.content_stack)
     main_layout.addWidget(content_area, stretch=1)
     main_widget.setLayout(main_layout)
+    
     self.setCentralWidget(main_widget)
+    
     screen = QApplication.primaryScreen()
     screen_size = screen.availableGeometry()
+    
     screen_width = screen_size.width()
     screen_height = screen_size.height()
     
@@ -938,6 +1000,7 @@ def init_ui(self) -> None:
         base_height = 1080
         width_scale = screen_width / base_width
         height_scale = screen_height / base_height
+        
         scale = min(width_scale, height_scale)
         if scale < 0.7:
             scale = 0.7
@@ -945,13 +1008,14 @@ def init_ui(self) -> None:
     min_width = int(600 * scale)
     min_height = int(500 * scale)
     self.setMinimumSize(min_width, min_height)
-
+    
     self.session_start_time = None
     self.session_timer = QTimer()
     self.session_timer.timeout.connect(self.update_session_time)
     
     self.send_to_api_checkbox.stateChanged.connect(self.update_api_status)
     self.twitch_enabled_checkbox.stateChanged.connect(self.on_twitch_enabled_changed)
+    self.auto_connect_twitch_checkbox.stateChanged.connect(self.on_auto_connect_twitch_changed)
 
 def create_nav_button(self, text, obj_name=None):
     """Create a styled navigation button for the sidebar"""
@@ -1025,7 +1089,6 @@ def load_config(self) -> None:
             
             self.kill_sound_enabled = config.get('kill_sound', False)
             self.kill_sound_checkbox.setChecked(self.kill_sound_enabled)
-            
             kill_sound_path = config.get('kill_sound_path', '')
             if kill_sound_path and os.path.isfile(kill_sound_path):
                 self.kill_sound_path = kill_sound_path
@@ -1036,6 +1099,9 @@ def load_config(self) -> None:
             
             self.twitch_enabled = config.get('twitch_enabled', False)
             self.twitch_enabled_checkbox.setChecked(self.twitch_enabled)
+            
+            self.auto_connect_twitch = config.get('auto_connect_twitch', False)
+            self.auto_connect_twitch_checkbox.setChecked(self.auto_connect_twitch)
             
             twitch_channel = config.get('twitch_channel', '')
             if twitch_channel:

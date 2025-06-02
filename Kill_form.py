@@ -58,7 +58,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 4.7")
+            hwnd = FindWindow(None, "SCTool Killfeed 4.9")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -115,11 +115,11 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "4.7"    
+    __version__ = "4.9"    
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 4.7")
+        self.setWindowTitle("SCTool Killfeed 4.9")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -142,40 +142,47 @@ class KillLoggerGUI(QMainWindow):
         self.local_kills: Dict[str, Any] = {}
         self.kills_local_file = LOCAL_KILLS_FILE
         self.persistent_info = {
-            "monitoring": "",
-            "registered": "",
+            "monitoring": "",        "registered": "",
             "game_mode": "",
             "api_connection": "",
             "twitch_connected": ""
         }
-
+        
         self.minimize_to_tray = False
         self.start_with_system = False
         self.tray_icon = None
         self.tray_menu = None
-        
         self.last_animation_timer = None
+        
         self.stats_panel_visible = True
         self.twitch_enabled = False
+        self.auto_connect_twitch = False
+        
         self.twitch = TwitchIntegration()
         self.clip_creation_enabled = True
         self.chat_posting_enabled = True
         self.clips: Dict[str, str] = {}
+        
         self.twitch_callback_timer = QTimer()
         self.twitch_callback_timer.timeout.connect(lambda: process_twitch_callbacks(self))
         self.twitch_callback_timer.start(1000)
         self.last_clip_creation_time = 0
+        
         self.current_clip_group_id = ""
         self.clip_group_window_seconds = 10
         self.clip_groups: Dict[str, List[str]] = {}
+        self.latest_kill_info = None
+        self.latest_death_info = None
+        
         self.apply_styles = lambda: apply_styles_func(self)
         
         init_ui(self)
         load_config(self)
         load_local_kills(self)
         apply_styles(self)
-        self.initialize_system_tray()
+        self.initialize_system_tray()  
         self.rescan_button.setEnabled(False)
+        self.handle_auto_connect_twitch()
         
         self.update_ui_scaling()
 
@@ -232,8 +239,7 @@ class KillLoggerGUI(QMainWindow):
             stats_action.setEnabled(False)
             
             quit_action = QAction("Quit", self)
-            quit_action.triggered.connect(self.quit_application)
-
+            quit_action.triggered.connect(self.quit_application)            
             self.tray_menu.addAction(show_action)
             self.tray_menu.addAction(stats_action)
             self.tray_menu.addSeparator()
@@ -320,6 +326,7 @@ class KillLoggerGUI(QMainWindow):
             'send_to_api': self.send_to_api_checkbox.isChecked(),
             'killer_ship': ship_value,
             'twitch_enabled': self.twitch_enabled,
+            'auto_connect_twitch': self.auto_connect_twitch,
             'twitch_channel': self.twitch_channel_input.text().strip(),
             'clip_creation_enabled': self.clip_creation_enabled,
             'chat_posting_enabled': self.chat_posting_enabled,
@@ -375,15 +382,6 @@ class KillLoggerGUI(QMainWindow):
                 self.show_temporary_popup("Missing kills were not sent.")
         else:
             self.show_temporary_popup("No missing kills found.")
-            
-    def send_missing_kills(self, missing_kills: List[dict]) -> None:
-        self.missing_kills_queue = missing_kills.copy()
-        
-        for index, kill in enumerate(missing_kills):
-            kill_copy = kill.copy()
-            QTimer.singleShot(index * 500, lambda k=kill_copy: self.display_missing_kill(k))
-        
-        QTimer.singleShot(len(missing_kills) * 500 + 100, self.send_next_missing_kill)
     
     def display_missing_kill(self, kill: dict) -> None:
         """Display a missing kill in the kill feed"""
@@ -418,8 +416,7 @@ class KillLoggerGUI(QMainWindow):
                         "attacker": attacker,
                         "readout": readout,
                         "sent_to_api": False,
-                        "local_key": local_key
-                    }
+                        "local_key": local_key                    }
                     self.save_local_kills()
                 
                 logging.info(f"Displayed missing kill in feed: {local_key}")
@@ -442,32 +439,117 @@ class KillLoggerGUI(QMainWindow):
         }
         api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
         api_thread.apiResponse.connect(lambda msg, key=local_key: self.handle_missing_api_response(msg, key))
-        api_thread.start()    
+        api_thread.start()
         
+    def send_missing_kills(self, missing_kills: List[dict]) -> None:
+        self.missing_kills_queue = missing_kills.copy()
+        self.missing_kills_results = {
+            'duplicates': [],
+            'new_kills': [],
+            'errors': [],
+            'total': len(missing_kills)
+        }
+
+        self.append_kill_readout(f"<div style='color: #4CAF50; font-weight: bold; margin: 10px 0;'>📤 Processing {len(missing_kills)} missing kills...</div>")
+        
+        for index, kill in enumerate(missing_kills):
+            QTimer.singleShot(index * 500, lambda k=kill: self.send_single_missing_kill(k))
+
+    def send_single_missing_kill(self, kill: dict) -> None:
+        """Send a single missing kill to the API"""
+        local_key = kill["local_key"]
+        payload = kill["payload"]
+        headers = {
+            'Content-Type': 'application/json',
+            'X-API-Key': self.api_key,
+            'User-Agent': self.user_agent,
+            'X-Client-ID': self.__client_id__,
+            'X-Client-Version': self.__version__
+        }
+        
+        self.display_missing_kill(kill)
+
+        api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+        api_thread.apiResponse.connect(lambda msg, key=local_key: self.handle_missing_api_response(msg, key))
+        api_thread.start()
+
     def handle_missing_api_response(self, msg: str, local_key: str) -> None:
+        success = False
+        is_duplicate = False
+
         if msg.startswith("Duplicate kill"):
-            parts = local_key.split("::")
-            victim_name = parts[1] if len(parts) >= 2 else "unknown"
-            
-            msgBox = styled_message_box(
-                self,
-                "Duplicate Kill",
-                f"Duplicate kill detected for victim: {victim_name}",
-                QMessageBox.Information,
-                QMessageBox.Ok
-            )
-            msgBox.exec_()
-            
-            if isinstance(self.local_kills.get(local_key), dict):
-                self.local_kills[local_key]["sent_to_api"] = True
-            else:
-                self.local_kills[local_key] = True
-            self.save_local_kills()
+            logging.info(f"Kill {local_key} already exists on server")
+            success = True
+            is_duplicate = True
+            self.missing_kills_results['duplicates'].append(local_key)
+        elif "kill logged successfully" in msg.lower() or msg.strip() == "":
+            logging.info(f"Kill {local_key} sent successfully")
+            success = True
+            self.missing_kills_results['new_kills'].append(local_key)
         else:
+            logging.error(f"Failed to send kill {local_key}: {msg}")
+            self.missing_kills_results['errors'].append({'key': local_key, 'error': msg})
 
-            self.show_temporary_popup(msg)
+        self.missing_kills_queue = [k for k in self.missing_kills_queue if k.get("local_key") != local_key]
 
-        QTimer.singleShot(100, self.send_next_missing_kill)
+        processed_count = (len(self.missing_kills_results['duplicates']) + 
+                        len(self.missing_kills_results['new_kills']) + 
+                        len(self.missing_kills_results['errors']))
+        
+        if processed_count >= self.missing_kills_results['total']:
+            self.post_missing_kills_summary()
+
+    def post_missing_kills_summary(self) -> None:
+        """Post a detailed summary of missing kills processing to the kill feed"""
+        results = self.missing_kills_results
+
+        summary_html = "<div style='background-color: #1a1a1a; border-left: 4px solid #4CAF50; padding: 15px; margin: 10px 0; border-radius: 5px;'>"
+        summary_html += "<div style='color: #4CAF50; font-weight: bold; font-size: 16px; margin-bottom: 10px;'>📊 Missing Kills Processing Complete</div>"
+
+        summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>Total processed: <span style='color: #4CAF50; font-weight: bold;'>{results['total']}</span></div>"
+        
+        if results['new_kills']:
+            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>✅ New kills sent: <span style='color: #4CAF50; font-weight: bold;'>{len(results['new_kills'])}</span></div>"
+
+            summary_html += "<div style='margin-left: 20px; margin-bottom: 8px;'>"
+            for kill_key in results['new_kills']:
+                parts = kill_key.split("::")
+                if len(parts) >= 2:
+                    victim = parts[1]
+                    timestamp = parts[0]
+                    summary_html += f"<div style='color: #81C784; font-size: 12px;'>• {victim} ({timestamp})</div>"
+            summary_html += "</div>"
+        
+        if results['duplicates']:
+            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>⚠️ Duplicates found: <span style='color: #FFA726; font-weight: bold;'>{len(results['duplicates'])}</span></div>"
+
+            summary_html += "<div style='margin-left: 20px; margin-bottom: 8px;'>"
+            for kill_key in results['duplicates']:
+                parts = kill_key.split("::")
+                if len(parts) >= 2:
+                    victim = parts[1]
+                    timestamp = parts[0]
+                    summary_html += f"<div style='color: #FFB74D; font-size: 12px;'>• {victim} ({timestamp}) - already on server</div>"
+            summary_html += "</div>"
+        
+        if results['errors']:
+            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>❌ Errors: <span style='color: #F44336; font-weight: bold;'>{len(results['errors'])}</span></div>"
+
+            summary_html += "<div style='margin-left: 20px; margin-bottom: 8px;'>"
+            for error_item in results['errors']:
+                kill_key = error_item['key']
+                error_msg = error_item['error']
+                parts = kill_key.split("::")
+                if len(parts) >= 2:
+                    victim = parts[1]
+                    timestamp = parts[0]
+                    summary_html += f"<div style='color: #EF5350; font-size: 12px;'>• {victim} ({timestamp}) - {error_msg}</div>"
+            summary_html += "</div>"
+        
+        summary_html += "</div>"
+
+        self.append_kill_readout(summary_html)
+        self.missing_kills_results = {'duplicates': [], 'new_kills': [], 'errors': [], 'total': 0}
 
     def on_player_registered(self, text: str) -> None:
         match = re.search(r"Registered user:\s+(.+)$", text)
@@ -947,6 +1029,17 @@ class KillLoggerGUI(QMainWindow):
             "sent_to_api": False,
             "event_type": "death"
         }
+
+        self.latest_death_info = {
+            "victim": victim,
+            "attacker": attacker,
+            "weapon": payload.get('weapon', 'Unknown'),
+            "location": payload.get('location', 'Unknown'),
+            "timestamp": timestamp,
+            "game_mode": current_game_mode
+        }
+
+        self.update_overlay_stats()
         
         self.save_local_kills()
         if self.send_to_api_checkbox.isChecked():
@@ -1049,6 +1142,7 @@ class KillLoggerGUI(QMainWindow):
             time_str = f"{int(minutes):02d}:{int(seconds):02d}"
             
         self.session_time_display.setText(time_str)
+        self.update_overlay_stats()
     
     def update_kill_death_stats(self):
         self.kill_count_display.setText(str(self.kill_count))
@@ -1063,6 +1157,40 @@ class KillLoggerGUI(QMainWindow):
                 self.kd_ratio_display.setText(str(self.kill_count))
             else:
                 self.kd_ratio_display.setText("--")
+
+        self.update_overlay_stats()
+
+    def update_overlay_stats(self):
+        """Update the overlay with current stats"""
+        if hasattr(self, 'game_overlay') and self.game_overlay.is_visible:
+            session_time = "00:00"
+            if hasattr(self, 'session_time_display'):
+                session_time = self.session_time_display.text().replace('Session: ', '')
+            
+            ship = "Unknown"
+            if hasattr(self, 'ship_combo'):
+                ship = self.ship_combo.currentText() or "Unknown"
+
+            game_mode = "Unknown"
+            if hasattr(self, 'game_mode_display'):
+                mode_text = self.game_mode_display.text()
+                if mode_text.startswith('Mode: '):
+                    game_mode = mode_text.replace('Mode: ', '')
+
+            kill_streak = 0
+            if hasattr(self, 'kill_count') and hasattr(self, 'death_count'):
+                kill_streak = max(0, self.kill_count - self.death_count)
+            
+            self.game_overlay.update_stats(
+                kills=self.kill_count,
+                deaths=self.death_count,
+                session_time=session_time,
+                ship=ship,
+                game_mode=game_mode,
+                kill_streak=kill_streak,
+                latest_kill=self.latest_kill_info,
+                latest_death=self.latest_death_info
+            )
 
     def update_monitor_indicator(self, is_monitoring: bool):
         if is_monitoring:
@@ -1197,7 +1325,7 @@ class KillLoggerGUI(QMainWindow):
                 self.user_profile_image.setPixmap(circular_pixmap)
         except Exception as e:
             logging.error(f"Error fetching default image: {e}")
-
+    
     def closeEvent(self, event) -> None:
         if self.monitor_thread and self.monitor_thread.isRunning():
             reply = QMessageBox.question(
@@ -1214,11 +1342,30 @@ class KillLoggerGUI(QMainWindow):
             else:
                 event.ignore()
                 return
-
+        
         if self.rescan_thread and self.rescan_thread.isRunning():
             self.rescan_thread.stop()
             self.rescan_thread.wait(3000)
             self.rescan_thread = None
+
+        if hasattr(self, 'twitch_callback_timer') and self.twitch_callback_timer:
+            self.twitch_callback_timer.stop()
+            
+        if hasattr(self, 'session_timer') and self.session_timer:
+            self.session_timer.stop()
+            
+        if hasattr(self, 'tray_stats_timer') and self.tray_stats_timer:
+            self.tray_stats_timer.stop()
+
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            self.tray_icon.hide()
+            self.tray_icon = None
+
+        if hasattr(self, 'twitch') and self.twitch:
+            try:
+                self.twitch.disconnect()
+            except Exception as e:
+                logging.error(f"Error disconnecting from Twitch during shutdown: {e}")
 
         self.clips = {}
         self.clip_groups = {}
@@ -1283,6 +1430,11 @@ class KillLoggerGUI(QMainWindow):
         else:
             self.update_bottom_info("twitch_connected", "Twitch Disabled")
         
+        self.save_config()
+
+    def on_auto_connect_twitch_changed(self, state: int) -> None:
+        """Handle auto-connect to Twitch setting change"""
+        self.auto_connect_twitch = (state == Qt.Checked)
         self.save_config()
 
     def on_create_clip_finished(self, clip_url: str, kill_data: Dict[str, Any]) -> None:
@@ -1434,7 +1586,6 @@ class KillLoggerGUI(QMainWindow):
                     }
                     self.on_create_clip_finished(clip_url, group_kill_data)
                     logging.info(f"Applied group clip URL to kill: {local_key}")
-        
         logging.info(f"Processed clip for kill group {group_id} with {len(self.clip_groups.get(group_id, []))} kills")
 
     def on_clip_creation_toggled(self, state: int) -> None:
@@ -1450,10 +1601,23 @@ class KillLoggerGUI(QMainWindow):
 
     def on_clip_delay_changed(self, value: int) -> None:
         """Handle clip delay slider value changes"""
-        self.twitch.set_clip_delay(value)
+        self.twitch.set_clip_delay(value)        
         self.clip_delay_value.setText(f"{value} seconds")
         logging.info(f"Clip delay set to {value} seconds")
         self.save_config()
+
+    def toggle_overlay(self, enabled: bool) -> None:
+        """Handle overlay enabled/disabled"""
+        if hasattr(self, 'game_overlay'):
+            if enabled:
+                self.game_overlay.show_overlay()
+                logging.info("Advanced game overlay enabled")
+                self.update_overlay_stats()
+            else:
+                self.game_overlay.hide_overlay()
+                logging.info("Advanced game overlay disabled")
+        else:
+            logging.warning("Advanced game overlay not initialized")
 
     def toggle_monitoring(self) -> None:
         if self.monitor_thread and self.monitor_thread.isRunning():
@@ -1576,6 +1740,17 @@ class KillLoggerGUI(QMainWindow):
             "readout": readout
         }
 
+        self.latest_kill_info = {
+            "victim": data.get('victim', 'Unknown'),
+            "weapon": data.get('weapon', 'Unknown'),
+            "location": data.get('zone', 'Unknown'),
+            "timestamp": timestamp,
+            "attacker": self.local_user_name,
+            "game_mode": current_game_mode
+        }
+
+        self.update_overlay_stats()
+
         if self.twitch_enabled and self.twitch.is_ready():
             if self.clip_creation_enabled:
                 self.create_kill_clip(kill_data)
@@ -1588,10 +1763,9 @@ class KillLoggerGUI(QMainWindow):
                     profile_url=rsi_url
                 )
                 try:
-                    self.twitch.post_kill_to_chat(message)
-                    logging.info(f"Posted kill message to Twitch chat with profile link: {message}")
+                    self.twitch.send_chat_message(message)
                 except Exception as e:
-                    logging.error(f"Error posting kill to Twitch chat: {e}")
+                    logging.error(f"Error sending Twitch chat message: {e}")
 
         if self.send_to_api_checkbox.isChecked():
             headers = {
@@ -1713,6 +1887,8 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.current_attacker_ship = new_ship
             self.monitor_thread.update_config_killer_ship(new_ship)
 
+   
+
     def on_kill_sound_toggled(self, state: int) -> None:
         self.kill_sound_enabled = (state == Qt.Checked)
         self.save_config()
@@ -1750,17 +1926,36 @@ class KillLoggerGUI(QMainWindow):
     def changeEvent(self, event) -> None:
         """Handle window state change events for minimizing to tray"""
         if event.type() == 105:
-            if self.minimize_to_tray and self.windowState() & Qt.WindowMinimized:
-                QTimer.singleShot(100, self.hide)
-                if self.tray_icon:
-                    self.tray_icon.showMessage(
-                        "SCTool Killfeed",
-                        "Application minimized to system tray",
-                        QIcon(resource_path("chris2.ico")),
-                        3000
-                    )
+            if self.windowState() & Qt.WindowMinimized:
+                if hasattr(self, 'game_overlay') and self.game_overlay and self.game_overlay.is_visible:
+                    self.game_overlay.show()
+                    self.game_overlay.raise_()
+                    self.game_overlay.activateWindow()
+                
+                if self.minimize_to_tray:
+                    QTimer.singleShot(100, self.hide)
+                    if self.tray_icon:
+                        self.tray_icon.showMessage(
+                            "SCTool Killfeed",
+                            "Application minimized to system tray",
+                            QIcon(resource_path("chris2.ico")),
+                            3000
+                        )
         super().changeEvent(event)
-
+    def hide_to_tray(self):
+        """Hide main window to system tray"""
+        self.hide()
+        if hasattr(self, 'game_overlay') and self.game_overlay and self.game_overlay.is_visible:
+            self.game_overlay.show()
+            self.game_overlay.raise_()
+    
+    def show_from_tray(self) -> None:
+        """Show the main window when activated from tray"""
+        self.showNormal()
+        self.activateWindow()
+        if hasattr(self, 'game_overlay') and self.game_overlay and self.game_overlay.is_visible:
+            self.game_overlay.show()
+            self.game_overlay.raise_()
     def switch_page(self, index):
         """Switch to the specified page and update selected navigation button state"""
         self.content_stack.setCurrentIndex(index)
@@ -1823,10 +2018,44 @@ class KillLoggerGUI(QMainWindow):
         """Handle Twitch chat message template changes"""
         self.twitch_chat_message_template = self.twitch_message_input.text()
         if not self.twitch_chat_message_template:
-            self.twitch_chat_message_template = config.get('twitch_chat_message_template', "🔫 {username} just killed {victim}! 🚀 {profile_url}")
+            self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
             self.twitch_message_input.setText(self.twitch_chat_message_template)
-        
+
         self.save_config()
+
+    def handle_auto_connect_twitch(self) -> None:
+        """Automatically connect to Twitch on startup if auto-connect is enabled"""
+        if not self.auto_connect_twitch:
+            logging.info("Auto-connect to Twitch is disabled")
+            return
+            
+        if not self.twitch_enabled:
+            logging.info("Auto-connect skipped: Twitch integration is disabled")
+            return
+            
+        channel_name = self.twitch_channel_input.text().strip()
+        if not channel_name:
+            logging.warning("Auto-connect skipped: No Twitch channel name configured")
+            return
+            
+        if self.twitch.is_ready():
+            logging.info("Twitch integration already ready, skipping auto-connect")
+            self.update_bottom_info("twitch_connected", "Twitch Connected")
+            return
+            
+        logging.info(f"Auto-connecting to Twitch for channel: {channel_name}")
+        self.twitch.set_broadcaster_name(channel_name)
+        
+        def auto_auth_callback(success: bool) -> None:
+            if success:
+                self.update_bottom_info("twitch_connected", "Twitch Connected")
+                logging.info("Auto-connect to Twitch successful")
+                self.save_config()
+            else:
+                self.update_bottom_info("twitch_connected", "Twitch Not Connected")
+                logging.warning("Auto-connect to Twitch failed")
+                
+        self.twitch.authenticate(auto_auth_callback)
 
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")
