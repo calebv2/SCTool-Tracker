@@ -377,7 +377,8 @@ class KillLoggerGUI(QMainWindow):
                 selected_kills = dialog.getSelectedKills()
                 if selected_kills:
                     self.send_missing_kills(selected_kills)
-                else:            self.show_temporary_popup("No kills selected to send.")
+                else:
+                    self.show_temporary_popup("No kills selected to send.")
             else:
                 self.show_temporary_popup("Missing kills were not sent.")
         else:
@@ -399,6 +400,9 @@ class KillLoggerGUI(QMainWindow):
             if match:
                 data = match.groupdict()
                 attacker = data.get('attacker', '').strip()
+
+                if attacker and attacker == self.local_user_name:
+                    self.update_user_profile_image(attacker)
                 
                 if "killer_ship" not in data and "killer_ship" in payload:
                     data["killer_ship"] = payload["killer_ship"]
@@ -407,7 +411,7 @@ class KillLoggerGUI(QMainWindow):
                     log_line, data, self.local_user_name, timestamp, game_mode, success=True
                 )
                 
-                self.append_kill_readout(readout)
+                self.append_kill_readout_no_count(readout)
             
                 if local_key not in self.local_kills:
                     self.local_kills[local_key] = {
@@ -416,7 +420,8 @@ class KillLoggerGUI(QMainWindow):
                         "attacker": attacker,
                         "readout": readout,
                         "sent_to_api": False,
-                        "local_key": local_key                    }
+                        "local_key": local_key                    
+                    }
                     self.save_local_kills()
                 
                 logging.info(f"Displayed missing kill in feed: {local_key}")
@@ -435,10 +440,9 @@ class KillLoggerGUI(QMainWindow):
             'X-API-Key': self.api_key,
             'User-Agent': self.user_agent,
             'X-Client-ID': self.__client_id__,
-            'X-Client-Version': self.__version__
-        }
+            'X-Client-Version': self.__version__        }
         api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
-        api_thread.apiResponse.connect(lambda msg, key=local_key: self.handle_missing_api_response(msg, key))
+        api_thread.apiResponse.connect(lambda msg, response_data, key=local_key: self.handle_missing_api_response(msg, key, response_data))
         api_thread.start()
         
     def send_missing_kills(self, missing_kills: List[dict]) -> None:
@@ -470,10 +474,10 @@ class KillLoggerGUI(QMainWindow):
         self.display_missing_kill(kill)
 
         api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
-        api_thread.apiResponse.connect(lambda msg, key=local_key: self.handle_missing_api_response(msg, key))
+        api_thread.apiResponse.connect(lambda msg, response_data, key=local_key: self.handle_missing_api_response(msg, key, response_data))
         api_thread.start()
 
-    def handle_missing_api_response(self, msg: str, local_key: str) -> None:
+    def handle_missing_api_response(self, msg: str, local_key: str, response_data: dict = None) -> None:
         success = False
         is_duplicate = False
 
@@ -486,6 +490,17 @@ class KillLoggerGUI(QMainWindow):
             logging.info(f"Kill {local_key} sent successfully")
             success = True
             self.missing_kills_results['new_kills'].append(local_key)
+            
+            if local_key in self.local_kills:
+                readout = self.local_kills[local_key].get("readout", "")
+                if "YOU KILLED" in readout:
+                    self.kill_count += 1
+                    self.update_kill_death_stats()
+                    logging.info(f"Incremented kill count to {self.kill_count} for new kill: {local_key}")
+                elif "YOU DIED" in readout:
+                    self.death_count += 1
+                    self.update_kill_death_stats()
+                    logging.info(f"Incremented death count to {self.death_count} for new death: {local_key}")
         else:
             logging.error(f"Failed to send kill {local_key}: {msg}")
             self.missing_kills_results['errors'].append({'key': local_key, 'error': msg})
@@ -559,7 +574,7 @@ class KillLoggerGUI(QMainWindow):
             self.update_bottom_info("registered", text)
             self.save_config()
             self.rescan_button.setEnabled(True)
-            self.update_user_profile_image(self.local_user_name)
+            QTimer.singleShot(500, lambda: self.update_user_profile_image(self.local_user_name))
 
     def open_tracker_files(self) -> None:
         webbrowser.open(TRACKER_DIR)
@@ -748,8 +763,7 @@ class KillLoggerGUI(QMainWindow):
             logging.error(f"Auto-update failed: {e}")
             self.showCustomMessageBox(
                 "Update Failed",
-                f"Could not update automatically: {str(e)}\n\nPlease update manually from:\nhttps://starcitizentool.com/download-sctool",
-                QMessageBox.Critical
+                f"Could not update automatically: {str(e)}\n\nPlease update manually from:\nhttps://starcitizentool.com/download-sctool",                QMessageBox.Critical
             )
 
     def delete_local_kills(self):
@@ -767,9 +781,16 @@ class KillLoggerGUI(QMainWindow):
         except Exception as e:
             logging.error(f"Failed to delete kill_logger.log: {e}")
 
-    def handle_api_response(self, message: str, local_key: str, timestamp: str) -> None:
+    def handle_api_response(self, message: str, local_key: str, timestamp: str, response_data: dict = None) -> None:
         normalized_message = message.strip().lower()
         
+        # Extract kill ID from API response if available
+        if response_data and "kill" in response_data and isinstance(response_data["kill"], dict):
+            kill_id = response_data["kill"].get("id")
+            if kill_id and local_key in self.local_kills:
+                self.local_kills[local_key]["api_kill_id"] = kill_id
+                logging.info(f"Stored API kill ID {kill_id} for local key: {local_key}")
+                self.save_local_kills()
 
         if "npc kill not logged" in normalized_message or "npc not logged" in normalized_message:
             logging.info(f"API identified NPC kill: {local_key}")
@@ -814,6 +835,33 @@ class KillLoggerGUI(QMainWindow):
         
         self.update_kill_death_stats()
         
+        cursor = self.kill_display.textCursor()
+        cursor.movePosition(cursor.End)
+        self.kill_display.setTextCursor(cursor)
+
+        self.kill_display.append(text)
+        
+        if self.last_animation_timer:
+            self.last_animation_timer.stop()
+            
+        highlight_style = """
+            <style type='text/css'>
+                @keyframes fadeIn {
+                    0% { opacity: 0; transform: translateY(-10px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .newEntry {
+                    animation: fadeIn 0.5s ease-out;
+                }
+            </style>
+        """
+
+        self.kill_display.verticalScrollBar().setValue(
+            self.kill_display.verticalScrollBar().maximum()
+        )
+
+    def append_kill_readout_no_count(self, text: str) -> None:
+        """Append kill readout to display without incrementing kill/death counts"""
         cursor = self.kill_display.textCursor()
         cursor.movePosition(cursor.End)
         self.kill_display.setTextCursor(cursor)
@@ -1040,6 +1088,14 @@ class KillLoggerGUI(QMainWindow):
         }
 
         self.update_overlay_stats()
+
+        if hasattr(self, 'game_overlay') and self.game_overlay.display_mode == 'faded':
+            self.game_overlay.show_death_notification(
+                attacker=attacker,
+                weapon=payload.get('weapon', 'Unknown'),
+                zone=payload.get('location', 'Unknown'),
+                game_mode=current_game_mode
+            )
         
         self.save_local_kills()
         if self.send_to_api_checkbox.isChecked():
@@ -1507,10 +1563,14 @@ class KillLoggerGUI(QMainWindow):
 
     def update_user_profile_image(self, username: str) -> None:
         try:
-            if not username:
+            if not username or not username.strip():
+                logging.warning("No username provided for profile image update")
                 self.set_default_user_image()
                 return
                 
+            username = username.strip()
+            logging.info(f"Updating profile image for user: {username}")
+
             pixmap = QPixmap(64, 64)
             pixmap.fill(Qt.transparent)
             painter = QPainter(pixmap)
@@ -1751,6 +1811,14 @@ class KillLoggerGUI(QMainWindow):
 
         self.update_overlay_stats()
 
+        if hasattr(self, 'game_overlay') and self.game_overlay.display_mode == 'faded':
+            self.game_overlay.show_kill_notification(
+                victim=data.get('victim', 'Unknown'),
+                weapon=data.get('weapon', 'Unknown'),
+                zone=data.get('zone', 'Unknown'),
+                game_mode=current_game_mode
+            )
+
         if self.twitch_enabled and self.twitch.is_ready():
             if self.clip_creation_enabled:
                 self.create_kill_clip(kill_data)
@@ -1932,15 +2000,6 @@ class KillLoggerGUI(QMainWindow):
                     self.game_overlay.raise_()
                     self.game_overlay.activateWindow()
                 
-                if self.minimize_to_tray:
-                    QTimer.singleShot(100, self.hide)
-                    if self.tray_icon:
-                        self.tray_icon.showMessage(
-                            "SCTool Killfeed",
-                            "Application minimized to system tray",
-                            QIcon(resource_path("chris2.ico")),
-                            3000
-                        )
         super().changeEvent(event)
     def hide_to_tray(self):
         """Hide main window to system tray"""

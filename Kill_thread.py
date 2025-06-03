@@ -375,6 +375,10 @@ class RescanThread(QThread):
                             if KillParser.is_npc(victim):
                                 logging.info(f"NPC kill detected during rescan (victim: {victim}). Skipping.")
                                 continue
+                            
+                            if victim == self.registered_user:
+                                logging.info(f"Skipping kill where registered user '{victim}' is the victim. Attacker: {attacker}")
+                                continue
                                 
                             if attacker == self.registered_user:
                                 timestamp_iso = data.get('timestamp')
@@ -408,7 +412,7 @@ class RescanThread(QThread):
         self._stop_event = True
 
 class ApiSenderThread(QThread):
-    apiResponse = pyqtSignal(str)
+    apiResponse = pyqtSignal(str, dict)
 
     def __init__(self, api_endpoint: str, headers: Dict[str, str], payload: dict, local_key: str, parent: Optional[Any] = None) -> None:
         super().__init__(parent)
@@ -428,27 +432,27 @@ class ApiSenderThread(QThread):
                     data_resp = resp.json()
                     server_msg = data_resp.get("message", "")
                     if "duplicate" in server_msg.lower():
-                        self.apiResponse.emit("Duplicate kill. Not logged (server).")
+                        self.apiResponse.emit("Duplicate kill. Not logged (server).", data_resp)
                     else:
-                        self.apiResponse.emit("Kill logged successfully.")
+                        self.apiResponse.emit("Kill logged successfully.", data_resp)
                     return
                 elif resp.status_code == 200:
                     data_resp = resp.json()
                     if data_resp.get("message") == "NPC not logged":
-                        self.apiResponse.emit("NPC kill not logged.")
+                        self.apiResponse.emit("NPC kill not logged.", data_resp)
                     else:
-                        self.apiResponse.emit("Kill logged successfully.")
+                        self.apiResponse.emit("Kill logged successfully.", data_resp)
                     return
                 elif 400 <= resp.status_code < 500:
                     error_text = f"Failed to log kill: {resp.status_code} - {resp.text}"
-                    self.apiResponse.emit(error_text)
+                    self.apiResponse.emit(error_text, {})
                     return
                 else:
                     raise requests.exceptions.HTTPError(f"Server error: {resp.status_code}")
             except requests.exceptions.RequestException as e:
                 self.retry_count += 1
                 error_text = f"API request failed (Attempt {self.retry_count}/{self.max_retries}): {e}"
-                self.apiResponse.emit(error_text)
+                self.apiResponse.emit(error_text, {})
                 time.sleep(self.backoff)
                 self.backoff *= 2
         self.apiResponse.emit("API request failed after maximum retries.")

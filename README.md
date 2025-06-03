@@ -6,7 +6,11 @@
 
 ## Overview
 
-SCTool Tracker is an application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 4.6.
+SCTool Tracker is an application for Star Citizen that monitors the game's log file to track and record player kills and deaths. 7. **Twitch Integration (twitch_integration.py)**: Handles Twitch authentication, chat messaging, and clip creation
+8. **Game Overlay System (overlay.py)**: Advanced overlay system with 5 display modes, global hotkeys, and real-time statistics
+9. **Profile System (fetch.py)**: Retrieves player profiles and avatar images from RSI website
+10. **Responsive UI (responsive_ui.py)**: Handles high-DPI display scaling and responsive interface elements
+11. **Utility Functions (utlity.py)**: Common utilities and helper functions for UI and configuration tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 4.6.
 
 ## How It Works
 
@@ -67,6 +71,164 @@ For manual installation:
 - **Responsive Design**: Adapts to different screen resolutions and DPI settings
 - **Modern UI**: Sleek, dark-themed interface with customizable settings
 
+## Game Overlay System
+
+SCTool Tracker includes a powerful **Game Overlay System** that provides real-time statistics directly on top of Star Citizen while you play. This overlay system offers multiple display modes, customizable themes, and advanced features for enhanced gameplay experience.
+
+### Overlay Features
+
+- **5 Display Modes**: Choose from Minimal, Compact, Detailed, Horizontal, and Faded notification modes
+- **Global Hotkey Support**: System-wide hotkey detection (default: `Ctrl+\``) for overlay toggling
+- **Real-time Statistics**: Live kill/death counts, K/D ratio, session time, ship info, and game mode
+- **Kill/Death Notifications**: Rich notifications in faded mode with player organization info and profile images
+- **Customization Options**: 3 themes (Default, Dark, Neon), opacity control, positioning, and animations
+- **Advanced Control Panel**: Comprehensive configuration interface with all overlay settings
+- **Integration Features**: Seamless integration with main application for live data updates
+- **Visual Effects**: Animations, glow effects, drag-and-drop positioning, and visual feedback
+
+### Display Modes
+
+#### 1. Minimal Mode
+- **Purpose**: Ultra-compact display showing only essential kill/death counts
+- **Features**: Small footprint, minimal UI elements, perfect for competitive gameplay
+- **Layout**: Simple kill and death counters with minimal styling
+
+#### 2. Compact Mode (Default)
+- **Purpose**: Balanced view with essential statistics in a clean layout
+- **Features**: Kills, deaths, K/D ratio, session time, game mode, and ship information
+- **Layout**: Organized grid layout with clear sections and mode cycling button
+
+#### 3. Detailed Mode
+- **Purpose**: Comprehensive statistics display for detailed performance tracking
+- **Features**: Full statistics, latest kill/death information, session details
+- **Layout**: Expanded view with additional information panels and enhanced styling
+
+#### 4. Horizontal Mode
+- **Purpose**: Wide-format display optimized for ultrawide monitors
+- **Features**: All statistics arranged horizontally with separated sections
+- **Layout**: Horizontal layout with statistics, session info, and latest events side-by-side
+
+#### 5. Faded Mode
+- **Purpose**: Notification-only mode that appears during kill/death events
+- **Features**: Rich notifications with player profile images, organization info, weapon details
+- **Layout**: Large notification panels that fade in/out during combat events
+
+### Global Hotkey System
+
+The overlay includes a sophisticated global hotkey system that works system-wide:
+
+- **Default Hotkey**: `Ctrl+\`` (Ctrl + backtick)
+- **Customizable**: Change to any key combination through the control panel
+- **System-wide Detection**: Works even when Star Citizen is in focus
+- **Windows API Integration**: Uses native Windows API for reliable hotkey detection
+- **Examples**: `ctrl+\``, `alt+f1`, `ctrl+shift+h`, `f12`
+
+### Themes and Customization
+
+#### Available Themes
+1. **Default**: Balanced color scheme with green accents
+2. **Dark**: High-contrast dark theme for better visibility
+3. **Neon**: Vibrant neon colors for a futuristic look
+
+#### Customization Options
+- **Opacity Control**: Adjust transparency from 10% to 100%
+- **Position Control**: Drag and drop positioning or use preset positions
+- **Animation Toggle**: Enable/disable visual effects and animations
+- **Lock Position**: Prevent accidental movement of the overlay
+- **Font Scaling**: Automatic scaling based on system DPI settings
+
+### Kill/Death Notifications (Faded Mode)
+
+When using Faded mode, the overlay shows rich notifications for combat events:
+
+#### Kill Notifications
+- **Header**: "YOU KILLED" with glowing green text
+- **Victim Information**: Player name, organization, and tag
+- **Combat Details**: Weapon used, location, and game mode
+- **Profile Image**: Circular avatar with organization-themed border
+- **Visual Effects**: Glow effects and smooth animations
+
+#### Death Notifications
+- **Header**: "YOU DIED" with glowing red text
+- **Attacker Information**: Player name, organization, and tag
+- **Combat Details**: Weapon used, location, and game mode
+- **Profile Image**: Circular avatar with death-themed border
+- **Visual Effects**: Red glow effects and fade-out animations
+
+### Overlay Control Panel
+
+Access the advanced control panel through the main application to configure:
+
+#### Basic Controls
+- **Enable/Disable Overlay**: Toggle overlay visibility
+- **Lock Position**: Prevent accidental movement
+- **Display Mode Selection**: Choose from 5 available modes
+
+#### Appearance Settings
+- **Theme Selection**: Choose from Default, Dark, or Neon themes
+- **Opacity Slider**: Adjust transparency level
+- **Animation Toggle**: Enable/disable visual effects
+
+#### Position Controls
+- **Preset Positions**: Top-left, top-right, bottom-left, bottom-right, center
+- **Reset Position**: Return to default position
+- **Manual Positioning**: Drag and drop the overlay to desired location
+
+#### Global Hotkey Configuration
+- **Enable/Disable Hotkeys**: Toggle global hotkey functionality
+- **Current Hotkey Display**: Shows the active key combination
+- **Hotkey Capture**: Record new key combinations
+- **Examples and Guidelines**: Built-in help for valid key combinations
+
+### Technical Implementation
+
+#### Integration Points
+- **Live Data Updates**: Real-time synchronization with main application
+- **Kill/Death Events**: Automatic notification triggering from combat parser
+- **Session Statistics**: Live updates of kills, deaths, K/D ratio, and session time
+- **Ship Detection**: Automatic ship information updates
+- **Game Mode Detection**: Real-time game mode display
+
+#### Performance Features
+- **Efficient Rendering**: Optimized drawing with minimal CPU usage
+- **Memory Management**: Proper cleanup and resource management
+- **Thread Safety**: Safe multi-threaded operation with the main application
+- **Configuration Persistence**: Automatic saving of user preferences
+
+### Setup and Usage
+
+#### Installation
+The overlay system is included with SCTool Tracker and requires no additional setup. It's automatically available when you install the main application.
+
+#### First-Time Setup
+1. **Launch SCTool Tracker**: Start the main application
+2. **Open Control Panel**: Access overlay settings through the main interface
+3. **Enable Overlay**: Check "Enable Game Overlay" in the control panel
+4. **Choose Display Mode**: Select your preferred mode from the dropdown
+5. **Configure Hotkey**: Set up your preferred hotkey combination
+6. **Position Overlay**: Drag to your desired screen location
+
+#### Daily Usage
+1. **Toggle with Hotkey**: Use your configured hotkey to show/hide the overlay
+2. **Cycle Modes**: Click the mode button on the overlay to cycle through display modes
+3. **Adjust Opacity**: Use Ctrl + Mouse wheel while hovering over the overlay
+4. **Reposition**: Drag the overlay to move it (when not locked)
+
+### Troubleshooting
+
+#### Common Issues
+- **Overlay Not Showing**: Check if overlay is enabled in control panel
+- **Hotkey Not Working**: Verify hotkey is enabled and combination is valid
+- **Performance Issues**: Disable animations if experiencing frame rate drops
+- **Positioning Problems**: Use reset position button in control panel
+- **Display Issues**: Try different themes or adjust opacity settings
+
+#### Advanced Solutions
+- **Multiple Monitors**: Overlay supports multi-monitor setups
+- **High DPI Displays**: Automatic scaling for 4K and high-DPI screens
+- **Game Compatibility**: Works with all Star Citizen game modes
+- **Antivirus Conflicts**: Add SCTool to antivirus exclusions if hotkeys don't work
+
 ## Technical Architecture
 
 The SCTool Tracker is built with a modular architecture consisting of several key components:
@@ -88,11 +250,13 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 1. TailThread monitors the Game.log file for new entries
 2. When a combat event is detected, the log line is parsed using regular expressions
 3. Extracted data is formatted into HTML and displayed in the application
-4. Player profile images are fetched from the RSI website for both the user and victims
-5. If API integration is enabled, the data is sent to the SCTool API
-6. Local statistics are updated and displayed in the session panel
-7. If Twitch integration is enabled, kill events can trigger clip creation and chat messages
-8. Responsive UI system adjusts the interface based on screen resolution and DPI
+4. Combat events trigger overlay notifications and statistics updates in real-time
+5. Player profile images are fetched from the RSI website for both the user and victims
+6. If API integration is enabled, the data is sent to the SCTool API
+7. Local statistics are updated and displayed in both the session panel and overlay
+8. If Twitch integration is enabled, kill events can trigger clip creation and chat messages
+9. Overlay system updates live statistics and shows rich notifications in faded mode
+10. Responsive UI system adjusts the interface based on screen resolution and DPI
 
 ### File Structure
 
@@ -100,6 +264,7 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 - **Kill_form.py**: Main GUI implementation and application logic
 - **Kill_thread.py**: Background monitoring threads and API communication
 - **kill_parser.py**: Log parsing and data extraction utilities
+- **overlay.py**: Advanced game overlay system with multiple display modes and global hotkey support
 - **Registered_kill.py**: Formats kill events for display
 - **Death_kill.py**: Formats death events for display
 - **twitch_integration.py**: Twitch API integration for clips and chat
@@ -110,6 +275,7 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 - **config.json**: User configuration storage
 - **ships.json**: Ship database and recognition data
 - **twitch_config.json**: Twitch integration settings
+- **overlay_config.json**: Game overlay system configuration and preferences
 
 ## Log File Parsing Details
 
@@ -242,12 +408,16 @@ Common issues and solutions:
 - **Twitch Integration Issues**: Ensure your Twitch channel name is correct and try reconnecting
 - **Profile Images Not Loading**: Check your internet connection or RSI website availability
 - **Display Scaling Issues**: Enable high-DPI scaling in Windows for better UI rendering
+- **Overlay Not Appearing**: Verify overlay is enabled in the control panel and check hotkey configuration
+- **Global Hotkey Not Working**: Ensure hotkey is enabled, try different key combinations, or add SCTool to antivirus exclusions
+- **Overlay Performance Issues**: Disable animations in the overlay control panel for better performance
 
 ## Data Storage
 
 The application stores configuration and data in the following locations:
 
 - **Configuration**: `%APPDATA%\SCTool_Tracker\config.json`
+- **Overlay Configuration**: `%APPDATA%\Roaming\SCTool_Tracker\overlay_config.json`
 - **Local Kill Cache**: `%APPDATA%\SCTool_Tracker\logged_kills.json`
 - **Application Logs**: `%APPDATA%\SCTool_Tracker\kill_logger.log`
 - **Updates**: `%APPDATA%\SCTool_Tracker\Updates\`
@@ -293,7 +463,3 @@ For support or inquiries:
 - Email: support@starcitizentool.com
 - Discord: Join our community server at [discord.gg/starcitizentool](https://discord.gg/starcitizentool)
 - YouTube: Watch tutorials at [youtube.com/starcitizentool](https://youtube.com/starcitizentool)
-
-## License
-
-SCTool Tracker is proprietary software. All rights reserved.
