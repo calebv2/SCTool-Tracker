@@ -813,8 +813,8 @@ class GameOverlay(QWidget):
             return
 
         if self.display_mode == 'detailed':
-            self.setMinimumSize(400, 450)
-            self.resize(700, 800)
+            self.setMinimumSize(400, 350)
+            self.resize(700, 600)
                 
         elif self.display_mode == 'compact':
             self.setMinimumSize(320, 200)

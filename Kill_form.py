@@ -1089,13 +1089,21 @@ class KillLoggerGUI(QMainWindow):
 
         self.update_overlay_stats()
 
-        if hasattr(self, 'game_overlay') and self.game_overlay.display_mode == 'faded':
-            self.game_overlay.show_death_notification(
-                attacker=attacker,
-                weapon=payload.get('weapon', 'Unknown'),
-                zone=payload.get('location', 'Unknown'),
-                game_mode=current_game_mode
-            )
+        if hasattr(self, 'game_overlay'):
+            if self.game_overlay.display_mode == 'faded':
+                self.game_overlay.show_death_notification(
+                    attacker=attacker,
+                    weapon=payload.get('weapon', 'Unknown'),
+                    zone=payload.get('location', 'Unknown'),
+                    game_mode=current_game_mode
+                )
+            elif self.game_overlay.display_mode == 'custom':
+                self.game_overlay.show_custom_death_notification(
+                    attacker=attacker,
+                    weapon=payload.get('weapon', 'Unknown'),
+                    zone=payload.get('location', 'Unknown'),
+                    game_mode=current_game_mode
+                )
         
         self.save_local_kills()
         if self.send_to_api_checkbox.isChecked():
@@ -1804,20 +1812,27 @@ class KillLoggerGUI(QMainWindow):
             "victim": data.get('victim', 'Unknown'),
             "weapon": data.get('weapon', 'Unknown'),
             "location": data.get('zone', 'Unknown'),
-            "timestamp": timestamp,
-            "attacker": self.local_user_name,
+            "timestamp": timestamp,            "attacker": self.local_user_name,
             "game_mode": current_game_mode
         }
 
         self.update_overlay_stats()
 
-        if hasattr(self, 'game_overlay') and self.game_overlay.display_mode == 'faded':
-            self.game_overlay.show_kill_notification(
-                victim=data.get('victim', 'Unknown'),
-                weapon=data.get('weapon', 'Unknown'),
-                zone=data.get('zone', 'Unknown'),
-                game_mode=current_game_mode
-            )
+        if hasattr(self, 'game_overlay'):
+            if self.game_overlay.display_mode == 'faded':
+                self.game_overlay.show_kill_notification(
+                    victim=data.get('victim', 'Unknown'),
+                    weapon=data.get('weapon', 'Unknown'),
+                    zone=data.get('zone', 'Unknown'),
+                    game_mode=current_game_mode
+                )
+            elif self.game_overlay.display_mode == 'custom':
+                self.game_overlay.show_custom_kill_notification(
+                    victim=data.get('victim', 'Unknown'),
+                    weapon=data.get('weapon', 'Unknown'),
+                    zone=data.get('zone', 'Unknown'),
+                    game_mode=current_game_mode
+                )
 
         if self.twitch_enabled and self.twitch.is_ready():
             if self.clip_creation_enabled:

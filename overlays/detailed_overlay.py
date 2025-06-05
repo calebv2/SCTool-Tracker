@@ -285,7 +285,7 @@ def create_detailed_ui(self):
     main_layout.setContentsMargins(0, 0, 0, 0)
     main_layout.addWidget(scroll_area)
     self.setLayout(main_layout)
-    self.setMinimumSize(400, 450)
-    self.resize(700, 800)
+    self.setMinimumSize(400, 350)
+    self.resize(700, 600)
 
     container_widget.adjustSize()
