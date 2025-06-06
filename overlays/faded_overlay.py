@@ -608,7 +608,7 @@ def show_faded_positioning_helper(self):
     image_container = QWidget()
     image_container.setFixedSize(120, 120)
 
-    self.countdown_label = QLabel("60")
+    self.countdown_label = QLabel("30")
     self.countdown_label.setAlignment(Qt.AlignCenter)
     self.countdown_label.setStyleSheet(f"""
         QLabel {{
@@ -644,7 +644,7 @@ def show_faded_positioning_helper(self):
     self.faded_container.show()
     self.show()
 
-    self.countdown_seconds = 60
+    self.countdown_seconds = 30
     self.countdown_timer = QTimer()
     self.countdown_timer.timeout.connect(self.update_countdown)
     self.countdown_timer.start(1000)
@@ -764,32 +764,42 @@ def update_countdown(self):
     else:
         self.hide_positioning_helper()
 
-
 def clear_faded_container(self):
     """Clear the faded container content safely"""
 
     if hasattr(self, 'countdown_timer') and self.countdown_timer.isActive():
         self.countdown_timer.stop()
         self.countdown_timer.deleteLater()
-        delattr(self, 'countdown_timer')
+        if hasattr(self, 'countdown_timer'):
+            delattr(self, 'countdown_timer')
 
     if hasattr(self, 'countdown_label'):
         self.countdown_label = None
-        delattr(self, 'countdown_label')
+        if hasattr(self, 'countdown_label'):
+            delattr(self, 'countdown_label')
         
     if hasattr(self, 'countdown_seconds'):
-        delattr(self, 'countdown_seconds')
+        if hasattr(self, 'countdown_seconds'):
+            delattr(self, 'countdown_seconds')
 
-    if hasattr(self, 'faded_container') and self.faded_container.layout():
-        layout = self.faded_container.layout()
+    if hasattr(self, 'faded_container'):
+        if self.faded_container.layout():
+            old_layout = self.faded_container.layout()
+            while old_layout.count():
+                child = old_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
 
-        QApplication.processEvents()
+    self.faded_container = QWidget()
+    self.faded_container.setAttribute(Qt.WA_TransparentForMouseEvents)
+    self.faded_container.setStyleSheet("background: transparent;")
 
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                widget = child.widget()
-                widget.setParent(None)
-                widget.deleteLater()
+    if hasattr(self, 'layout') and self.layout():
+        self.layout().addWidget(self.faded_container)
 
-        QApplication.processEvents()
+def clean_weapon_name(self, weapon_name: str) -> str:
+    """Clean weapon name by removing long ID strings and replacing underscores with spaces"""
+    weapon_name = re.sub(r'_\d+$', '', weapon_name)
+    weapon_name = weapon_name.replace('_', ' ')
+    weapon_name = re.sub(r'\s+\d+$', '', weapon_name)
+    return weapon_name.strip()

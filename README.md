@@ -65,11 +65,12 @@ For manual installation:
 - **Export Functionality**: Save your combat logs as HTML for future reference
 - **Auto-Updates**: Automatically download and install the latest version
 - **System Tray Integration**: Minimize to system tray for unobtrusive operation
-- **Twitch Integration**: Create clips and post kill messages to your Twitch chat
-- **User Profile Images**: Display profile images fetched from RSI website
+- **Twitch Integration**: Create clips and post kill messages to your Twitch chat with configurable delays
+- **Button Automation System**: Automatically execute custom key sequences after kill events
+- **User Profile Images**: Display profile images fetched from RSI website with organization info
 - **Start with Windows**: Option to launch automatically on system startup
-- **Responsive Design**: Adapts to different screen resolutions and DPI settings
-- **Modern UI**: Sleek, dark-themed interface with customizable settings
+- **Responsive Design**: Adapts to different screen resolutions and DPI settings with automatic scaling
+- **Modern UI**: Sleek, dark-themed interface with customizable settings and themes
 
 ## Game Overlay System
 
@@ -229,6 +230,137 @@ The overlay system is included with SCTool Tracker and requires no additional se
 - **Game Compatibility**: Works with all Star Citizen game modes
 - **Antivirus Conflicts**: Add SCTool to antivirus exclusions if hotkeys don't work
 
+## Button Automation System
+
+SCTool Tracker includes a powerful **Button Automation System** that allows you to automatically execute custom key sequences when you get a kill in Star Citizen. This feature is perfect for streamers who want to trigger effects, activate StreamDeck actions, or perform any automated tasks based on kill events.
+
+### Features
+
+- **Custom Key Sequences**: Define any combination of keys and modifiers to be pressed automatically
+- **Multiple Sequences**: Configure multiple button sequences with individual enable/disable controls
+- **Configurable Delays**: Set delays before execution and between key presses for precise timing
+- **Debounce Protection**: Built-in protection against rapid-fire executions to prevent system overload
+- **Sequence Management**: Easy-to-use interface for adding, editing, and removing button sequences
+- **Real-time Testing**: Test your sequences immediately to ensure they work as expected
+
+### Configuration Options
+
+#### Timing Controls
+- **Press Delay**: Set a delay (in seconds) before any buttons are pressed after a kill event
+- **Sequence Delay**: Configure the delay (in milliseconds) between individual key presses in a sequence
+- **Hold Duration**: Set how long each key is held down (in milliseconds)
+- **Debounce Time**: Prevent rapid executions with configurable debounce timing per sequence
+
+#### Key Sequence Format
+
+Button sequences use a simple, intuitive format:
+
+**Single Keys**: `f1`, `space`, `enter`, `a`, `1`
+
+**Key Combinations**: `ctrl+c`, `alt+f4`, `ctrl+shift+s`
+
+**Multiple Actions**: `f1, ctrl+c, space, enter` (comma-separated for multiple actions)
+
+**Supported Keys**:
+- **Letters**: a-z
+- **Numbers**: 0-9, numpad0-numpad9
+- **Function Keys**: f1-f12
+- **Modifiers**: ctrl, alt, shift, win
+- **Special Keys**: space, enter, tab, esc, backspace, delete
+- **Arrow Keys**: up, down, left, right
+- **Other Keys**: home, end, pageup, pagedown, insert, and many more
+
+### Usage Examples
+
+#### Streaming Applications
+- **OBS Scene Switch**: `f1` - Switch to a "Kill Cam" scene
+- **Sound Effect**: `ctrl+f1` - Trigger a custom sound effect hotkey
+- **StreamDeck Action**: `f9` - Activate a StreamDeck macro for kill celebrations
+
+#### Game Enhancements  
+- **Screenshot**: `printscreen` - Automatically capture screenshots of kills
+- **Highlight Recording**: `alt+f9` - Start/stop highlight recording (NVIDIA ShadowPlay)
+- **Communication**: `enter, g, g, enter` - Quick "gg" in game chat
+
+#### Advanced Sequences
+- **Multi-step Actions**: `f1, ctrl+shift+r, space, f2` - Complex multi-step automations
+- **Delayed Actions**: Configure press delays to time actions perfectly with game events
+
+### Setup Instructions
+
+#### Basic Setup
+1. **Navigate to Button Automation**: Click "Button Automation" in the main application sidebar
+2. **Enable Automation**: Check "Enable Button Automation" to activate the system
+3. **Add Sequence**: Click "Add New Sequence" to create your first automation
+4. **Configure Sequence**: 
+   - Enter a descriptive name for your sequence
+   - Define your key sequence using the format guide
+   - Test the sequence to ensure it works correctly
+5. **Adjust Timing**: Fine-tune delays and timing settings as needed
+
+#### Advanced Configuration
+1. **Timing Optimization**: 
+   - Start with default timing settings
+   - Adjust **Press Delay** if you need time between the kill and automation
+   - Modify **Sequence Delay** for faster or slower key presses
+   - Set **Hold Duration** based on target application requirements
+
+2. **Multiple Sequences**:
+   - Create separate sequences for different purposes
+   - Use descriptive names like "OBS Scene Switch", "Sound Effect", "StreamDeck Macro"
+   - Enable/disable individual sequences as needed
+
+3. **Testing and Debugging**:
+   - Use the built-in test function to verify sequences work correctly
+   - Monitor the application logs for button automation events
+   - Test with your target applications to ensure proper integration
+
+### Integration with Other Applications
+
+#### OBS Studio
+- Map function keys to scene transitions, source visibility, or recording controls
+- Example: `f1` for "Kill Cam" scene, `f2` for normal gameplay scene
+
+#### StreamDeck
+- Configure StreamDeck to respond to specific hotkeys triggered by kill events
+- Create complex multi-step automations triggered by simple key sequences
+
+#### Game Overlays
+- Integrate with game overlay software that responds to hotkey inputs
+- Trigger visual effects, counters, or notifications synchronized with kills
+
+#### Communication Tools
+- Send quick messages in Discord, TeamSpeak, or game chat
+- Example: `ctrl+shift+d, k, i, l, l, enter` for Discord quick message
+
+### Security and Performance
+
+#### Safety Features
+- **Debounce Protection**: Prevents system overload from rapid kill events
+- **Validation**: All key sequences are validated before execution
+- **Error Handling**: Robust error handling prevents system instability
+- **Resource Management**: Efficient execution with minimal system impact
+
+#### Performance Considerations
+- Button automation uses minimal CPU and memory resources
+- Sequences execute in separate threads to avoid blocking the main application
+- Built-in rate limiting prevents excessive system calls
+- Automatic cleanup of completed automation tasks
+
+### Troubleshooting
+
+#### Common Issues
+- **Sequences Not Executing**: Verify Button Automation is enabled and sequences are active
+- **Wrong Keys Pressed**: Check key sequence format and test individual keys
+- **Timing Issues**: Adjust sequence delay and hold duration settings
+- **Application Not Responding**: Increase press delay or reduce sequence complexity
+
+#### Advanced Solutions
+- **Antivirus Interference**: Add SCTool to antivirus exclusions if key presses are blocked
+- **Game Focus Issues**: Ensure target application accepts background key input
+- **Complex Sequences**: Break down complex sequences into simpler, more reliable steps
+- **Debugging**: Enable debug logging to trace sequence execution and identify issues
+
 ## Technical Architecture
 
 The SCTool Tracker is built with a modular architecture consisting of several key components:
@@ -241,9 +373,11 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 4. **Event Parser (kill_parser.py)**: Specialized parser that extracts combat data from log entries
 5. **Event Formatters (Registered_kill.py, Death_kill.py)**: Format extracted data into visual HTML displays
 6. **Twitch Integration (twitch_integration.py)**: Handles Twitch authentication, chat messaging, and clip creation
-7. **Profile System (fetch.py)**: Retrieves player profiles and avatar images from RSI website
-8. **Responsive UI (responsive_ui.py)**: Handles high-DPI display scaling and responsive interface elements
-9. **Utility Functions (utlity.py)**: Common utilities and helper functions for UI and configuration
+7. **Game Overlay System (overlay.py)**: Advanced overlay system with 5 display modes, global hotkeys, and real-time statistics
+8. **Profile System (fetch.py)**: Retrieves player profiles and avatar images from RSI website
+9. **Button Automation (kill_clip.py)**: Automated key sequence execution system for kill events
+10. **Responsive UI (responsive_ui.py)**: Handles high-DPI display scaling and responsive interface elements
+11. **Utility Functions (utlity.py)**: Common utilities and helper functions for UI and configuration
 
 ### Data Flow
 
@@ -255,8 +389,10 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 6. If API integration is enabled, the data is sent to the SCTool API
 7. Local statistics are updated and displayed in both the session panel and overlay
 8. If Twitch integration is enabled, kill events can trigger clip creation and chat messages
-9. Overlay system updates live statistics and shows rich notifications in faded mode
-10. Responsive UI system adjusts the interface based on screen resolution and DPI
+9. If Button Automation is enabled, configured key sequences are executed after kill events
+10. Overlay system updates live statistics and shows rich notifications in faded mode
+11. Responsive UI system adjusts the interface based on screen resolution and DPI
+12. All events and errors are logged for debugging and troubleshooting purposes
 
 ### File Structure
 
@@ -265,17 +401,23 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 - **Kill_thread.py**: Background monitoring threads and API communication
 - **kill_parser.py**: Log parsing and data extraction utilities
 - **overlay.py**: Advanced game overlay system with multiple display modes and global hotkey support
+- **overlays/**: Directory containing specialized overlay components (minimal, compact, detailed, horizontal, faded)
+- **kill_clip.py**: Button automation system and clip creation functionality
 - **Registered_kill.py**: Formats kill events for display
 - **Death_kill.py**: Formats death events for display
 - **twitch_integration.py**: Twitch API integration for clips and chat
-- **fetch.py**: Functions for fetching profile data and images
+- **fetch.py**: Functions for fetching profile data and images from RSI website
 - **responsive_ui.py**: High-DPI support and responsive interface scaling
-- **utlity.py**: Utility functions and UI helpers
-- **README.md**: Documentation
+- **utlity.py**: Utility functions, UI helpers, and configuration management
+- **README.md**: Comprehensive documentation
 - **config.json**: User configuration storage
 - **ships.json**: Ship database and recognition data
-- **twitch_config.json**: Twitch integration settings
+- **twitch_config.json**: Twitch integration settings and authentication tokens
+- **button_automation_config.json**: Button automation sequences and timing configuration
 - **overlay_config.json**: Game overlay system configuration and preferences
+- **requirements.txt**: Python package dependencies
+- **kill.wav**: Default kill sound notification file
+- **avatar_default_big.jpg**: Default profile image fallback
 
 ## Log File Parsing Details
 
@@ -315,13 +457,37 @@ The tracker retrieves player profile images from the RSI website using the follo
 
 ### Twitch Integration
 
-The tracker offers comprehensive Twitch integration:
+The tracker offers comprehensive Twitch integration with advanced configuration options:
 
-1. **Authentication**: OAuth authentication flow for secure connection to Twitch
-2. **Clip Creation**: Automatically creates clips when you get a kill
-3. **Chat Messages**: Posts kill notifications to your Twitch chat
-4. **Clip Delay**: Configurable delay for clip creation after a kill event
-5. **Custom Messages**: Customizable templates for Twitch chat messages
+#### Authentication and Connection
+1. **OAuth Authentication**: Secure OAuth authentication flow for connecting to Twitch
+2. **Auto-Connect**: Option to automatically connect to Twitch when the application starts
+3. **Connection Status**: Real-time connection status indicator in the main interface
+4. **Reconnection**: Automatic reconnection handling for network interruptions
+
+#### Clip Creation Features
+1. **Automatic Clip Creation**: Creates clips automatically when you get a kill
+2. **Configurable Delay**: Set clip creation delay from 0-60 seconds after kill events
+3. **Clip Grouping**: Groups multiple kills within a time window into single clips
+4. **API Integration**: Clip URLs are automatically sent back to the SCTool API for statistics
+5. **Error Handling**: Robust error handling for Twitch API limitations and network issues
+
+#### Chat Integration
+1. **Kill Notifications**: Automatically posts kill messages to your Twitch chat
+2. **Custom Message Templates**: Configurable message formats with kill details
+3. **Victim Information**: Include victim name, weapon, location, and other details
+4. **Rate Limiting**: Built-in rate limiting to comply with Twitch chat restrictions
+
+#### Advanced Configuration
+- **Channel Setup**: Automatic channel detection and configuration
+- **Scope Management**: Proper OAuth scope handling for clips and chat permissions
+- **Token Management**: Secure token storage and automatic refresh handling
+- **Callback Server**: Local callback server for OAuth authentication flow
+
+#### Configuration Files
+- **twitch_config.json**: Stores authentication tokens and user preferences
+- **Clip Timing**: Configurable clip delay and grouping windows
+- **Chat Templates**: Customizable message templates for different kill types
 
 ## Building Your Own Tracker
 
@@ -418,13 +584,15 @@ The application stores configuration and data in the following locations:
 
 - **Configuration**: `%APPDATA%\SCTool_Tracker\config.json`
 - **Overlay Configuration**: `%APPDATA%\Roaming\SCTool_Tracker\overlay_config.json`
+- **Button Automation**: `button_automation_config.json` in the application directory
 - **Local Kill Cache**: `%APPDATA%\SCTool_Tracker\logged_kills.json`
 - **Application Logs**: `%APPDATA%\SCTool_Tracker\kill_logger.log`
 - **Updates**: `%APPDATA%\SCTool_Tracker\Updates\`
 - **Twitch Settings**: `twitch_config.json` in the application directory
 - **Ship Database**: `ships.json` in the application directory
 - **Sound Files**: `kill.wav` in the application directory
-- **Profile Images**: Fetched at runtime from RSI website
+- **Default Assets**: `avatar_default_big.jpg` and other default resources
+- **Profile Images**: Fetched at runtime from RSI website and cached temporarily
 
 ## Auto-Update System
 
@@ -460,6 +628,5 @@ Contributions to SCTool Tracker are welcome! If you'd like to contribute:
 
 For support or inquiries:
 - Website: [starcitizentool.com](https://starcitizentool.com)
-- Email: support@starcitizentool.com
 - Discord: Join our community server at [discord.gg/starcitizentool](https://discord.gg/starcitizentool)
 - YouTube: Watch tutorials at [youtube.com/starcitizentool](https://youtube.com/starcitizentool)

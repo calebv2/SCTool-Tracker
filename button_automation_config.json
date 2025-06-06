@@ -1,0 +1,15 @@
+{
+    "enabled": false,
+    "button_sequences": [
+        {
+            "name": "GForce",
+            "key_sequence": "alt+shift+f10",
+            "enabled": true
+        }
+    ],
+    "press_delay_seconds": 0,
+    "sequence_delay_ms": 100,
+    "hold_duration_ms": 50,
+    "debounce_ms": 500,
+    "sequence_debounce_ms": 1000
+}

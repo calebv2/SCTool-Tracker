@@ -23,6 +23,8 @@ from PyQt5.QtCore import (
     Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect
 )
 
+from kill_clip import ButtonAutomationWidget
+
 class ScreenScaler:
     @staticmethod
     def get_screen_info():
@@ -193,19 +195,23 @@ def init_ui(self) -> None:
     separator.setStyleSheet("background-color: #2a2a2a; margin: 10px 15px;")
     sidebar_layout.addWidget(separator)
     self.nav_buttons = []
+
     killfeed_btn = self.create_nav_button("Killfeed", "dashboard")
     killfeed_btn.setCheckable(True)
     killfeed_btn.setChecked(True)
     self.nav_buttons.append(killfeed_btn)
     sidebar_layout.addWidget(killfeed_btn)
+
     killfeed_settings_btn = self.create_nav_button("Killfeed Settings", "killfeed_tab")
     killfeed_settings_btn.setCheckable(True)
     self.nav_buttons.append(killfeed_settings_btn)
     sidebar_layout.addWidget(killfeed_settings_btn)
+
     api_btn = self.create_nav_button("API Settings", "api_tab") 
     api_btn.setCheckable(True)
     self.nav_buttons.append(api_btn)
     sidebar_layout.addWidget(api_btn)
+
     sound_btn = self.create_nav_button("Sound Settings", "sound_tab")
     sound_btn.setCheckable(True)
     self.nav_buttons.append(sound_btn)
@@ -215,11 +221,17 @@ def init_ui(self) -> None:
     twitch_btn.setCheckable(True)
     self.nav_buttons.append(twitch_btn)
     sidebar_layout.addWidget(twitch_btn)
-    
+
+    button_automation_btn = self.create_nav_button("Button Automation", "button_automation_tab")
+    button_automation_btn.setCheckable(True)
+    self.nav_buttons.append(button_automation_btn)
+    sidebar_layout.addWidget(button_automation_btn)
+
     overlay_btn = self.create_nav_button("Game Overlay", "overlay_tab")
     overlay_btn.setCheckable(True)
     self.nav_buttons.append(overlay_btn)
     sidebar_layout.addWidget(overlay_btn)
+    
     sidebar_layout.addStretch(1)
     main_layout.addWidget(sidebar)
 
@@ -907,21 +919,20 @@ def init_ui(self) -> None:
         "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
         "border: 1px solid #333333; }"
     )
+
     overlay_card_layout = QFormLayout(overlay_card)
     overlay_card_layout.setContentsMargins(20, 20, 20, 20)
     overlay_card_layout.setSpacing(15)
     overlay_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
     overlay_header = QLabel("GAME OVERLAY")
-    overlay_header.setStyleSheet(
-        "QLabel { color: #00ff41; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
-    )
+    overlay_header.setStyleSheet("QLabel { color: #00ff41; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
+
     overlay_card_layout.addRow(overlay_header)
     
     overlay_desc = QLabel("Configure the in-game overlay that displays your kill/death statistics in real-time while playing Star Citizen.")
-    overlay_desc.setStyleSheet(
-        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
-    )
+    overlay_desc.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }")
+
     overlay_desc.setWordWrap(True)
     overlay_card_layout.addRow(overlay_desc)
     self.game_overlay = GameOverlay(None)
@@ -932,6 +943,48 @@ def init_ui(self) -> None:
     overlay_card_layout.addRow("", self.overlay_settings)
     
     overlay_layout.addWidget(overlay_card)
+    
+    button_automation_page = QWidget()
+    button_automation_layout = QVBoxLayout(button_automation_page)
+    button_automation_layout.setContentsMargins(0, 0, 0, 0)
+    button_automation_layout.setSpacing(15)
+    
+    button_automation_card = QWidget()
+    button_automation_card.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
+        "border: 1px solid #333333; }"
+    )
+
+    button_automation_card_layout = QFormLayout(button_automation_card)
+    button_automation_card_layout.setContentsMargins(20, 20, 20, 20)
+    button_automation_card_layout.setSpacing(15)
+    button_automation_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+    
+    button_automation_header = QLabel("BUTTON AUTOMATION")
+    button_automation_header.setStyleSheet("QLabel { color: #ff6b35; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
+
+    button_automation_card_layout.addRow(button_automation_header)
+    
+    button_automation_desc = QLabel("Automatically press customizable button combinations after kill events. "
+                                    "Configure sequences of keys that will be pressed when you get a kill in Star Citizen."
+    )
+
+    button_automation_desc.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }")
+
+    button_automation_desc.setWordWrap(True)
+    button_automation_card_layout.addRow(button_automation_desc)
+
+    self.button_automation_widget = ButtonAutomationWidget(self.button_automation, self)
+    button_automation_card_layout.addRow("", self.button_automation_widget)
+    
+    button_automation_layout.addWidget(button_automation_card)
+    button_automation_layout.addStretch()
+    
+    button_automation_scroll = QScrollArea()
+    button_automation_scroll.setWidget(button_automation_page)
+    button_automation_scroll.setWidgetResizable(True)
+    button_automation_scroll.setFrameShape(QScrollArea.NoFrame)
+    button_automation_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
     
     killfeed_scroll = QScrollArea()
     killfeed_scroll.setWidget(killfeed_page)
@@ -954,8 +1007,7 @@ def init_ui(self) -> None:
     sound_scroll.setWidget(sound_page)
     sound_scroll.setWidgetResizable(True)
     sound_scroll.setFrameShape(QScrollArea.NoFrame)
-    sound_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-
+    sound_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")    
     twitch_scroll = QScrollArea()
     twitch_scroll.setWidget(twitch_page)
     twitch_scroll.setWidgetResizable(True)
@@ -975,6 +1027,7 @@ def init_ui(self) -> None:
     self.content_stack.addWidget(sound_scroll)
     
     self.content_stack.addWidget(twitch_scroll)
+    self.content_stack.addWidget(button_automation_scroll)
     self.content_stack.addWidget(overlay_scroll)
     self.content_stack.setCurrentIndex(0)
     
@@ -1040,15 +1093,11 @@ def create_stat_card(self, label_text, value_text, value_color):
     
     value = QLabel(value_text)
     value.setObjectName("stat_value")
-    value.setStyleSheet(
-        f"QLabel {{ color: {value_color}; font-size: 24px; font-weight: bold; background: transparent; border: none; }}"
-    )
+    value.setStyleSheet(f"QLabel {{ color: {value_color}; font-size: 24px; font-weight: bold; background: transparent; border: none; }}")
     value.setAlignment(Qt.AlignCenter)
     
     label = QLabel(label_text)
-    label.setStyleSheet(
-        "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
-    )
+    label.setStyleSheet("QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }")
     label.setAlignment(Qt.AlignCenter)
     
     layout.addWidget(value)

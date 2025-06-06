@@ -36,6 +36,7 @@ from PyQt5.QtMultimedia import QSoundEffect
 from Kill_thread import ApiSenderThread, TailThread, RescanThread, MissingKillsDialog
 from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT
 from twitch_integration import TwitchIntegration, process_twitch_callbacks
+from kill_clip import ButtonAutomation, process_button_automation_callbacks, ButtonAutomationWidget
 from responsive_ui import ScreenScaler, ResponsiveUIHelper, make_popup_responsive
 
 from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel, styled_message_box
@@ -157,7 +158,6 @@ class KillLoggerGUI(QMainWindow):
         self.stats_panel_visible = True
         self.twitch_enabled = False
         self.auto_connect_twitch = False
-        
         self.twitch = TwitchIntegration()
         self.clip_creation_enabled = True
         self.chat_posting_enabled = True
@@ -167,6 +167,11 @@ class KillLoggerGUI(QMainWindow):
         self.twitch_callback_timer.timeout.connect(lambda: process_twitch_callbacks(self))
         self.twitch_callback_timer.start(1000)
         self.last_clip_creation_time = 0
+        
+        self.button_automation = ButtonAutomation()
+        self.button_automation_callback_timer = QTimer()
+        self.button_automation_callback_timer.timeout.connect(lambda: process_button_automation_callbacks(self))
+        self.button_automation_callback_timer.start(1000)
         
         self.current_clip_group_id = ""
         self.clip_group_window_seconds = 10
@@ -763,7 +768,8 @@ class KillLoggerGUI(QMainWindow):
             logging.error(f"Auto-update failed: {e}")
             self.showCustomMessageBox(
                 "Update Failed",
-                f"Could not update automatically: {str(e)}\n\nPlease update manually from:\nhttps://starcitizentool.com/download-sctool",                QMessageBox.Critical
+                f"Could not update automatically: {str(e)}\n\nPlease update manually from:\nhttps://starcitizentool.com/download-sctool",                
+                QMessageBox.Critical
             )
 
     def delete_local_kills(self):
@@ -784,7 +790,6 @@ class KillLoggerGUI(QMainWindow):
     def handle_api_response(self, message: str, local_key: str, timestamp: str, response_data: dict = None) -> None:
         normalized_message = message.strip().lower()
         
-        # Extract kill ID from API response if available
         if response_data and "kill" in response_data and isinstance(response_data["kill"], dict):
             kill_id = response_data["kill"].get("id")
             if kill_id and local_key in self.local_kills:
@@ -1406,7 +1411,6 @@ class KillLoggerGUI(QMainWindow):
             else:
                 event.ignore()
                 return
-        
         if self.rescan_thread and self.rescan_thread.isRunning():
             self.rescan_thread.stop()
             self.rescan_thread.wait(3000)
@@ -1414,6 +1418,9 @@ class KillLoggerGUI(QMainWindow):
 
         if hasattr(self, 'twitch_callback_timer') and self.twitch_callback_timer:
             self.twitch_callback_timer.stop()
+            
+        if hasattr(self, 'button_automation_callback_timer') and self.button_automation_callback_timer:
+            self.button_automation_callback_timer.stop()
             
         if hasattr(self, 'session_timer') and self.session_timer:
             self.session_timer.stop()
@@ -1812,7 +1819,8 @@ class KillLoggerGUI(QMainWindow):
             "victim": data.get('victim', 'Unknown'),
             "weapon": data.get('weapon', 'Unknown'),
             "location": data.get('zone', 'Unknown'),
-            "timestamp": timestamp,            "attacker": self.local_user_name,
+            "timestamp": timestamp,
+            "attacker": self.local_user_name,
             "game_mode": current_game_mode
         }
 
@@ -1849,6 +1857,12 @@ class KillLoggerGUI(QMainWindow):
                     self.twitch.send_chat_message(message)
                 except Exception as e:
                     logging.error(f"Error sending Twitch chat message: {e}")
+
+        if hasattr(self, 'button_automation') and self.button_automation:
+            try:
+                self.button_automation.execute_kill_automation(kill_data)
+            except Exception as e:
+                logging.error(f"Error executing button automation: {e}")
 
         if self.send_to_api_checkbox.isChecked():
             headers = {

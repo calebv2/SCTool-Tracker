@@ -1,4 +1,5 @@
 # route.py
+
 import os
 import sys
 import json
@@ -20,8 +21,6 @@ from PyQt5.QtGui import (
 )
 
 from .form import GlobalHotkeyThread
-
-# Import all overlay UI creation functions
 from .minimal_overlay import create_minimal_ui
 from .compact_overlay import create_compact_ui
 from .detailed_overlay import create_detailed_ui
@@ -45,7 +44,6 @@ class GameOverlay(QWidget):
         self.config_file = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "SCTool_Tracker", "overlay_config.json")
         self.config = self.load_config()
         
-        # Bind faded overlay methods to this instance
         self.create_faded_ui = lambda: create_faded_ui(self)
         self.show_death_notification = lambda attacker, weapon, zone, game_mode="Unknown": show_death_notification(self, attacker, weapon, zone, game_mode)
         self.show_kill_notification = lambda victim, weapon, zone, game_mode="Unknown": show_kill_notification(self, victim, weapon, zone, game_mode)
@@ -57,8 +55,7 @@ class GameOverlay(QWidget):
         self.hide_positioning_helper = lambda: hide_positioning_helper(self)
         self.update_countdown = lambda: update_countdown(self)
         self.clear_faded_container = lambda: clear_faded_container(self)
-        
-        # Bind other overlay UI methods
+
         self.create_minimal_ui = lambda: create_minimal_ui(self)
         self.create_compact_ui = lambda: create_compact_ui(self)
         self.create_detailed_ui = lambda: create_detailed_ui(self)
@@ -727,13 +724,6 @@ class GameOverlay(QWidget):
         self.game_mode = game_mode
         
         self.update_display()
-    
-    def clean_weapon_name(self, weapon_name: str) -> str:
-        """Clean weapon name by removing long ID strings and replacing underscores with spaces"""
-        weapon_name = re.sub(r'_\d+$', '', weapon_name)
-        weapon_name = weapon_name.replace('_', ' ')
-        weapon_name = re.sub(r'\s+\d+$', '', weapon_name)
-        return weapon_name.strip()
 
     def update_display(self):
         """Update the display based on current mode and data"""

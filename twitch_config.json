@@ -1,10 +1,10 @@
 {
     "client_id": "jf48jb0492olg9gb8kz57qe4k4xqxd",
     "client_secret": "t732sj2a3leroxv8bwatfxzes7dwfh",
-    "broadcaster_name": "ven_man",
+    "broadcaster_name": "",
     "broadcaster_id": "",
     "access_token": "",
     "refresh_token": "",
     "token_expiry": null,
-    "clip_delay_seconds": 10
+    "clip_delay_seconds": 0
 }
