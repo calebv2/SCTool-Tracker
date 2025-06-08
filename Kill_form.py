@@ -12,6 +12,7 @@ import time
 import requests
 import ctypes
 import webbrowser
+import shutil
 from datetime import datetime
 from packaging import version
 from bs4 import BeautifulSoup
@@ -59,7 +60,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 5.0")
+            hwnd = FindWindow(None, "SCTool Killfeed 5.1")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -116,11 +117,11 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "5.0"    
+    __version__ = "5.1"    
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 5.0")
+        self.setWindowTitle("SCTool Killfeed 5.1")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -598,6 +599,31 @@ class KillLoggerGUI(QMainWindow):
 
     def on_game_mode_changed(self, mode_msg: str) -> None:
         self.update_bottom_info("game_mode", mode_msg)
+        
+        if "Monitoring game mode:" in mode_msg:
+            mode_name = mode_msg.replace("Monitoring game mode:", "").strip()
+        else:
+            mode_name = mode_msg.strip()
+        
+        if hasattr(self, 'game_mode_display'):
+            self.game_mode_display.setText(mode_name)
+            
+            if mode_name != "Unknown":
+                if hasattr(self, 'game_mode_indicator'):
+                    self.game_mode_indicator.setStyleSheet(
+                        "QLabel { background-color: #00ff41; border-radius: 6px; border: 1px solid #00cc33; }"
+                    )
+                self.game_mode_display.setStyleSheet(
+                    "QLabel { color: #00ff41; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+                )
+            else:
+                if hasattr(self, 'game_mode_indicator'):
+                    self.game_mode_indicator.setStyleSheet(
+                        "QLabel { background-color: #666666; border-radius: 6px; border: 1px solid #444444; }"
+                    )
+                self.game_mode_display.setStyleSheet(
+                    "QLabel { color: #666666; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+                )
 
     def on_kill_detected(self, readout: str, attacker: str) -> None:
         self.append_kill_readout(readout)
@@ -1058,6 +1084,34 @@ class KillLoggerGUI(QMainWindow):
         else:
             self.ship_combo.addItem(ship)
             self.ship_combo.setCurrentIndex(self.ship_combo.count() - 1)
+        
+        self.update_current_ship_display(ship)
+        
+        if hasattr(self, 'update_overlay_stats'):
+            self.update_overlay_stats()
+
+    def update_current_ship_display(self, ship_name: str) -> None:
+        """Update the current ship display in the UI"""
+        if hasattr(self, 'current_ship_display'):
+            display_text = ship_name if ship_name and ship_name != "No Ship" else "No Ship"
+            self.current_ship_display.setText(display_text)
+            
+            if ship_name and ship_name != "No Ship":
+                self.current_ship_display.setStyleSheet(
+                    "QLabel { color: #00ff41; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+                )
+                if hasattr(self, 'ship_indicator'):
+                    self.ship_indicator.setStyleSheet(
+                        "QLabel { background-color: #00ff41; border-radius: 6px; border: 1px solid #00cc33; }"
+                    )
+            else:
+                self.current_ship_display.setStyleSheet(
+                    "QLabel { color: #666666; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+                )
+                if hasattr(self, 'ship_indicator'):
+                    self.ship_indicator.setStyleSheet(
+                        "QLabel { background-color: #666666; border-radius: 6px; border: 1px solid #444444; }"
+                    )
 
     def handle_death_payload(self, payload: dict, timestamp: str, attacker: str, readout: str) -> None:
         """Process and send death events to the API"""
@@ -1437,6 +1491,10 @@ class KillLoggerGUI(QMainWindow):
                 self.twitch.disconnect()
             except Exception as e:
                 logging.error(f"Error disconnecting from Twitch during shutdown: {e}")
+
+        if hasattr(self, 'ship_combo'):
+            self.ship_combo.setCurrentText("No Ship")
+            logging.info("Reset ship selection to 'No Ship' on application close")
 
         self.clips = {}
         self.clip_groups = {}
@@ -1878,7 +1936,7 @@ class KillLoggerGUI(QMainWindow):
         else:
             logging.info("Send to API is disabled; kill payload not sent.")
 
-    def browse_file(self) -> None:
+    def browse_file(self) -> None:        
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
         file_path, _ = QFileDialog.getOpenFileName(
@@ -1888,9 +1946,19 @@ class KillLoggerGUI(QMainWindow):
         )
         if file_path:
             self.log_path_input.setText(file_path)
-
+            
     def load_ship_options(self) -> None:
         ships_file = os.path.join(TRACKER_DIR, "ships.json")
+        
+        if not os.path.exists(ships_file):
+            app_ships_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ships.json")
+            if os.path.exists(app_ships_file):
+                try:
+                    shutil.copy2(app_ships_file, ships_file)
+                    logging.info(f"Copied ships.json from {app_ships_file} to {ships_file}")
+                except Exception as e:
+                    logging.error(f"Error copying ships.json: {e}")
+        
         self.ship_combo.clear()
         try:
             if os.path.exists(ships_file):
@@ -1901,7 +1969,7 @@ class KillLoggerGUI(QMainWindow):
                     if isinstance(ships, list) and ships:
                         self.ship_combo.addItems(ships)
         except Exception as e:
-            logging.error(f"Error loading ship options from {ships_file}: {e}")    
+            logging.error(f"Error loading ship options from {ships_file}: {e}")
             
     def show_temporary_popup(self, message, duration=2000):
         """Show a stylish temporary popup message that fades out"""
@@ -1984,7 +2052,10 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.current_attacker_ship = new_ship
             self.monitor_thread.update_config_killer_ship(new_ship)
 
-   
+        self.update_current_ship_display(new_ship)
+
+        if hasattr(self, 'update_overlay_stats'):
+            self.update_overlay_stats()
 
     def on_kill_sound_toggled(self, state: int) -> None:
         self.kill_sound_enabled = (state == Qt.Checked)

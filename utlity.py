@@ -6,6 +6,7 @@ import sys
 import json
 import time
 import logging
+import shutil
 
 from responsive_ui import ScreenScaler
 from overlay import GameOverlay, OverlayControlPanel
@@ -114,19 +115,13 @@ def init_ui(self) -> None:
     self.user_display.setAlignment(Qt.AlignCenter)
     logo_layout.addWidget(self.user_display)
     
-    self.game_mode_display = QLabel("Mode: Unknown")
-    self.game_mode_display.setStyleSheet(
-        "QLabel { color: #00ccff; font-size: 12px; background: transparent; border: none; }"
-    )
-    self.game_mode_display.setAlignment(Qt.AlignCenter)
-    logo_layout.addWidget(self.game_mode_display)
-    
     sidebar_layout.addWidget(logo_container)
     status_container = QWidget()
     status_container.setStyleSheet("border: none; background: transparent;")
     status_layout = QVBoxLayout(status_container)
     status_layout.setContentsMargins(15, 0, 15, 15)
     status_layout.setSpacing(10)
+    
     monitoring_status = QHBoxLayout()
     self.monitoring_indicator = QLabel()
     self.monitoring_indicator.setFixedSize(12, 12)
@@ -136,6 +131,7 @@ def init_ui(self) -> None:
     monitoring_status.addWidget(self.monitoring_indicator)
     monitoring_status.addWidget(monitoring_label)
     monitoring_status.addStretch()
+    
     api_status = QHBoxLayout()
     self.api_indicator = QLabel()
     self.api_indicator.setFixedSize(12, 12)
@@ -145,6 +141,7 @@ def init_ui(self) -> None:
     api_status.addWidget(self.api_indicator)
     api_status.addWidget(api_label)
     api_status.addStretch()
+    
     twitch_status = QHBoxLayout()
     self.twitch_indicator = QLabel()
     self.twitch_indicator.setFixedSize(12, 12)
@@ -155,9 +152,47 @@ def init_ui(self) -> None:
     twitch_status.addWidget(twitch_label)
     twitch_status.addStretch()
     
+    game_mode_status = QHBoxLayout()
+    self.game_mode_indicator = QLabel()
+    self.game_mode_indicator.setFixedSize(12, 12)
+    self.game_mode_indicator.setStyleSheet(
+        "QLabel { background-color: #00ccff; border-radius: 6px; border: 1px solid #0099cc; }"
+    )
+    game_mode_label = QLabel("GAME MODE")
+    game_mode_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
+    game_mode_status.addWidget(self.game_mode_indicator)
+    game_mode_status.addWidget(game_mode_label)
+    game_mode_status.addStretch()
+    
+    self.game_mode_display = QLabel("Unknown")
+    self.game_mode_display.setStyleSheet(
+        "QLabel { color: #00ccff; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+    )
+    
+    ship_status = QHBoxLayout()
+    self.ship_indicator = QLabel()
+    self.ship_indicator.setFixedSize(12, 12)
+    self.ship_indicator.setStyleSheet(
+        "QLabel { background-color: #666666; border-radius: 6px; border: 1px solid #444444; }"
+    )
+    ship_label = QLabel("CURRENT SHIP")
+    ship_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
+    ship_status.addWidget(self.ship_indicator)
+    ship_status.addWidget(ship_label)
+    ship_status.addStretch()
+    
+    self.current_ship_display = QLabel("No Ship")
+    self.current_ship_display.setStyleSheet(
+        "QLabel { color: #666666; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+    )
+    
     status_layout.addLayout(monitoring_status)
     status_layout.addLayout(api_status)
     status_layout.addLayout(twitch_status)
+    status_layout.addLayout(game_mode_status)
+    status_layout.addWidget(self.game_mode_display)
+    status_layout.addLayout(ship_status)
+    status_layout.addWidget(self.current_ship_display)
     
     sidebar_layout.addWidget(status_container)
     self.start_button = QPushButton("START MONITORING")
@@ -381,7 +416,13 @@ def init_ui(self) -> None:
     self.ship_combo = QComboBox()
     self.ship_combo.setEditable(True)
     self.load_ship_options()
+
     self.ship_combo.currentTextChanged.connect(self.on_ship_combo_changed)
+    
+    if hasattr(self, 'current_ship_display'):
+        current_ship = self.ship_combo.currentText() or "No Ship"
+        self.update_current_ship_display(current_ship)
+
     self.ship_combo.setStyleSheet(
         "QComboBox { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding-right: 20px; font-size: 14px; }"
@@ -556,6 +597,7 @@ def init_ui(self) -> None:
     
     killfeed_settings_layout.addWidget(app_settings_card)
     killfeed_settings_layout.addStretch(1)
+
     api_page = QWidget()
     api_layout = QVBoxLayout(api_page)
     api_layout.setContentsMargins(0, 0, 0, 0)
@@ -598,6 +640,7 @@ def init_ui(self) -> None:
     api_key_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; }")
     self.api_key_input = QLineEdit()
     self.api_key_input.setPlaceholderText("Enter your API key here")
+
     self.api_key_input.setStyleSheet(
         "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
         "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
@@ -606,11 +649,48 @@ def init_ui(self) -> None:
     self.api_key_input.setMinimumWidth(300)
     api_card_layout.addRow(api_key_label, self.api_key_input)
     
-    api_help = QLabel("Your API key connects your account to the SCTool Tracker service. "
-                    "Visit starcitizentool.com to register and get your API key.")
-    api_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
+    api_help = QLabel()
+    api_help.setText(
+        "Your API key connects your account to the SCTool Tracker service.<br><br>"
+        "<b>How to get an API key:</b><br>"
+        "1. Visit <a href='https://starcitizentool.com/'>starcitizentool.com</a> and log in<br>"
+        "2. You must be in a Discord server that has the SCTool Discord bot and had been given the member or allowed role<br>"
+        "3. After login, select which Discord server to associate with your kills<br>"
+        "4. Navigate to <a href='https://starcitizentool.com/kills/manage_api_keys'>starcitizentool.com/kills/manage_api_keys</a><br>"
+        "5. Verify your in-game name<br>"
+        "6. Generate an API key and paste it here"
+    )
+    api_help.setStyleSheet(
+        "QLabel { color: #aaaaaa; background: transparent; border: none; }"
+        "QLabel a { color: #f04747; text-decoration: none; }"
+        "QLabel a:hover { text-decoration: underline; }"
+    )
+    api_help.setTextFormat(Qt.RichText)
+    api_help.setOpenExternalLinks(True)
     api_help.setWordWrap(True)
     api_card_layout.addRow("", api_help)
+    
+    api_link_container = QWidget()
+    api_link_container.setStyleSheet("background: transparent; border: none;")
+    api_link_layout = QHBoxLayout(api_link_container)
+    api_link_layout.setContentsMargins(0, 10, 0, 0)
+    
+    api_link_button = QPushButton("MANAGE API KEYS")
+    api_link_button.setIcon(QIcon(resource_path("link_icon.png")))
+    api_link_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://starcitizentool.com/kills/manage_api_keys")))
+    api_link_button.setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
+        "border-radius: 4px; padding: 10px 16px; font-weight: bold; font-size: 13px; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #4a4a4a, stop:1 #303030); }"
+        "QPushButton:pressed { background: #202020; }"
+    )
+    api_link_button.setMaximumWidth(250)
+    
+    api_link_layout.addWidget(api_link_button)
+    api_link_layout.addStretch()
+    api_card_layout.addRow("", api_link_container)
     
     api_layout.addWidget(api_card)
     api_layout.addStretch(1)

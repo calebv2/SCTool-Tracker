@@ -6,11 +6,18 @@
 
 ## Overview
 
-SCTool Tracker is an application for Star Citizen that monitors the game's log file to track and record player kills and deaths. 7. **Twitch Integration (twitch_integration.py)**: Handles Twitch authentication, chat messaging, and clip creation
-8. **Game Overlay System (overlay.py)**: Advanced overlay system with 5 display modes, global hotkeys, and real-time statistics
-9. **Profile System (fetch.py)**: Retrieves player profiles and avatar images from RSI website
-10. **Responsive UI (responsive_ui.py)**: Handles high-DPI display scaling and responsive interface elements
-11. **Utility Functions (utlity.py)**: Common utilities and helper functions for UI and configuration tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 4.6.
+SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This comprehensive tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.1.
+
+### Key Features at a Glance
+
+- **Real-time Combat Tracking**: Monitor kills and deaths as they happen in-game
+- **Advanced Game Overlay**: 5 different overlay modes with global hotkey support
+- **Twitch Integration**: Automatic clip creation and chat messaging
+- **Button Automation**: Execute custom key sequences on kill events
+- **Profile System**: Fetch player avatars and organization info from RSI website
+- **System Tray Integration**: Minimize to tray with persistent monitoring
+- **Auto-start Capability**: Launch automatically with Windows
+- **High-DPI Support**: Responsive design for all screen resolutions
 
 ## How It Works
 
@@ -35,32 +42,47 @@ The tracker operates by:
 
 ### Installation
 
-1. Download the latest release (v4.6) from [starcitizentool.com/download-sctool](https://starcitizentool.com/download-sctool)
-2. Run the installer (SCTool_Killfeed_4.6_Setup.exe)
+#### Recommended Method (Installer)
+1. Download the latest release (v5.1) from [starcitizentool.com/download-sctool](https://starcitizentool.com/download-sctool)
+2. Run the installer (`SCTool_Killfeed_5.1_Setup.exe`)
 3. Follow the installation wizard instructions
 4. Launch SCTool Tracker from your desktop or start menu
 
-For manual installation:
-1. Download the standalone executable
-2. Extract the files to a location of your choice
-3. Run Kill_main.exe
+#### Manual Installation (Standalone)
+1. Download the standalone executable from the releases page
+2. Extract the files to a location of your choice (e.g., `C:\Program Files\SCTool Tracker\`)
+3. Run `Kill_main.exe` to start the application
+
+#### System Requirements
+- **Operating System**: Windows 10 or later (64-bit recommended)
+- **Memory**: 2 GB RAM minimum, 4 GB recommended
+- **Storage**: 500 MB free disk space
+- **Network**: Internet connection for API integration and profile fetching
+- **Star Citizen**: Must be installed and have generated at least one Game.log file
 
 ### Configuration
 
+#### Essential Setup
 1. **API Key**: Enter your API key from starcitizentool.com in the provided field
-2. **Game.log Path**: Select your Star Citizen Game.log file location (typically in the game's LIVE folder)
-3. **Sound Settings**: Configure optional sound notifications for kills
-4. **Killer Ship**: Select or enter your current ship for proper attribution
+2. **Game.log Path**: Select your Star Citizen Game.log file location (typically in `[Star Citizen Install]\LIVE\Game.log`)
+3. **Player Name**: Enter your in-game character name for accurate kill attribution
+4. **Killer Ship**: Select or enter your current ship for proper kill tracking
+
+#### Optional Settings
+- **Sound Settings**: Configure custom sound notifications for kills (supports .wav, .mp3, .ogg)
+- **System Tray**: Enable minimize to tray functionality
+- **Auto-start**: Launch SCTool automatically when Windows starts
+- **UI Scaling**: Adjust interface scaling for high-DPI displays
 
 ## Features
 
 - **Real-time Kill/Death Tracking**: Instantly see your combat events as they happen
 - **API Integration**: Send your kills to the SCTool API for statistics tracking
 - **Ship Detection**: Automatically detects your current ship
-- **Kill Sound**: Optional sound notification when you get a kill
-- **Missing Kill Detection**: Scan for kills that might have been missed
-- **Game Mode Detection**: Identifies which game mode you're playing (PU, Arena Commander, etc.)
-- **Session Statistics**: Track kills, deaths, and K/D ratio for your current session
+- **Sound Notifications**: Customizable audio alerts for kill events with volume control
+- **Missing Kill Detection**: Rescan your log files to find previously undetected kills
+- **Game Mode Detection**: Automatically identifies Arena Commander, Persistent Universe, and other modes
+- **Session Statistics**: Real-time tracking of kills, deaths, K/D ratio, and session duration
 - **Rescan Capability**: Search through your game logs to find kills that may have been missed
 - **Export Functionality**: Save your combat logs as HTML for future reference
 - **Auto-Updates**: Automatically download and install the latest version
@@ -361,6 +383,59 @@ Button sequences use a simple, intuitive format:
 - **Complex Sequences**: Break down complex sequences into simpler, more reliable steps
 - **Debugging**: Enable debug logging to trace sequence execution and identify issues
 
+## Sound Notification System
+
+SCTool Tracker includes a comprehensive sound notification system that plays audio alerts when you achieve kills in Star Citizen.
+
+### Sound Features
+
+- **Custom Sound Files**: Support for .wav, .mp3, and .ogg audio formats
+- **Volume Control**: Adjustable volume slider from 0-100%
+- **File Browser**: Easy sound file selection through built-in file browser
+- **Default Sound**: Includes a default `kill.wav` file for immediate use
+- **Real-time Testing**: Test your selected sound file before saving
+
+### Configuration
+
+#### Sound File Setup
+1. **Navigate to Settings**: Go to the main settings page in SCTool Tracker
+2. **Enable Kill Sound**: Check the "Play sound on kill" checkbox
+3. **Select Audio File**: 
+   - Use the default `kill.wav` file (included)
+   - Browse for your custom sound file using the "Browse" button
+   - Supported formats: .wav, .mp3, .ogg
+4. **Adjust Volume**: Use the volume slider to set your preferred audio level
+5. **Test Sound**: Click the test button to preview your sound selection
+
+#### Sound File Recommendations
+- **Duration**: Keep sounds short (1-3 seconds) to avoid overlapping with rapid kills
+- **Volume**: Choose sounds that are audible but not disruptive to gameplay
+- **Format**: .wav files offer the best compatibility and performance
+- **Quality**: Use high-quality audio files for best results
+
+### Integration with Gameplay
+
+The sound system is designed to enhance your gaming experience:
+
+- **Immediate Feedback**: Audio confirmation of successful kills
+- **Customization**: Use sounds that match your playstyle or streaming setup
+- **Performance**: Minimal impact on game performance
+- **Reliability**: Consistent playback even during intense combat scenarios
+
+### Troubleshooting Sound Issues
+
+#### Common Problems
+- **No Sound Playing**: Verify audio file path and format compatibility
+- **Volume Too Low/High**: Adjust the volume slider in settings
+- **Audio Conflicts**: Check for conflicts with other audio software
+- **File Format Issues**: Convert audio files to .wav format if experiencing problems
+
+#### Advanced Solutions
+- **Audio Drivers**: Ensure Windows audio drivers are up to date
+- **Exclusive Mode**: Disable exclusive mode for audio devices if experiencing conflicts
+- **Multiple Audio Devices**: Verify SCTool is using the correct audio output device
+- **Antivirus Blocking**: Add audio files to antivirus exclusions if playback is blocked
+
 ## Technical Architecture
 
 The SCTool Tracker is built with a modular architecture consisting of several key components:
@@ -396,28 +471,47 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 
 ### File Structure
 
-- **Kill_main.py**: Main entry point of the application
-- **Kill_form.py**: Main GUI implementation and application logic
-- **Kill_thread.py**: Background monitoring threads and API communication
-- **kill_parser.py**: Log parsing and data extraction utilities
-- **overlay.py**: Advanced game overlay system with multiple display modes and global hotkey support
-- **overlays/**: Directory containing specialized overlay components (minimal, compact, detailed, horizontal, faded)
-- **kill_clip.py**: Button automation system and clip creation functionality
-- **Registered_kill.py**: Formats kill events for display
-- **Death_kill.py**: Formats death events for display
-- **twitch_integration.py**: Twitch API integration for clips and chat
-- **fetch.py**: Functions for fetching profile data and images from RSI website
-- **responsive_ui.py**: High-DPI support and responsive interface scaling
-- **utlity.py**: Utility functions, UI helpers, and configuration management
-- **README.md**: Comprehensive documentation
-- **config.json**: User configuration storage
-- **ships.json**: Ship database and recognition data
-- **twitch_config.json**: Twitch integration settings and authentication tokens
-- **button_automation_config.json**: Button automation sequences and timing configuration
-- **overlay_config.json**: Game overlay system configuration and preferences
-- **requirements.txt**: Python package dependencies
-- **kill.wav**: Default kill sound notification file
-- **avatar_default_big.jpg**: Default profile image fallback
+```
+SCTool Tracker/
+├── Kill_main.py                    # Main entry point and initialization
+├── Kill_form.py                    # Primary GUI implementation and logic
+├── Kill_thread.py                  # Background monitoring and API threads
+├── kill_parser.py                  # Log parsing and combat data extraction
+├── overlay.py                      # Advanced overlay system controller
+├── overlays/                       # Overlay display modes
+│   ├── __init__.py
+│   ├── compact_overlay.py          # Compact statistics display
+│   ├── detailed_overlay.py         # Comprehensive statistics view
+│   ├── faded_overlay.py           # Kill/death notifications
+│   ├── horizontal_overlay.py       # Ultrawide monitor layout
+│   ├── minimal_overlay.py         # Minimal statistics display
+│   ├── form.py                    # Overlay form utilities
+│   └── route.py                   # Overlay routing logic
+├── kill_clip.py                   # Button automation and clip system
+├── Registered_kill.py             # Kill event formatting and display
+├── Death_kill.py                  # Death event formatting and display
+├── twitch_integration.py          # Twitch OAuth, clips, and chat
+├── fetch.py                       # RSI profile and image fetching
+├── responsive_ui.py               # High-DPI scaling and responsive design
+├── utlity.py                      # UI utilities and helper functions
+├── requirements.txt               # Python package dependencies
+├── config.json                    # User configuration (generated)
+├── ships.json                     # Star Citizen ship database
+├── twitch_config.json            # Twitch integration settings
+├── button_automation_config.json  # Button automation sequences
+├── kill.wav                       # Default kill sound notification
+├── avatar_default_big.jpg         # Default profile image fallback
+├── chris2.ico                     # Application icon
+├── README.md                      # This documentation file
+├── SCTool.iss                     # Inno Setup installer script
+├── Kill_main.spec                 # PyInstaller build specification
+├── build/                         # Build artifacts (generated)
+├── EXE/                          # Distribution files
+│   ├── Kill_main.exe             # Main executable
+│   ├── SCTool_Killfeed_5.1_Setup.exe # Installer
+│   └── License.txt               # License information
+└── __pycache__/                  # Python cache files (generated)
+```
 
 ## Log File Parsing Details
 
@@ -564,35 +658,113 @@ When sending a death event to the API, your JSON payload should include:
 
 ## Troubleshooting
 
-Common issues and solutions:
+### Common Issues and Solutions
 
-- **Ship Not Detected**: Manually select your ship in the Killer Ship dropdown
-- **Kills Not Showing**: Verify the path to your Game.log file is correct
-- **API Connection Fails**: Check your network connection and API key
-- **Missed Kills**: Use the "Find Missed Kills" feature to scan for unregistered kills
-- **Application Crashes**: Check the kill_logger.log file in the application data folder for error details
-- **Twitch Integration Issues**: Ensure your Twitch channel name is correct and try reconnecting
-- **Profile Images Not Loading**: Check your internet connection or RSI website availability
-- **Display Scaling Issues**: Enable high-DPI scaling in Windows for better UI rendering
+#### Application Issues
+- **Ship Not Detected**: Manually select your ship in the Killer Ship dropdown menu
+- **Kills Not Showing**: Verify the path to your Game.log file is correct and the file has recent entries
+- **API Connection Fails**: Check your network connection, verify your API key, and ensure starcitizentool.com is accessible
+- **Application Crashes**: Check the `kill_logger.log` file in `%APPDATA%\SCTool_Tracker\` for error details
+- **Missed Kills**: Use the "Find Missed Kills" feature to scan for unregistered kills in your log history
+
+#### Overlay Issues  
 - **Overlay Not Appearing**: Verify overlay is enabled in the control panel and check hotkey configuration
 - **Global Hotkey Not Working**: Ensure hotkey is enabled, try different key combinations, or add SCTool to antivirus exclusions
 - **Overlay Performance Issues**: Disable animations in the overlay control panel for better performance
+- **Positioning Problems**: Use the reset position button in the overlay control panel
+- **Display Issues on High-DPI**: Enable Windows display scaling compatibility mode
 
-## Data Storage
+#### Integration Issues
+- **Twitch Integration Issues**: Ensure your Twitch channel name is correct, verify OAuth authentication, and try reconnecting
+- **Profile Images Not Loading**: Check your internet connection and RSI website availability
+- **Button Automation Not Working**: Verify sequences are enabled, check key format, and test individual sequences
+
+#### System Issues
+- **Display Scaling Issues**: Enable high-DPI scaling in Windows for better UI rendering, or adjust scaling in application settings
+- **Auto-start Not Working**: Run as administrator to set registry entries, or manually add to Windows startup folder
+- **System Tray Issues**: Ensure system tray is enabled in Windows settings and notification area is accessible
+
+### Advanced Troubleshooting
+
+#### Log Analysis
+1. Navigate to `%APPDATA%\SCTool_Tracker\`
+2. Open `kill_logger.log` in a text editor
+3. Look for ERROR or WARNING messages
+4. Check timestamps around when issues occurred
+
+#### Configuration Reset
+1. Close SCTool Tracker completely
+2. Navigate to `%APPDATA%\SCTool_Tracker\`
+3. Backup then delete `config.json`
+4. Restart the application (will create default config)
+
+#### Network Diagnostics
+1. Test API connectivity: `ping starcitizentool.com`
+2. Check firewall settings for SCTool Tracker
+3. Verify Windows network adapter settings
+4. Test with different network connection if available
+
+#### Performance Optimization
+- **Reduce CPU Usage**: Disable unnecessary overlays and animations
+- **Memory Management**: Restart application periodically for long gaming sessions
+- **Disk Space**: Ensure adequate free space in `%APPDATA%` folder
+- **Antivirus Exclusions**: Add SCTool directory to antivirus exclusions
+
+## Data Storage and Configuration
 
 The application stores configuration and data in the following locations:
 
-- **Configuration**: `%APPDATA%\SCTool_Tracker\config.json`
-- **Overlay Configuration**: `%APPDATA%\Roaming\SCTool_Tracker\overlay_config.json`
-- **Button Automation**: `button_automation_config.json` in the application directory
-- **Local Kill Cache**: `%APPDATA%\SCTool_Tracker\logged_kills.json`
-- **Application Logs**: `%APPDATA%\SCTool_Tracker\kill_logger.log`
-- **Updates**: `%APPDATA%\SCTool_Tracker\Updates\`
-- **Twitch Settings**: `twitch_config.json` in the application directory
-- **Ship Database**: `ships.json` in the application directory
-- **Sound Files**: `kill.wav` in the application directory
-- **Default Assets**: `avatar_default_big.jpg` and other default resources
-- **Profile Images**: Fetched at runtime from RSI website and cached temporarily
+### Configuration Files
+- **Main Configuration**: `%APPDATA%\SCTool_Tracker\config.json` - Core application settings
+- **Twitch Settings**: `twitch_config.json` in application directory - OAuth tokens and integration settings  
+- **Button Automation**: `button_automation_config.json` in application directory - Key sequences and timing
+- **Overlay Configuration**: Saved within main config.json - Display modes, themes, and positioning
+
+### Data Storage
+- **Local Kill Cache**: `%APPDATA%\SCTool_Tracker\logged_kills.json` - Cached kill/death events
+- **Application Logs**: `%APPDATA%\SCTool_Tracker\kill_logger.log` - Debug and error logs
+- **Updates**: `%APPDATA%\SCTool_Tracker\Updates\` - Downloaded update files
+
+### Static Resources
+- **Ship Database**: `ships.json` in application directory - Complete Star Citizen ship list
+- **Sound Files**: `kill.wav` in application directory - Default kill notification sound
+- **Default Assets**: `avatar_default_big.jpg` and icons in application directory
+- **Profile Images**: Fetched at runtime from RSI website and cached temporarily in memory
+
+### Configuration File Examples
+
+#### Button Automation Config (`button_automation_config.json`)
+```json
+{
+    "enabled": false,
+    "button_sequences": [
+        {
+            "name": "StreamDeck Trigger",
+            "key_sequence": "alt+shift+f10",
+            "enabled": true
+        }
+    ],
+    "press_delay_seconds": 0,
+    "sequence_delay_ms": 100,
+    "hold_duration_ms": 50,
+    "debounce_ms": 500,
+    "sequence_debounce_ms": 1000
+}
+```
+
+#### Twitch Config (`twitch_config.json`)
+```json
+{
+    "client_id": "your_twitch_client_id",
+    "client_secret": "your_twitch_client_secret",
+    "broadcaster_name": "your_twitch_username",
+    "broadcaster_id": "",
+    "access_token": "",
+    "refresh_token": "",
+    "token_expiry": null,
+    "clip_delay_seconds": 10
+}
+```
 
 ## Auto-Update System
 
@@ -624,9 +796,24 @@ Contributions to SCTool Tracker are welcome! If you'd like to contribute:
 - **Performance Optimization**: Improving the log parsing efficiency for large log files.
 - **Additional Game Modes**: Adding support for new Star Citizen game modes as they're released.
 
-## Contact
+## Contact and Support
 
-For support or inquiries:
-- Website: [starcitizentool.com](https://starcitizentool.com)
-- Discord: Join our community server at [discord.gg/starcitizentool](https://discord.gg/starcitizentool)
-- YouTube: Watch tutorials at [youtube.com/starcitizentool](https://youtube.com/starcitizentool)
+### Official Resources
+- **Website**: [starcitizentool.com](https://starcitizentool.com) - Download, documentation, and API registration
+- **Discord**: Join our community server for support and discussions
+- **YouTube**: Watch video tutorials and feature demonstrations
+
+### Getting Help
+1. **Check Documentation**: Review this README and the in-app help sections
+2. **Search Discord**: Many common issues are discussed in our Discord community
+3. **Check Logs**: Review the application logs in `%APPDATA%\SCTool_Tracker\kill_logger.log`
+4. **Report Issues**: Use Discord or GitHub issues for bug reports with log files attached
+
+### Version Information
+- **Current Version**: 5.1
+- **Release Date**: Updated regularly with Star Citizen patches
+- **Compatibility**: Star Citizen Live, PTU, and Arena Commander modes
+- **Platform**: Windows 10/11 (64-bit recommended)
+
+### License and Legal
+SCTool Tracker is provided as-is for use with Star Citizen. This tool does not modify game files or provide any competitive advantage - it only reads publicly available log data that the game generates during normal gameplay.
