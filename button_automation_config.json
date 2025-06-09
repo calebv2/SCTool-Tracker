@@ -5,6 +5,11 @@
             "name": "GForce",
             "key_sequence": "alt+shift+f10",
             "enabled": true
+        },
+        {
+            "name": "wertwer",
+            "key_sequence": "s",
+            "enabled": true
         }
     ],
     "press_delay_seconds": 0,

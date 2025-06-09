@@ -730,10 +730,6 @@ class ButtonSequenceDialog(QDialog):
     def test_sequence(self):
         """Test the current sequence"""
         sequence = self.sequence_input.toPlainText().strip()
-    
-    def test_sequence(self):
-        """Test the current sequence"""
-        sequence = self.sequence_input.toPlainText().strip()
         if not sequence:
             msg = QMessageBox(self)
             msg.setWindowTitle("Test Sequence")
