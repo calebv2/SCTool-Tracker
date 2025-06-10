@@ -69,7 +69,7 @@ MOD_WIN = 0x0008
 
 KEYEVENTF_KEYUP = 0x0002
 
-BUTTON_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "button_automation_config.json")
+BUTTON_CONFIG_FILE = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "SCTool_Tracker", "button_automation_config.json")
 
 class ButtonAutomation:
     def __init__(self) -> None:
@@ -95,6 +95,9 @@ class ButtonAutomation:
     def load_config(self) -> None:
         """Load button automation configuration from file"""
         try:
+            config_dir = os.path.dirname(BUTTON_CONFIG_FILE)
+            os.makedirs(config_dir, exist_ok=True)
+            
             if os.path.exists(BUTTON_CONFIG_FILE):
                 with open(BUTTON_CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
@@ -108,6 +111,9 @@ class ButtonAutomation:
                 self.sequence_debounce_ms = config.get('sequence_debounce_ms', 1000)
                 
                 logging.info(f"Button automation config loaded: {len(self.button_sequences)} sequences")
+            else:
+                self._create_default_config()
+                logging.info("Created default button automation config with sample sequences")
         except Exception as e:
             logging.error(f"Error loading button automation config: {e}")
             self.enabled = False
@@ -115,9 +121,40 @@ class ButtonAutomation:
             self.debounce_ms = 500
             self.sequence_debounce_ms = 1000
 
+    def _create_default_config(self) -> None:
+        """Create default configuration file with sample data"""
+        try:
+            config_dir = os.path.dirname(BUTTON_CONFIG_FILE)
+            os.makedirs(config_dir, exist_ok=True)
+            
+            self.enabled = False
+            self.button_sequences = [
+                {
+                    "name": "GForce",
+                    "key_sequence": "alt+shift+f10",
+                    "enabled": True
+                },
+                {
+                    "name": "wertwer",
+                    "key_sequence": "s",
+                    "enabled": True
+                }
+            ]
+            self.press_delay_seconds = 0
+            self.sequence_delay_ms = 100
+            self.hold_duration_ms = 50
+            self.debounce_ms = 500
+            self.sequence_debounce_ms = 1000
+            self.save_config()
+        except Exception as e:
+            logging.error(f"Error creating default button automation config: {e}")
+
     def save_config(self) -> None:
         """Save button automation configuration to file"""
         try:
+            config_dir = os.path.dirname(BUTTON_CONFIG_FILE)
+            os.makedirs(config_dir, exist_ok=True)
+            
             config = {
                 'enabled': self.enabled,
                 'button_sequences': self.button_sequences,
@@ -639,7 +676,6 @@ class ButtonSequenceDialog(QDialog):
         capture_layout = QVBoxLayout(capture_group)
         capture_layout.setContentsMargins(15, 15, 15, 15)
         
-        # Add instruction label
         capture_instruction = QLabel("Click 'Capture' multiple times to build a sequence:")
         capture_instruction.setStyleSheet("color: #cccccc; font-size: 12px;")
         capture_layout.addWidget(capture_instruction)
@@ -648,7 +684,6 @@ class ButtonSequenceDialog(QDialog):
         self.hotkey_capture.hotkey_captured.connect(self.on_hotkey_captured)
         capture_layout.addWidget(self.hotkey_capture)
         
-        # Add buttons for capture control
         capture_button_layout = QHBoxLayout()
         
         clear_capture_button = QPushButton("Clear Sequence")

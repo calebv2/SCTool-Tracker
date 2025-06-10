@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog
 )
 
-TWITCH_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "twitch_config.json")
+TWITCH_CONFIG_FILE = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "SCTool_Tracker", "twitch_config.json")
 
 class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
     """Custom handler for Twitch OAuth callback"""
