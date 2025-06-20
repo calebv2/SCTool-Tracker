@@ -164,7 +164,7 @@ def init_ui(self) -> None:
     game_mode_status.addWidget(game_mode_label)
     game_mode_status.addStretch()
     
-    self.game_mode_display = QLabel("Unknown")
+    self.game_mode_display = QLabel("Mode: Unknown")
     self.game_mode_display.setStyleSheet(
         "QLabel { color: #00ccff; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
     )

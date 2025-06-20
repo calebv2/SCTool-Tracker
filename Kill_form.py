@@ -60,7 +60,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 5.2")
+            hwnd = FindWindow(None, "SCTool Killfeed 5.3")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -117,11 +117,11 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "5.2"    
+    __version__ = "5.3"    
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 5.2")
+        self.setWindowTitle("SCTool Killfeed 5.3")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -606,7 +606,7 @@ class KillLoggerGUI(QMainWindow):
             mode_name = mode_msg.strip()
         
         if hasattr(self, 'game_mode_display'):
-            self.game_mode_display.setText(mode_name)
+            self.game_mode_display.setText(f"Mode: {mode_name}")
             
             if mode_name != "Unknown":
                 if hasattr(self, 'game_mode_indicator'):

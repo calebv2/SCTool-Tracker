@@ -54,12 +54,21 @@ VK_CODES = {
     'comma': 0xBC, ',': 0xBC, 'minus': 0xBD, '-': 0xBD,
     'period': 0xBE, '.': 0xBE, 'slash': 0xBF, '/': 0xBF,
     'grave': 0xC0, '`': 0xC0, 'backslash': 0xDC, '\\': 0xDC,
-    'quote': 0xDE, "'": 0xDE,
-
-    'ctrl': 0x11, 'control': 0x11,
+    'quote': 0xDE, "'": 0xDE,    'ctrl': 0x11, 'control': 0x11,
+    'lctrl': 0xA2, 'leftctrl': 0xA2, 'left_ctrl': 0xA2,
+    'rctrl': 0xA3, 'rightctrl': 0xA3, 'right_ctrl': 0xA3,
+    
     'alt': 0x12, 'menu': 0x12,
+    'lalt': 0xA4, 'leftalt': 0xA4, 'left_alt': 0xA4,
+    'ralt': 0xA5, 'rightalt': 0xA5, 'right_alt': 0xA5,
+    
     'shift': 0x10,
-    'win': 0x5B, 'windows': 0x5B, 'meta': 0x5B
+    'lshift': 0xA0, 'leftshift': 0xA0, 'left_shift': 0xA0,
+    'rshift': 0xA1, 'rightshift': 0xA1, 'right_shift': 0xA1,
+    
+    'win': 0x5B, 'windows': 0x5B, 'meta': 0x5B,
+    'lwin': 0x5B, 'leftwin': 0x5B, 'left_win': 0x5B,
+    'rwin': 0x5C, 'rightwin': 0x5C, 'right_win': 0x5C
 }
 
 MOD_ALT = 0x0001
@@ -268,6 +277,10 @@ class ButtonAutomation:
     def _validate_key_sequence(self, key_sequence: str) -> bool:
         """Validate that a key sequence contains valid keys"""
         try:
+            if not key_sequence or not key_sequence.strip():
+                logging.error("Empty key sequence")
+                return False
+                
             parts = key_sequence.lower().split(',')
             
             for part in parts:
@@ -279,6 +292,9 @@ class ButtonAutomation:
                     combo_parts = part.split('+')
                     for combo_part in combo_parts:
                         combo_part = combo_part.strip()
+                        if not combo_part:
+                            logging.error("Empty key in combination")
+                            return False
                         if combo_part not in VK_CODES:
                             logging.error(f"Invalid key in combination: {combo_part}")
                             return False
@@ -375,11 +391,11 @@ class ButtonAutomation:
                     executed_sequences.append(name)
                     self.sequence_last_execution[name] = current_time
                     logging.info(f"Successfully executed sequence: {name}")
-                    
-                    if self.sequence_delay_ms > 0:
-                        time.sleep(self.sequence_delay_ms / 1000.0)
                 else:
                     logging.error(f"Failed to execute sequence: {name}")
+                
+                if self.sequence_delay_ms > 0:
+                    time.sleep(self.sequence_delay_ms / 1000.0)
             
             if executed_sequences:
                 result = f"Executed sequences: {', '.join(executed_sequences)}"
@@ -399,7 +415,7 @@ class ButtonAutomation:
         try:
             parts = key_sequence.lower().split(',')
             
-            for part in parts:
+            for i, part in enumerate(parts):
                 part = part.strip()
                 if not part:
                     continue
@@ -411,7 +427,7 @@ class ButtonAutomation:
                     if not self._press_single_key(part):
                         return False
                 
-                if self.sequence_delay_ms > 0:
+                if i < len(parts) - 1 and self.sequence_delay_ms > 0:
                     time.sleep(self.sequence_delay_ms / 1000.0)
             
             return True
@@ -435,13 +451,17 @@ class ButtonAutomation:
                     return False
             
             for vk_code in keys_to_press:
-                ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
+                scan_code = ctypes.windll.user32.MapVirtualKeyW(vk_code, 0)
+                ctypes.windll.user32.keybd_event(vk_code, scan_code, 0, 0)
+                time.sleep(0.001)
             
             if self.hold_duration_ms > 0:
                 time.sleep(self.hold_duration_ms / 1000.0)
             
             for vk_code in reversed(keys_to_press):
-                ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+                scan_code = ctypes.windll.user32.MapVirtualKeyW(vk_code, 0)
+                ctypes.windll.user32.keybd_event(vk_code, scan_code, KEYEVENTF_KEYUP, 0)
+                time.sleep(0.001)
             
             logging.debug(f"Pressed key combination: {combination}")
             return True
@@ -458,13 +478,16 @@ class ButtonAutomation:
                 return False
             
             vk_code = VK_CODES[key]
+            scan_code = ctypes.windll.user32.MapVirtualKeyW(vk_code, 0)
             
-            ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
+            ctypes.windll.user32.keybd_event(vk_code, scan_code, 0, 0)
             
             if self.hold_duration_ms > 0:
                 time.sleep(self.hold_duration_ms / 1000.0)
+            else:
+                time.sleep(0.01)
             
-            ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+            ctypes.windll.user32.keybd_event(vk_code, scan_code, KEYEVENTF_KEYUP, 0)
             
             logging.debug(f"Pressed single key: {key}")
             return True

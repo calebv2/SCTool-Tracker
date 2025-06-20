@@ -8,6 +8,13 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+# Add parent directory to sys.path to import kill_parser
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from kill_parser import KillParser
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
     QScrollArea, QApplication
@@ -470,7 +477,7 @@ class GameOverlay(QWidget):
     
     def show_mode_change_indicator(self):
         """Show visual indicator when mode changes"""
-        pass  # Placeholder for mode change visual feedback
+        pass
     
     def mousePressEvent(self, event):
         """Handle mouse press for dragging"""
@@ -617,8 +624,7 @@ class GameOverlay(QWidget):
             current_ship = self.parent_tracker.ship_combo.currentText() or "Unknown"
             if current_ship != self.ship:
                 self.ship = current_ship
-                self.update_ship_display()
-        
+                self.update_ship_display()        
         if hasattr(self.parent_tracker, 'game_mode_display'):
             mode_text = self.parent_tracker.game_mode_display.text()
             if mode_text.startswith('Mode: '):
@@ -640,7 +646,8 @@ class GameOverlay(QWidget):
         elif self.display_mode == 'horizontal':
             if hasattr(self, 'session_time_label_h'):
                 self.session_time_label_h.setText(f"Session: {self.session_time}")
-
+        
+        # Minimal mode doesn't have session time display    
     def update_ship_display(self):
         """Update only ship labels without full UI refresh"""
         if self.display_mode == 'compact':
@@ -654,6 +661,8 @@ class GameOverlay(QWidget):
         elif self.display_mode == 'horizontal':
             if hasattr(self, 'ship_label_h'):
                 self.ship_label_h.setText(f"Ship: {self.ship}")
+        
+        # Minimal mode doesn't have ship display
 
     def update_game_mode_display(self):
         """Update only game mode labels without full UI refresh"""
@@ -668,6 +677,10 @@ class GameOverlay(QWidget):
         elif self.display_mode == 'horizontal':
             if hasattr(self, 'game_mode_label_h'):
                 self.game_mode_label_h.setText(f"Mode: {self.game_mode}")
+                
+        elif self.display_mode == 'minimal':
+            if hasattr(self, 'game_mode_label_m'):
+                self.game_mode_label_m.setText(f"Mode: {self.game_mode}")
 
     def hide_overlay(self):
         """Hide the overlay"""
@@ -726,12 +739,12 @@ class GameOverlay(QWidget):
         self.update_display()
 
     def update_display(self):
-        """Update the display based on current mode and data"""
+        """Update the display based on current mode and data"""        
         if not hasattr(self, 'layout') or not self.layout():
             return
         
         if self.deaths > 0:
-            kd_ratio = f"{self.kills / self.deaths:.2f}"
+            kd_ratio = f"{self.kills / self.deaths:.2f}"        
         else:
             kd_ratio = str(self.kills) if self.kills > 0 else "--"
         
@@ -740,6 +753,8 @@ class GameOverlay(QWidget):
                 self.kills_count.setText(str(self.kills))
             if hasattr(self, 'deaths_count'):
                 self.deaths_count.setText(str(self.deaths))
+            if hasattr(self, 'game_mode_label_m'):
+                self.game_mode_label_m.setText(f"Mode: {self.game_mode}")
                 
         elif self.display_mode == 'compact':
             if hasattr(self, 'kills_value_c'):
@@ -769,17 +784,68 @@ class GameOverlay(QWidget):
             if hasattr(self, 'ship_label'):
                 self.ship_label.setText(f"Ship: {self.ship}")
             
-            if hasattr(self, 'latest_kill_frame') and hasattr(self, 'latest_kill_info'):
+            if hasattr(self, 'latest_kill_frame'):
                 if self.last_kill_info:
-                    kill_text = f"{self.last_kill_info.get('victim', 'Unknown')}"
-                    if hasattr(self, 'latest_kill_info'):
-                        self.latest_kill_info.setText(kill_text)
+                    victim = self.last_kill_info.get('victim', 'Unknown')
+                    weapon = self.last_kill_info.get('weapon', 'Unknown')
+                    location = self.last_kill_info.get('location', 'Unknown')
+                    attacker = self.last_kill_info.get('attacker', 'Unknown')
+                    game_mode = self.last_kill_info.get('game_mode', 'Unknown')                    
+                    if hasattr(self, 'latest_kill_attacker'):
+                        self.latest_kill_attacker.setText(f"Attacker: {attacker}")
+                    if hasattr(self, 'latest_kill_engagement'):
+                        formatted_weapon = KillParser.format_weapon(weapon)
+                        self.latest_kill_engagement.setText(f"Engagement: {formatted_weapon}")
+                    if hasattr(self, 'latest_kill_method'):
+                        self.latest_kill_method.setText("Method: Player destruction")
+                    if hasattr(self, 'latest_kill_victim'):
+                        self.latest_kill_victim.setText(f"Victim: {victim}")
+                    if hasattr(self, 'latest_kill_location'):
+                        formatted_location = KillParser.format_zone(location)
+                        self.latest_kill_location.setText(f"Location: {formatted_location}")
+                    if hasattr(self, 'latest_kill_organization'):
+                        self.latest_kill_organization.setText("Organization: None (Tag: None)")
+                else:
+                    if hasattr(self, 'latest_kill_attacker'):
+                        self.latest_kill_attacker.setText("Attacker: --")
+                    if hasattr(self, 'latest_kill_engagement'):
+                        self.latest_kill_engagement.setText("Engagement: --")
+                    if hasattr(self, 'latest_kill_method'):
+                        self.latest_kill_method.setText("Method: --")
+                    if hasattr(self, 'latest_kill_victim'):
+                        self.latest_kill_victim.setText("Victim: --")
+                    if hasattr(self, 'latest_kill_location'):
+                        self.latest_kill_location.setText("Location: --")
+                    if hasattr(self, 'latest_kill_organization'):
+                        self.latest_kill_organization.setText("Organization: -- (Tag: --)")
 
-            if hasattr(self, 'latest_death_frame') and hasattr(self, 'latest_death_info'):
+            if hasattr(self, 'latest_death_frame'):
                 if self.last_death_info:
-                    death_text = f"By: {self.last_death_info.get('attacker', 'Unknown')}"
-                    if hasattr(self, 'latest_death_info'):
-                        self.latest_death_info.setText(death_text)
+                    attacker = self.last_death_info.get('attacker', 'Unknown')
+                    weapon = self.last_death_info.get('weapon', 'Unknown')
+                    location = self.last_death_info.get('location', 'Unknown')
+                    timestamp = self.last_death_info.get('timestamp', 'Unknown')
+                    game_mode = self.last_death_info.get('game_mode', 'Unknown')
+                    
+                    if hasattr(self, 'latest_death_attacker'):
+                        self.latest_death_attacker.setText(f"Attacker: {attacker}")
+                    if hasattr(self, 'latest_death_organization'):
+                        self.latest_death_organization.setText("Organization: None (Tag: None)")
+                    if hasattr(self, 'latest_death_location'):
+                        formatted_location = KillParser.format_zone(location)
+                        self.latest_death_location.setText(f"Location: {formatted_location}")
+                    if hasattr(self, 'latest_death_damage_type'):
+                        formatted_weapon = KillParser.format_weapon(weapon)
+                        self.latest_death_damage_type.setText(f"Damage Type: {formatted_weapon}")
+                else:
+                    if hasattr(self, 'latest_death_attacker'):
+                        self.latest_death_attacker.setText("Attacker: --")
+                    if hasattr(self, 'latest_death_organization'):
+                        self.latest_death_organization.setText("Organization: -- (Tag: --)")
+                    if hasattr(self, 'latest_death_location'):
+                        self.latest_death_location.setText("Location: --")
+                    if hasattr(self, 'latest_death_damage_type'):
+                        self.latest_death_damage_type.setText("Damage Type: --")
 
         elif self.display_mode == 'horizontal':
             if hasattr(self, 'kills_value_h'):
@@ -794,6 +860,20 @@ class GameOverlay(QWidget):
                 self.game_mode_label_h.setText(f"Mode: {self.game_mode}")
             if hasattr(self, 'ship_label_h'):
                 self.ship_label_h.setText(f"Ship: {self.ship}")
+            
+            if hasattr(self, 'latest_kill_info_h'):
+                if self.last_kill_info:
+                    kill_text = f"{self.last_kill_info.get('victim', 'Unknown')}"
+                    self.latest_kill_info_h.setText(kill_text)
+                else:
+                    self.latest_kill_info_h.setText("No kills yet")
+            
+            if hasattr(self, 'latest_death_info_h'):
+                if self.last_death_info:
+                    death_text = f"By: {self.last_death_info.get('attacker', 'Unknown')}"
+                    self.latest_death_info_h.setText(death_text)
+                else:
+                    self.latest_death_info_h.setText("No deaths yet")
 
         self.adjust_size_to_content()
     

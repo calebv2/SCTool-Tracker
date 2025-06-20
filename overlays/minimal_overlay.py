@@ -94,8 +94,7 @@ def create_minimal_ui(self):
             font-family: 'Consolas', monospace;
             background: transparent;
         }}
-    """)
-    
+    """)    
     deaths_section.addWidget(deaths_label)
     deaths_section.addWidget(self.deaths_count)
     
@@ -104,6 +103,18 @@ def create_minimal_ui(self):
     
     layout.addLayout(stats_layout)
     
+    self.game_mode_label_m = QLabel("Mode: Unknown")
+    self.game_mode_label_m.setAlignment(Qt.AlignCenter)
+    self.game_mode_label_m.setStyleSheet(f"""
+        QLabel {{
+            color: {self.colors['text_secondary'].name()};
+            font-size: 8px;
+            font-family: 'Consolas', monospace;
+            background: transparent;
+        }}
+    """)
+    layout.addWidget(self.game_mode_label_m)
+    
     self.setLayout(layout)
-    self.setMinimumSize(120, 70)
-    self.resize(120, 70)
+    self.setMinimumSize(120, 85)
+    self.resize(120, 85)

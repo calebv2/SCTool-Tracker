@@ -7,6 +7,18 @@ from ctypes import wintypes
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer
 
+user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+
+VK_LCONTROL = 0xA2
+VK_RCONTROL = 0xA3
+VK_LMENU = 0xA4
+VK_RMENU = 0xA5
+VK_LSHIFT = 0xA0
+VK_RSHIFT = 0xA1
+VK_LWIN = 0x5B
+VK_RWIN = 0x5C
+
 class HotkeyCapture(QWidget):
     """Widget for capturing hotkey combinations"""
     hotkey_captured = pyqtSignal(str)
@@ -15,6 +27,7 @@ class HotkeyCapture(QWidget):
         super().__init__(parent)
         self.capturing = False
         self.pressed_keys = set()
+        self.captured_modifiers = []
         self.modifier_names = {
             Qt.Key_Control: 'ctrl',
             Qt.Key_Alt: 'alt',
@@ -54,6 +67,32 @@ class HotkeyCapture(QWidget):
         
         self.setup_ui()
     
+    def get_specific_modifiers(self):
+        """Get the specific left/right modifier keys that are currently pressed"""
+        modifiers = []
+        
+        if user32.GetAsyncKeyState(VK_LCONTROL) & 0x8000:
+            modifiers.append('lctrl')
+        elif user32.GetAsyncKeyState(VK_RCONTROL) & 0x8000:
+            modifiers.append('rctrl')
+        
+        if user32.GetAsyncKeyState(VK_LMENU) & 0x8000:
+            modifiers.append('lalt')
+        elif user32.GetAsyncKeyState(VK_RMENU) & 0x8000:
+            modifiers.append('ralt')
+        
+        if user32.GetAsyncKeyState(VK_LSHIFT) & 0x8000:
+            modifiers.append('lshift')
+        elif user32.GetAsyncKeyState(VK_RSHIFT) & 0x8000:
+            modifiers.append('rshift')
+        
+        if user32.GetAsyncKeyState(VK_LWIN) & 0x8000:
+            modifiers.append('lwin')
+        elif user32.GetAsyncKeyState(VK_RWIN) & 0x8000:
+            modifiers.append('rwin')
+            
+        return modifiers
+    
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -86,8 +125,7 @@ class HotkeyCapture(QWidget):
                 color: #aaaaaa;
                 font-size: 12px;
                 font-style: italic;
-            }
-        """)
+            }        """)
         
         layout.addWidget(self.capture_button)
         layout.addWidget(self.status_label)
@@ -96,6 +134,7 @@ class HotkeyCapture(QWidget):
         """Start capturing hotkey combination"""
         self.capturing = True
         self.pressed_keys.clear()
+        self.captured_modifiers = []  # Clear captured modifiers
         self.capture_button.setText("Press key combination...")
         self.capture_button.setStyleSheet("""
             QPushButton {
@@ -107,8 +146,7 @@ class HotkeyCapture(QWidget):
                 font-size: 14px;
                 min-height: 30px;
                 font-weight: bold;
-            }
-        """)
+            }        """)
         self.status_label.setText("Press your desired key combination now...")
         self.setFocus()
         self.grabKeyboard()
@@ -139,28 +177,25 @@ class HotkeyCapture(QWidget):
         """)
         
         if self.pressed_keys:
-            modifiers = []
+            specific_modifiers = self.captured_modifiers
             main_key = None
             
             for key in self.pressed_keys:
-                if key in self.modifier_names:
-                    modifiers.append(self.modifier_names[key])
-                elif key in self.key_names:
+                if key in self.key_names:
                     main_key = self.key_names[key]
+                    break
             
             if main_key:
-                modifier_order = ['ctrl', 'alt', 'shift', 'win']
-                sorted_modifiers = [mod for mod in modifier_order if mod in modifiers]
-                
-                if sorted_modifiers:
+                if specific_modifiers:
+                    modifier_order = ['lctrl', 'rctrl', 'lalt', 'ralt', 'lshift', 'rshift', 'lwin', 'rwin']
+                    sorted_modifiers = [mod for mod in modifier_order if mod in specific_modifiers]
                     hotkey = '+'.join(sorted_modifiers) + '+' + main_key
                 else:
                     hotkey = main_key
                 
                 self.status_label.setText(f"Captured: {hotkey}")
                 self.hotkey_captured.emit(hotkey)
-            else:
-                self.status_label.setText("No valid key detected. Try again.")
+            else:                self.status_label.setText("No valid key detected. Try again.")
         else:
             self.status_label.setText("No keys detected. Try again.")
     
@@ -177,12 +212,14 @@ class HotkeyCapture(QWidget):
             self.status_label.setText("Capture cancelled.")
             return
 
+        if key in self.modifier_names or key in self.key_names:
+            self.captured_modifiers = self.get_specific_modifiers()
+
         self.pressed_keys.add(key)
 
         current_combo = self.build_current_combo()
         if current_combo:
             self.status_label.setText(f"Current: {current_combo}")
-        
         event.accept()
     
     def keyReleaseEvent(self, event):
@@ -196,25 +233,23 @@ class HotkeyCapture(QWidget):
     
     def build_current_combo(self):
         """Build current combination string for display"""
-        modifiers = []
+        specific_modifiers = self.captured_modifiers
         main_key = None
         
         for key in self.pressed_keys:
-            if key in self.modifier_names:
-                modifiers.append(self.modifier_names[key])
-            elif key in self.key_names:
+            if key in self.key_names:
                 main_key = self.key_names[key]
+                break
         
         if main_key:
-            modifier_order = ['ctrl', 'alt', 'shift', 'win']
-            sorted_modifiers = [mod for mod in modifier_order if mod in modifiers]
-            
-            if sorted_modifiers:
+            if specific_modifiers:
+                modifier_order = ['lctrl', 'rctrl', 'lalt', 'ralt', 'lshift', 'rshift', 'lwin', 'rwin']
+                sorted_modifiers = [mod for mod in modifier_order if mod in specific_modifiers]
                 return '+'.join(sorted_modifiers) + '+' + main_key
             else:
                 return main_key
-        elif modifiers:
-            return '+'.join(modifiers) + '+...'
+        elif specific_modifiers:
+            return '+'.join(specific_modifiers) + '+...'
         
         return ""
 
@@ -273,8 +308,7 @@ class GlobalHotkeyThread(QThread):
             'comma': 0xBC, ',': 0xBC, 'minus': 0xBD, '-': 0xBD,
             'period': 0xBE, '.': 0xBE, 'slash': 0xBF, '/': 0xBF,
             'grave': 0xC0, '`': 0xC0, 'backslash': 0xDC, '\\': 0xDC,
-            'quote': 0xDE, "'": 0xDE
-        }
+            'quote': 0xDE, "'": 0xDE        }
         
         parts = key_combo.lower().split('+')
 
@@ -283,13 +317,13 @@ class GlobalHotkeyThread(QThread):
         
         for part in parts:
             part = part.strip()
-            if part in ['ctrl', 'control']:
+            if part in ['ctrl', 'control', 'lctrl', 'leftctrl', 'left_ctrl', 'rctrl', 'rightctrl', 'right_ctrl']:
                 self.modifiers |= MOD_CONTROL
-            elif part == 'shift':
+            elif part in ['shift', 'lshift', 'leftshift', 'left_shift', 'rshift', 'rightshift', 'right_shift']:
                 self.modifiers |= MOD_SHIFT
-            elif part == 'alt':
+            elif part in ['alt', 'lalt', 'leftalt', 'left_alt', 'ralt', 'rightalt', 'right_alt']:
                 self.modifiers |= MOD_ALT
-            elif part in ['win', 'windows', 'cmd']:
+            elif part in ['win', 'windows', 'cmd', 'lwin', 'leftwin', 'left_win', 'rwin', 'rightwin', 'right_win']:
                 self.modifiers |= MOD_WIN
             elif part in VK_CODES:
                 self.key_code = VK_CODES[part]

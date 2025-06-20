@@ -24,6 +24,7 @@ GAME_MODE_MAPPING = {
     'EA_Elimination': 'Elimination',
     'SC_Default': 'PU',
     'EA_FPSGunGame': 'Gun Rush',
+    'EA_Elimination_XOnly': 'Elimination (X-Only)',
     'EA_TonkRoyale_TeamBattle': 'Tonk Royale',
     'EA_TonkRoyale_FreeForAll': 'Tonk Royale Free For All',
     'EA_FreeFlight': 'Free Flight',

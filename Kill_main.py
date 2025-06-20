@@ -2,7 +2,7 @@
 
 """
 SCTool Killfeed
-Version: 5.2
+Version: 5.3
 """
 
 import sys

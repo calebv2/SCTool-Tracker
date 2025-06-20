@@ -168,20 +168,18 @@ def create_detailed_ui(self):
     session_info_layout.addWidget(self.game_mode_label)
     session_info_layout.addWidget(self.ship_label)
     layout.addLayout(session_info_layout)
-    
     if self.config.get('show_latest_kill', True):
         self.latest_kill_frame = QFrame()
         self.latest_kill_frame.setStyleSheet(f"""
             QFrame {{
                 background-color: rgba(0, 40, 0, 100);
-                border: 1px solid {self.colors['kill_color'].name()};
                 border-radius: 4px;
                 margin: 2px;
             }}
         """)
         latest_kill_layout = QVBoxLayout(self.latest_kill_frame)
-        latest_kill_layout.setContentsMargins(6, 4, 6, 4)
-        latest_kill_layout.setSpacing(2)
+        latest_kill_layout.setContentsMargins(8, 6, 8, 6)
+        latest_kill_layout.setSpacing(4)
         
         latest_title = QLabel("LATEST KILL")
         latest_title.setStyleSheet(f"""
@@ -192,22 +190,81 @@ def create_detailed_ui(self):
                 background: transparent;
             }}
         """)
-        latest_title.setAlignment(Qt.AlignCenter)
+        latest_title.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_info = QLabel("No kills yet")
-        self.latest_kill_info.setStyleSheet(f"""
+        self.latest_kill_attacker = QLabel("Attacker: --")
+        self.latest_kill_attacker.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
-                font-size: 20px;
+                font-size: 14px;
                 font-family: 'Consolas', monospace;
                 background: transparent;
             }}
         """)
-        self.latest_kill_info.setAlignment(Qt.AlignCenter)
-        self.latest_kill_info.setWordWrap(True)
+        self.latest_kill_attacker.setAlignment(Qt.AlignLeft)
+        
+        self.latest_kill_engagement = QLabel("Engagement: --")
+        self.latest_kill_engagement.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_kill_engagement.setAlignment(Qt.AlignLeft)
+        
+        self.latest_kill_method = QLabel("Method: --")
+        self.latest_kill_method.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_kill_method.setAlignment(Qt.AlignLeft)
+        
+        self.latest_kill_victim = QLabel("Victim: --")
+        self.latest_kill_victim.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_kill_victim.setAlignment(Qt.AlignLeft)
+        
+        self.latest_kill_location = QLabel("Location: --")
+        self.latest_kill_location.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_kill_location.setAlignment(Qt.AlignLeft)
+        
+        self.latest_kill_organization = QLabel("Organization: -- (Tag: --)")
+        self.latest_kill_organization.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_kill_organization.setAlignment(Qt.AlignLeft)
         
         latest_kill_layout.addWidget(latest_title)
-        latest_kill_layout.addWidget(self.latest_kill_info)
+        latest_kill_layout.addWidget(self.latest_kill_attacker)
+        latest_kill_layout.addWidget(self.latest_kill_engagement)
+        latest_kill_layout.addWidget(self.latest_kill_method)
+        latest_kill_layout.addWidget(self.latest_kill_victim)
+        latest_kill_layout.addWidget(self.latest_kill_location)
+        latest_kill_layout.addWidget(self.latest_kill_organization)
         layout.addWidget(self.latest_kill_frame)
 
     if self.config.get('show_latest_death', True):
@@ -215,14 +272,13 @@ def create_detailed_ui(self):
         self.latest_death_frame.setStyleSheet(f"""
             QFrame {{
                 background-color: rgba(40, 0, 0, 100);
-                border: 1px solid {self.colors['death_color'].name()};
                 border-radius: 4px;
                 margin: 2px;
             }}
         """)
         latest_death_layout = QVBoxLayout(self.latest_death_frame)
-        latest_death_layout.setContentsMargins(6, 4, 6, 4)
-        latest_death_layout.setSpacing(2)
+        latest_death_layout.setContentsMargins(8, 6, 8, 6)
+        latest_death_layout.setSpacing(4)
         
         death_title = QLabel("LATEST DEATH")
         death_title.setStyleSheet(f"""
@@ -233,22 +289,57 @@ def create_detailed_ui(self):
                 background: transparent;
             }}
         """)
-        death_title.setAlignment(Qt.AlignCenter)
+        death_title.setAlignment(Qt.AlignLeft)
         
-        self.latest_death_info = QLabel("No deaths yet")
-        self.latest_death_info.setStyleSheet(f"""
+        self.latest_death_attacker = QLabel("Attacker: --")
+        self.latest_death_attacker.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
-                font-size: 20px;
+                font-size: 14px;
                 font-family: 'Consolas', monospace;
                 background: transparent;
             }}
         """)
-        self.latest_death_info.setAlignment(Qt.AlignCenter)
-        self.latest_death_info.setWordWrap(True)
+        self.latest_death_attacker.setAlignment(Qt.AlignLeft)
+        
+        self.latest_death_organization = QLabel("Organization: -- (Tag: --)")
+        self.latest_death_organization.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_death_organization.setAlignment(Qt.AlignLeft)
+        
+        self.latest_death_location = QLabel("Location: --")
+        self.latest_death_location.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_death_location.setAlignment(Qt.AlignLeft)
+        
+        self.latest_death_damage_type = QLabel("Damage Type: --")
+        self.latest_death_damage_type.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text_primary'].name()};
+                font-size: 14px;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+            }}
+        """)
+        self.latest_death_damage_type.setAlignment(Qt.AlignLeft)
         
         latest_death_layout.addWidget(death_title)
-        latest_death_layout.addWidget(self.latest_death_info)
+        latest_death_layout.addWidget(self.latest_death_attacker)
+        latest_death_layout.addWidget(self.latest_death_organization)
+        latest_death_layout.addWidget(self.latest_death_location)
+        latest_death_layout.addWidget(self.latest_death_damage_type)
         layout.addWidget(self.latest_death_frame)
 
     scroll_area = QScrollArea()
@@ -285,7 +376,7 @@ def create_detailed_ui(self):
     main_layout.setContentsMargins(0, 0, 0, 0)
     main_layout.addWidget(scroll_area)
     self.setLayout(main_layout)
-    self.setMinimumSize(400, 350)
-    self.resize(700, 600)
+    self.setMinimumSize(400, 400)
+    self.resize(1000, 600)
 
     container_widget.adjustSize()
