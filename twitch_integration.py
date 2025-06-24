@@ -1059,9 +1059,7 @@ def process_twitch_callbacks(self) -> None:
     if auth_result is not None:
         if auth_result:
             self.update_bottom_info("twitch_connected", "Twitch Connected")
-            self.showCustomMessageBox("Twitch Integration", 
-                                    "Successfully connected to Twitch!\n\nKill clips will be created automatically.", 
-                                    QMessageBox.Information)
+
             self.save_config()
         else:
             self.update_bottom_info("twitch_connected", "Twitch Not Connected")

@@ -384,11 +384,11 @@ class KillLoggerGUI(QMainWindow):
                 if selected_kills:
                     self.send_missing_kills(selected_kills)
                 else:
-                    self.show_temporary_popup("No kills selected to send.")
+                    self.append_kill_readout("<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ No kills selected to send.</div>")
             else:
-                self.show_temporary_popup("Missing kills were not sent.")
+                self.append_kill_readout("<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ Missing kills were not sent.</div>")
         else:
-            self.show_temporary_popup("No missing kills found.")
+            self.append_kill_readout("<div style='color: #2196F3; font-weight: bold; margin: 10px 0;'>ℹ️ No missing kills found.</div>")
     
     def display_missing_kill(self, kill: dict) -> None:
         """Display a missing kill in the kill feed"""

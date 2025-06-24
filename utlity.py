@@ -13,6 +13,7 @@ from overlay import GameOverlay, OverlayControlPanel
 from PyQt5.QtGui import QKeyEvent
 from datetime import datetime, timedelta
 from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QKeySequence
+from PyQt5.QtCore import QUrl
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QLineEdit, QFormLayout, QComboBox, QCheckBox,
@@ -240,8 +241,7 @@ def init_ui(self) -> None:
     killfeed_settings_btn = self.create_nav_button("Killfeed Settings", "killfeed_tab")
     killfeed_settings_btn.setCheckable(True)
     self.nav_buttons.append(killfeed_settings_btn)
-    sidebar_layout.addWidget(killfeed_settings_btn)
-
+    sidebar_layout.addWidget(killfeed_settings_btn)    
     api_btn = self.create_nav_button("API Settings", "api_tab") 
     api_btn.setCheckable(True)
     self.nav_buttons.append(api_btn)
@@ -266,6 +266,11 @@ def init_ui(self) -> None:
     overlay_btn.setCheckable(True)
     self.nav_buttons.append(overlay_btn)
     sidebar_layout.addWidget(overlay_btn)
+
+    support_btn = self.create_nav_button("Support", "support_tab")
+    support_btn.setCheckable(True)
+    self.nav_buttons.append(support_btn)
+    sidebar_layout.addWidget(support_btn)
     
     sidebar_layout.addStretch(1)
     main_layout.addWidget(sidebar)
@@ -349,29 +354,34 @@ def init_ui(self) -> None:
     killfeed_settings_layout.setContentsMargins(0, 0, 0, 0)
     killfeed_settings_layout.setSpacing(15)
 
-    game_card = QWidget()
-    game_card.setStyleSheet(
+    tracking_card = QWidget()
+    tracking_card.setStyleSheet(
         "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
         "border: 1px solid #333333; }"
     )
-    game_card_layout = QFormLayout(game_card)
-    game_card_layout.setContentsMargins(20, 20, 20, 20)
-    game_card_layout.setSpacing(15)
-    game_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+    tracking_layout = QFormLayout(tracking_card)
+    tracking_layout.setContentsMargins(20, 20, 20, 20)
+    tracking_layout.setSpacing(15)
+    tracking_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
-    game_header = QLabel("GAME CONFIGURATION")
-    game_header.setStyleSheet(
-        "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
+    tracking_header = QLabel("TRACKING CONFIGURATION")
+    tracking_header.setStyleSheet(
+        "QLabel { color: #2196F3; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
-    game_card_layout.addRow(game_header)
+    tracking_layout.addRow(tracking_header)
     
-    game_desc = QLabel("Configure Star Citizen-specific settings to track your gameplay.")
-    game_desc.setStyleSheet(
-        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
+    tracking_desc = QLabel("Configure the core settings for tracking your Star Citizen gameplay and kills.")
+    tracking_desc.setStyleSheet(
+        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; margin-bottom: 10px; }"
     )
-    game_desc.setWordWrap(True)
-    game_card_layout.addRow(game_desc)
+    tracking_desc.setWordWrap(True)
+    tracking_layout.addRow(tracking_desc)
     
+    separator = QFrame()
+    separator.setFrameShape(QFrame.HLine)
+    separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
+    tracking_layout.addRow(separator)
+
     log_path_label = QLabel("Game.log Path:")
     log_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
@@ -402,15 +412,14 @@ def init_ui(self) -> None:
     log_path_layout.addWidget(self.log_path_input)
     log_path_layout.addWidget(browse_log_btn)
     
-    game_card_layout.addRow(log_path_label, log_path_container)
+    tracking_layout.addRow(log_path_label, log_path_container)
 
-    log_help = QLabel("This should be the path to your Star Citizen Game.log file, typically located in the "
-                    "StarCitizen\\LIVE\\game.log directory.")
+    log_help = QLabel("Path to your Star Citizen Game.log file (typically StarCitizen\\LIVE\\game.log)")
     log_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
     log_help.setWordWrap(True)
-    game_card_layout.addRow("", log_help)
+    tracking_layout.addRow("", log_help)
     
-    ship_label = QLabel("Killer Ship:")
+    ship_label = QLabel("Current Ship:")
     ship_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     self.ship_combo = QComboBox()
@@ -435,37 +444,41 @@ def init_ui(self) -> None:
     )
     self.ship_combo.setMinimumWidth(300)
     
-    game_card_layout.addRow(ship_label, self.ship_combo)
+    tracking_layout.addRow(ship_label, self.ship_combo)
 
-    ship_help = QLabel("Select or enter the ship you are currently using. This information will be included with your kill data.")
+    ship_help = QLabel("Select the ship you're currently flying (included with kill data)")
     ship_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
     ship_help.setWordWrap(True)
-    game_card_layout.addRow("", ship_help)
+    tracking_layout.addRow("", ship_help)
     
-    killfeed_settings_layout.addWidget(game_card)
-
-    export_card = QWidget()
-    export_card.setStyleSheet(
+    killfeed_settings_layout.addWidget(tracking_card)
+    data_card = QWidget()
+    data_card.setStyleSheet(
         "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
         "border: 1px solid #333333; }"
     )
-    export_layout = QVBoxLayout(export_card)
-    export_layout.setContentsMargins(20, 20, 20, 20)
-    export_layout.setSpacing(15)
+    data_layout = QVBoxLayout(data_card)
+    data_layout.setContentsMargins(20, 20, 20, 20)
+    data_layout.setSpacing(20)
     
-    export_header = QLabel("EXPORT KILL LOGS")
-    export_header.setStyleSheet(
+    data_header = QLabel("DATA MANAGEMENT")
+    data_header.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
-    export_layout.addWidget(export_header)
+    data_layout.addWidget(data_header)
     
-    export_desc = QLabel("Export your kill and death logs as an HTML file. This includes all kills and deaths "
-                        "recorded during your current session.")
-    export_desc.setStyleSheet(
+    data_desc = QLabel("Export your kill logs and access application data files for backup or troubleshooting.")
+    data_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
     )
-    export_desc.setWordWrap(True)
-    export_layout.addWidget(export_desc)
+    data_desc.setWordWrap(True)
+    data_layout.addWidget(data_desc)
+
+    data_buttons_container = QWidget()
+    data_buttons_container.setStyleSheet("background: transparent; border: none;")
+    data_buttons_layout = QHBoxLayout(data_buttons_container)
+    data_buttons_layout.setContentsMargins(0, 0, 0, 0)
+    data_buttons_layout.setSpacing(15)
     
     self.export_button = QPushButton("EXPORT LOGS")
     self.export_button.setIcon(QIcon(resource_path("export_icon.png")))
@@ -473,129 +486,113 @@ def init_ui(self) -> None:
     self.export_button.setStyleSheet(
         "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-        "border-radius: 4px; padding: 10px 16px; font-weight: bold; font-size: 13px; }"
+        "border-radius: 4px; padding: 12px 18px; font-weight: bold; font-size: 13px; }"
         "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #4a4a4a, stop:1 #303030); }"
         "QPushButton:pressed { background: #202020; }"
     )
-    self.export_button.setMaximumWidth(250)
-    export_button_layout = QHBoxLayout()
-    export_button_layout.addStretch()
-    export_button_layout.addWidget(self.export_button)
-    export_layout.addLayout(export_button_layout)
     
-    killfeed_settings_layout.addWidget(export_card)
-
-    files_card = QWidget()
-    files_card.setStyleSheet(
-        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
-        "border: 1px solid #333333; }"
-    )
-    files_layout = QVBoxLayout(files_card)
-    files_layout.setContentsMargins(20, 20, 20, 20)
-    files_layout.setSpacing(15)
-    
-    files_header = QLabel("APPLICATION FILES")
-    files_header.setStyleSheet(
-        "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
-    )
-    files_layout.addWidget(files_header)
-    
-    files_desc = QLabel("Access the application's data files including configuration files, logs, and saved kill records. "
-                      "This is useful for troubleshooting or backing up your data.")
-    files_desc.setStyleSheet(
-        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
-    )
-    files_desc.setWordWrap(True)
-    files_layout.addWidget(files_desc)
-    
-    self.files_button = QPushButton("OPEN SCTOOL FILES")
+    self.files_button = QPushButton("OPEN DATA FOLDER")
     self.files_button.setIcon(QIcon(resource_path("files_icon.png")))
     self.files_button.clicked.connect(self.open_tracker_files)
     self.files_button.setStyleSheet(
         "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-        "border-radius: 4px; padding: 10px 16px; font-weight: bold; font-size: 13px; }"
+        "border-radius: 4px; padding: 12px 18px; font-weight: bold; font-size: 13px; }"
         "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #4a4a4a, stop:1 #303030); }"
         "QPushButton:pressed { background: #202020; }"
     )
-    self.files_button.setMaximumWidth(250)
-    files_button_layout = QHBoxLayout()
-    files_button_layout.addStretch()
-    files_button_layout.addWidget(self.files_button)
-    files_layout.addLayout(files_button_layout)
     
-    killfeed_settings_layout.addWidget(files_card)
-
-    app_settings_card = QWidget()
-    app_settings_card.setStyleSheet(
+    data_buttons_layout.addWidget(self.export_button)
+    data_buttons_layout.addWidget(self.files_button)
+    data_buttons_layout.addStretch()
+    
+    data_layout.addWidget(data_buttons_container)
+    
+    data_help = QLabel("• Export logs creates an HTML file with all recorded kills and deaths\n"
+                      "• Data folder contains configuration files, logs, and saved kill records")
+    data_help.setStyleSheet(
+        "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
+    )
+    data_help.setWordWrap(True)
+    data_layout.addWidget(data_help)
+    
+    killfeed_settings_layout.addWidget(data_card)
+    preferences_card = QWidget()
+    preferences_card.setStyleSheet(
         "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
         "border: 1px solid #333333; }"
     )
-    app_settings_layout = QVBoxLayout(app_settings_card)
-    app_settings_layout.setContentsMargins(20, 20, 20, 20)
-    app_settings_layout.setSpacing(20)
+    preferences_layout = QVBoxLayout(preferences_card)
+    preferences_layout.setContentsMargins(20, 20, 20, 20)
+    preferences_layout.setSpacing(15)
     
-    app_settings_header = QLabel("APPLICATION SETTINGS")
-    app_settings_header.setStyleSheet(
+    preferences_header = QLabel("APPLICATION PREFERENCES")
+    preferences_header.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
-    app_settings_layout.addWidget(app_settings_header)
+    preferences_layout.addWidget(preferences_header)
 
+    preferences_desc = QLabel("Configure how SCTool Tracker behaves when starting and minimizing.")
+    preferences_desc.setStyleSheet(
+        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
+    )
+    preferences_desc.setWordWrap(True)
+    preferences_layout.addWidget(preferences_desc)
+    
     tray_container = QWidget()
     tray_container.setStyleSheet("background: transparent; border: none;")
     tray_layout = QVBoxLayout(tray_container)
     tray_layout.setContentsMargins(0, 0, 0, 0)
-    tray_layout.setSpacing(10)
+    tray_layout.setSpacing(8)
     
     self.minimize_to_tray_checkbox = QCheckBox("Minimize to system tray")
     self.minimize_to_tray_checkbox.setChecked(self.minimize_to_tray)
     self.minimize_to_tray_checkbox.stateChanged.connect(self.on_minimize_to_tray_changed)
     self.minimize_to_tray_checkbox.setStyleSheet(
-        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
         "QCheckBox::indicator { width: 20px; height: 20px; }"
         "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
         "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
     )
     tray_layout.addWidget(self.minimize_to_tray_checkbox)
     
-    tray_desc = QLabel("When minimized, the application will hide in the system tray instead of the taskbar.")
+    tray_desc = QLabel("When minimized, the application will hide in the system tray instead of the taskbar")
     tray_desc.setStyleSheet(
-        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; }"
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
     )
     tray_desc.setWordWrap(True)
     tray_layout.addWidget(tray_desc)
     
-    app_settings_layout.addWidget(tray_container)
+    preferences_layout.addWidget(tray_container)
     
     autostart_container = QWidget()
     autostart_container.setStyleSheet("background: transparent; border: none;")
     autostart_layout = QVBoxLayout(autostart_container)
     autostart_layout.setContentsMargins(0, 0, 0, 0)
-    autostart_layout.setSpacing(10)
+    autostart_layout.setSpacing(8)
     
     self.start_with_system_checkbox = QCheckBox("Start with Windows")
     self.start_with_system_checkbox.setChecked(self.start_with_system)
     self.start_with_system_checkbox.stateChanged.connect(self.on_start_with_system_changed)
     self.start_with_system_checkbox.setStyleSheet(
-        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
         "QCheckBox::indicator { width: 20px; height: 20px; }"
         "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
         "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
     )
     autostart_layout.addWidget(self.start_with_system_checkbox)
     
-    autostart_desc = QLabel("Launch SCTool Tracker automatically when your computer starts.")
+    autostart_desc = QLabel("Launch SCTool Tracker automatically when your computer starts")
     autostart_desc.setStyleSheet(
-        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; }"
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
     )
     autostart_desc.setWordWrap(True)
     autostart_layout.addWidget(autostart_desc)
     
-    app_settings_layout.addWidget(autostart_container)
-    
-    killfeed_settings_layout.addWidget(app_settings_card)
+    preferences_layout.addWidget(autostart_container)    
+    killfeed_settings_layout.addWidget(preferences_card)
     killfeed_settings_layout.addStretch(1)
 
     api_page = QWidget()
@@ -615,7 +612,7 @@ def init_ui(self) -> None:
     
     api_header = QLabel("API CONNECTION")
     api_header.setStyleSheet(
-        "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
+        "QLabel { color: #00BCD4; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     api_card_layout.addRow(api_header)
     
@@ -659,6 +656,7 @@ def init_ui(self) -> None:
         "4. Navigate to <a href='https://starcitizentool.com/kills/manage_api_keys'>starcitizentool.com/kills/manage_api_keys</a><br>"
         "5. Verify your in-game name<br>"
         "6. Generate an API key and paste it here"
+        "Instructions are also available <a href='https://www.youtube.com/watch?v=L62qvxopKak'>HERE</a>"
     )
     api_help.setStyleSheet(
         "QLabel { color: #aaaaaa; background: transparent; border: none; }"
@@ -712,16 +710,21 @@ def init_ui(self) -> None:
     
     sound_header = QLabel("SOUND OPTIONS")
     sound_header.setStyleSheet(
-        "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
+        "QLabel { color: #FF9800; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     sound_card_layout.addRow(sound_header)
     
     sound_desc = QLabel("Configure sound notifications for when you get kills in Star Citizen.")
     sound_desc.setStyleSheet(
-        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
+        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; margin-bottom: 10px; }"
     )
     sound_desc.setWordWrap(True)
     sound_card_layout.addRow(sound_desc)
+    
+    sound_separator = QFrame()
+    sound_separator.setFrameShape(QFrame.HLine)
+    sound_separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
+    sound_card_layout.addRow(sound_separator)
     
     self.kill_sound_checkbox = QCheckBox("Enable Kill Sound")
     self.kill_sound_checkbox.setChecked(False)
@@ -1024,6 +1027,165 @@ def init_ui(self) -> None:
     
     overlay_layout.addWidget(overlay_card)
     
+    support_page = QWidget()
+    support_layout = QVBoxLayout(support_page)
+    support_layout.setContentsMargins(0, 0, 0, 0)
+    support_layout.setSpacing(15)
+    
+    support_card = QWidget()
+    support_card.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
+        "border: 1px solid #333333; }"
+    )
+
+    support_card_layout = QFormLayout(support_card)
+    support_card_layout.setContentsMargins(20, 20, 20, 20)
+    support_card_layout.setSpacing(15)
+    support_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+    
+    support_header = QLabel("SUPPORT & HELP")
+    support_header.setStyleSheet("QLabel { color: #4CAF50; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
+    support_card_layout.addRow(support_header)
+    
+    api_setup_header = QLabel("API Setup")
+    api_setup_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    support_card_layout.addRow(api_setup_header)
+    
+    api_steps_text = """
+        <b>Important Steps:</b><br><br>
+        <b>1. Admin Setup:</b> An administrator in your Discord server must first configure the allowed member role within the SCTool Admin Config section.<br><br>
+        <b>2. Login:</b> Ensure you are logged into SCTool on this website.<br><br>
+        <b>3. Navigate:</b> Go to your Member Server section.<br><br>
+        <b>4. Manage API:</b> Find and access the 'Manage API' section to set up your API key.<br><br>
+        <b>Note:</b> You need a verified API key to use the Kill Feed feature.
+    """
+    
+    api_steps_label = QLabel(api_steps_text)
+    api_steps_label.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; padding: 10px; }")
+    api_steps_label.setWordWrap(True)
+    support_card_layout.addRow(api_steps_label)
+
+    help_header = QLabel("Need Help?")
+    help_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    support_card_layout.addRow(help_header)
+
+    video_btn = QPushButton("📺 Watch Setup Video")
+    video_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #FF6B6B;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #FF5252;
+        }
+        QPushButton:pressed {
+            background-color: #E53935;
+        }
+    """)
+    video_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://www.youtube.com/watch?v=d8SwnmVPuGI")))
+    support_card_layout.addRow("", video_btn)
+
+    discord_btn = QPushButton("💬 Join SCTool Discord")
+    discord_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #7289DA;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #5B6EAE;
+        }
+        QPushButton:pressed {
+            background-color: #4E5D94;
+        }
+    """)
+    discord_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://discord.gg/PCXmwGPZ94")))
+    support_card_layout.addRow("", discord_btn)
+
+    github_btn = QPushButton("📚 GitHub Documentation")
+    github_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #24292e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #1c2024;
+        }
+        QPushButton:pressed {
+            background-color: #14171a;
+        }
+    """)
+    github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/calebv2/SCTool-Tracker/tree/main")))
+    support_card_layout.addRow("", github_btn)
+
+    support_dev_header = QLabel("Support Development")
+    support_dev_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    support_card_layout.addRow(support_dev_header)
+
+    patreon_btn = QPushButton("❤️ Support on Patreon")
+    patreon_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #F96854;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #E85D47;
+        }
+        QPushButton:pressed {
+            background-color: #D7523A;
+        }
+    """)
+    patreon_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://patreon.com/VenutoMan")))
+    support_card_layout.addRow("", patreon_btn)
+
+    kofi_btn = QPushButton("☕ Buy me a Coffee")
+    kofi_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #29ABE0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #2196CC;
+        }
+        QPushButton:pressed {
+            background-color: #1976B3;
+        }
+    """)
+    kofi_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://ko-fi.com/sctool")))
+    support_card_layout.addRow("", kofi_btn)
+
+    version_label = QLabel("Ensure you have the latest version and stay up to date.")
+    version_label.setStyleSheet("QLabel { color: #888888; font-size: 12px; background: transparent; border: none; margin-top: 10px; }")
+    version_label.setWordWrap(True)
+    support_card_layout.addRow(version_label)
+    
+    support_layout.addWidget(support_card)
+    support_layout.addStretch(1)
+    
     button_automation_page = QWidget()
     button_automation_layout = QVBoxLayout(button_automation_page)
     button_automation_layout.setContentsMargins(0, 0, 0, 0)
@@ -1100,6 +1262,12 @@ def init_ui(self) -> None:
     overlay_scroll.setFrameShape(QScrollArea.NoFrame)    
     overlay_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
+    support_scroll = QScrollArea()
+    support_scroll.setWidget(support_page)
+    support_scroll.setWidgetResizable(True)
+    support_scroll.setFrameShape(QScrollArea.NoFrame)    
+    support_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
     self.content_stack.addWidget(killfeed_scroll)
     self.content_stack.addWidget(killfeed_settings_scroll)
     
@@ -1109,6 +1277,7 @@ def init_ui(self) -> None:
     self.content_stack.addWidget(twitch_scroll)
     self.content_stack.addWidget(button_automation_scroll)
     self.content_stack.addWidget(overlay_scroll)
+    self.content_stack.addWidget(support_scroll)
     self.content_stack.setCurrentIndex(0)
     
     for i, button in enumerate(self.nav_buttons):
