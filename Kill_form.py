@@ -60,7 +60,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 5.5")
+            hwnd = FindWindow(None, "SCTool Killfeed 5.6")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -117,12 +117,12 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "5.5"
+    __version__ = "5.6"
 
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 5.5")
+        self.setWindowTitle("SCTool Killfeed 5.6")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -598,6 +598,45 @@ class KillLoggerGUI(QMainWindow):
     def open_tracker_files(self) -> None:
         webbrowser.open(TRACKER_DIR)
 
+    def ping_api(self) -> bool:
+        """Test API connectivity by pinging the server"""
+        try:
+            # Construct the ping endpoint URL
+            ping_url = self.api_endpoint.replace('/kills', '/ping')
+            
+            headers = {
+                'X-API-Key': self.api_key,
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+            
+            response = requests.get(ping_url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'registered_in_game_name' in data:
+                    # Update local user name if returned by the ping
+                    registered_name = data['registered_in_game_name']
+                    if registered_name and not self.local_user_name:
+                        self.local_user_name = registered_name
+                        if hasattr(self, 'user_display'):
+                            self.user_display.setText(f"User: {self.local_user_name}")
+                        logging.info(f"Retrieved registered username from API: {registered_name}")
+                
+                logging.info("API ping successful")
+                return True
+            else:
+                logging.warning(f"API ping failed with status code: {response.status_code}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            logging.error(f"API ping failed with network error: {e}")
+            return False
+        except Exception as e:
+            logging.error(f"API ping failed with error: {e}")
+            return False
+
     def update_api_status(self) -> None:
         if self.send_to_api_checkbox.isChecked():
             if self.ping_api():
@@ -830,6 +869,12 @@ class KillLoggerGUI(QMainWindow):
         except Exception as e:
             logging.error(f"Failed to delete kill_logger.log: {e}")
 
+    def showCustomMessageBox(self, title: str, message: str, icon: QMessageBox.Icon = QMessageBox.Information) -> None:
+        """Show a custom styled message box"""
+        from utlity import styled_message_box
+        msg_box = styled_message_box(self, title, message, icon)
+        msg_box.exec_()
+
     def handle_api_response(self, message: str, local_key: str, timestamp: str, response_data: dict = None) -> None:
         normalized_message = message.strip().lower()
         
@@ -1010,25 +1055,49 @@ class KillLoggerGUI(QMainWindow):
         except Exception as e:
             logging.error(f"Failed to save local kills: {e}")
 
-    def check_for_updates(self) -> None:
-         """Check for newer versions of the application"""
+    def check_for_updates(self, show_optional=False) -> None:
+         """Check for newer versions of the application with proper minimum version handling
+         
+         Args:
+             show_optional (bool): If True, shows optional update dialogs. If False, only shows required updates.
+         """
          try:
-             update_url = "https://starcitizentool.com/api/v1/latest_version"
+             update_url = "https://starcitizentool.com/api/v1/check-update"
              headers = {
                  'User-Agent': self.user_agent,
                  'X-Client-ID': self.__client_id__,
                  'X-Client-Version': self.__version__
              }
+             
+             params = {
+                 'version': self.__version__
+             }
  
-             response = requests.get(update_url, headers=headers, timeout=10)
+             logging.info(f"Checking for updates... Current version: {self.__version__}")
+             
+             response = requests.get(update_url, headers=headers, params=params, timeout=10)
+             
              if response.status_code == 200:
                  data = response.json()
+                 
                  latest_version = data.get('latest_version')
+                 minimum_required_version = data.get('minimum_required_version')
+                 update_available = data.get('update_available', False)
+                 update_required = data.get('update_required', False)
+                 update_optional = data.get('update_optional', False)
                  download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
- 
-                 if latest_version and version.parse(latest_version) > version.parse(self.__version__):
-                     logging.info(f"Update available: {latest_version} (current: {self.__version__})")
-                     self.notify_update(latest_version, download_url)
+                 
+                 logging.info(f"Update check response: latest={latest_version}, minimum={minimum_required_version}, "
+                             f"available={update_available}, required={update_required}, optional={update_optional}")
+                 
+                 if update_required:
+                     logging.info(f"Forced update required: {latest_version} (current: {self.__version__})")
+                     self.notify_forced_update(latest_version, minimum_required_version, download_url)
+                 elif update_optional and show_optional:
+                     logging.info(f"Optional update available: {latest_version} (current: {self.__version__})")
+                     self.notify_optional_update(latest_version, download_url)
+                 elif update_optional:
+                     logging.info(f"Optional update available but not displaying: {latest_version} (current: {self.__version__})")
                  else:
                      logging.info(f"No updates available. Current version: {self.__version__}, Latest: {latest_version}")
              else:
@@ -1092,7 +1161,7 @@ class KillLoggerGUI(QMainWindow):
         msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowCloseButtonHint)
 
         msg_box.exec_()
-
+        
         clicked_button = msg_box.clickedButton()
         if clicked_button == auto_btn:
             self.auto_update(latest_version, download_url)
@@ -1101,30 +1170,80 @@ class KillLoggerGUI(QMainWindow):
         else:
             logging.info("User chose to be reminded later about update")
 
+    def notify_forced_update(self, latest_version: str, minimum_version: str, download_url: str) -> None:
+        """Show forced update dialog when user's version is below minimum required"""
+        update_message = (
+            f"<h3 style='color: #ff6b6b;'>🚨 Update Required</h3>"
+            f"<p><b>Your version:</b> {self.__version__}</p>"
+            f"<p><b>Latest version:</b> {latest_version}</p>"
+            f"<p><b>Minimum required:</b> {minimum_version}</p>"
+            f"<hr>"
+            f"<p style='color: #ff6b6b;'><b>Your version is no longer supported.</b></p>"
+            f"<p>You must update to continue using SCTool Tracker.</p>"
+            f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>View changelog and release notes</a></p>"
+        )
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Update Required")
+        msg_box.setText(update_message)
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+        auto_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
+        exit_btn = msg_box.addButton("Exit Application", QMessageBox.RejectRole)
+
+        msg_box.setDefaultButton(auto_btn)
+        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowCloseButtonHint)
+
+        msg_box.exec_()
+
+        clicked_button = msg_box.clickedButton()
+        if clicked_button == auto_btn:
+            self.auto_update(latest_version, download_url)
+        else:
+            logging.info("User chose to exit instead of updating")
+            self.save_config()
+            import sys
+            sys.exit(0)
+
     def check_for_updates_with_optional(self) -> None:
-        """Enhanced version of check_for_updates that always offers optional updates"""
+        """Enhanced version of check_for_updates that properly handles minimum version logic"""
         try:
-            update_url = "https://starcitizentool.com/api/v1/latest_version"
+            update_url = "https://starcitizentool.com/api/v1/check-update"
             headers = {
                 'User-Agent': self.user_agent,
                 'X-Client-ID': self.__client_id__,
                 'X-Client-Version': self.__version__
             }
+            
+            params = {
+                'version': self.__version__
+            }
 
-            response = requests.get(update_url, headers=headers, timeout=10)
+            logging.info(f"Checking for updates... Current version: {self.__version__}")
+            
+            response = requests.get(update_url, headers=headers, params=params, timeout=10)
+            
             if response.status_code == 200:
                 data = response.json()
+                
                 latest_version = data.get('latest_version')
+                minimum_required_version = data.get('minimum_required_version')
+                update_available = data.get('update_available', False)
+                update_required = data.get('update_required', False)
+                update_optional = data.get('update_optional', False)
                 download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
-
-                if latest_version and version.parse(latest_version) > version.parse(self.__version__):
-                    logging.info(f"Update available: {latest_version} (current: {self.__version__})")
-                    # Always show as optional when manually checking
-                    self.notify_optional_update(latest_version, download_url)
+                
+                logging.info(f"Update check response: latest={latest_version}, minimum={minimum_required_version}, "
+                            f"available={update_available}, required={update_required}, optional={update_optional}")
+                
+                from utlity import show_forced_update_dialog, show_optional_update_dialog, show_up_to_date_dialog
+                
+                if update_required:
+                    show_forced_update_dialog(self, latest_version, minimum_required_version, download_url)
+                elif update_optional:
+                    show_optional_update_dialog(self, latest_version, download_url)
                 else:
-                    logging.info(f"No updates available. Current version: {self.__version__}, Latest: {latest_version}")
-                    # Show up-to-date message using utility function
-                    from utlity import show_up_to_date_dialog
                     show_up_to_date_dialog(self, self.__version__)
             else:
                 logging.warning(f"Update check failed with status code: {response.status_code}")
@@ -1645,6 +1764,7 @@ class KillLoggerGUI(QMainWindow):
             text = self.kill_display.toHtml()
             text = text.replace(readout, readout_with_clip)
             self.kill_display.setHtml(text)
+           
             logging.info(f"Added clip URL to kill display: {clip_url}")
 
             if local_key in self.local_kills:
@@ -1673,7 +1793,7 @@ class KillLoggerGUI(QMainWindow):
             painter.setPen(QPen(QColor(51, 51, 51), 2))
             painter.drawEllipse(2, 2, 60, 60)
             painter.setClipPath(path)
-            painter.drawPixmap(2, 2, pixmap)
+            painter.drawPixmap(2, 2, pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             
             painter.end()
             return result
@@ -2152,7 +2272,7 @@ class KillLoggerGUI(QMainWindow):
         try:
             # Use the same sound effect object and settings as the actual kill sound
             self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
-            self.kill_sound_effect.setVolume(self.volume_slider.value() / 100.0)
+            self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
             self.kill_sound_effect.play()
         except Exception as e:
             QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
@@ -2191,9 +2311,8 @@ class KillLoggerGUI(QMainWindow):
             return
             
         try:
-            # Use the death sound effect object and settings
             self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
-            self.death_sound_effect.setVolume(self.death_volume_slider.value() / 100.0)
+            self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
             self.death_sound_effect.play()
         except Exception as e:
             QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
@@ -2332,9 +2451,9 @@ class KillLoggerGUI(QMainWindow):
                 self.save_config()
             else:
                 self.update_bottom_info("twitch_connected", "Twitch Not Connected")
-                logging.warning("Auto-connect to Twitch failed")
-                
+                logging.warning("Auto-connect to Twitch failed")                
         self.twitch.authenticate(auto_auth_callback)
+
 
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")

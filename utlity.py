@@ -1572,7 +1572,6 @@ def load_config(self) -> None:
     except json.JSONDecodeError as e:
         logging.error(f"Configuration file is corrupted (JSON error): {e}")
         logging.info("The config file will be recreated with default settings")
-        # Remove the corrupted file so it gets recreated with defaults
         try:
             os.remove(CONFIG_FILE)
             logging.info("Removed corrupted configuration file")
@@ -1600,6 +1599,8 @@ def styled_message_box(parent, title, text, icon=QMessageBox.Information, button
     msg_box.setText(text)
     msg_box.setIcon(icon)
     msg_box.setStandardButtons(buttons)
+    msg_box.setTextFormat(Qt.RichText)
+    msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
     
     msg_box.setStyleSheet("""
         QMessageBox {
@@ -1610,6 +1611,13 @@ def styled_message_box(parent, title, text, icon=QMessageBox.Information, button
         QLabel {
             color: #ffffff;
             font-size: 14px;
+        }
+        QLabel a {
+            color: #4CAF50;
+            text-decoration: none;
+        }
+        QLabel a:hover {
+            text-decoration: underline;
         }
         QPushButton {
             background-color: #2a2a2a;
@@ -1698,109 +1706,49 @@ def apply_styles(self) -> None:
 def check_for_updates_ui(self) -> None:
     """Check for newer versions of the application with minimum version support"""
     try:
-        # Use the existing check_for_updates method if available
         if hasattr(self, 'check_for_updates_with_optional') and callable(getattr(self, 'check_for_updates_with_optional')):
-            # Use the enhanced method that always shows optional updates
             self.check_for_updates_with_optional()
             return
             
-        # Fallback implementation for testing
-        # First try the new API endpoint with minimum version support
+        current_version = getattr(self, '__version__', '5.6')
+        client_id = getattr(self, '__client_id__', 'sctool-tracker')
+        user_agent = getattr(self, 'user_agent', 'SCTool-Tracker/5.6')
+        
         update_url = "https://starcitizentool.com/api/v1/check-update"
         
-        # Get current version (fallback if not available)
-        current_version = getattr(self, '__version__', '5.5')
-        client_id = getattr(self, '__client_id__', 'sctool-tracker')
-        user_agent = getattr(self, 'user_agent', 'SCTool-Tracker/5.5')
-        
-        headers = {
-            'User-Agent': user_agent,
-            'X-Client-ID': client_id,
-            'X-Client-Version': current_version,
-            'Content-Type': 'application/json'
-        }
-        
-        payload = {
-            'current_version': current_version
-        }
-        
-        logging.info(f"Checking for updates... Current version: {current_version}")
-        
-        try:
-            # Try new API endpoint first
-            response = requests.post(update_url, json=payload, headers=headers, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                
-                latest_version = data.get('latest_version')
-                minimum_required_version = data.get('minimum_required_version')
-                update_required = data.get('update_required', False)
-                update_optional = data.get('update_optional', False)
-                download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
-                changelog = data.get('changelog', 'Bug fixes and performance improvements')
-                
-                logging.info(f"Update check response: latest={latest_version}, minimum={minimum_required_version}, "
-                            f"required={update_required}, optional={update_optional}")
-                
-                # Import packaging.version for proper version comparison
-                from packaging import version
-                
-                # When manually checking, override the API decision with proper logic
-                if latest_version and minimum_required_version:
-                    current_ver = version.parse(current_version)
-                    latest_ver = version.parse(latest_version)
-                    minimum_ver = version.parse(minimum_required_version)
-                    
-                    if current_ver < minimum_ver:
-                        # Force update - user is below minimum required version
-                        show_forced_update_dialog(self, latest_version, minimum_required_version, download_url, changelog)
-                    elif current_ver < latest_ver:
-                        # Optional update - user is above minimum but below latest
-                        show_optional_update_dialog(self, latest_version, download_url, changelog)
-                    else:
-                        # Up to date - user has latest or newer version
-                        show_up_to_date_dialog(self, current_version)
-                elif latest_version and latest_version != current_version:
-                    # Fallback: any newer version available - show as optional since user manually checked
-                    show_optional_update_dialog(self, latest_version, download_url, changelog)
-                else:
-                    # Up to date
-                    show_up_to_date_dialog(self, current_version)
-                return
-        except:
-            # Fall back to old API endpoint
-            pass
-            
-        # Fallback to original API endpoint
-        update_url = "https://starcitizentool.com/api/v1/latest_version"
         headers = {
             'User-Agent': user_agent,
             'X-Client-ID': client_id,
             'X-Client-Version': current_version
         }
         
-        response = requests.get(update_url, headers=headers, timeout=10)
+        params = {
+            'version': current_version
+        }
+        
+        logging.info(f"Checking for updates... Current version: {current_version}")
+        
+        response = requests.get(update_url, headers=headers, params=params, timeout=10)
+        
         if response.status_code == 200:
             data = response.json()
+            
             latest_version = data.get('latest_version')
+            minimum_required_version = data.get('minimum_required_version')
+            update_available = data.get('update_available', False)
+            update_required = data.get('update_required', False)
+            update_optional = data.get('update_optional', False)
             download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
             
-            # Import packaging.version for comparison
-            try:
-                from packaging import version
-                if latest_version and version.parse(latest_version) > version.parse(current_version):
-                    # Update available - treat as optional since no minimum version info
-                    changelog = f"Update to version {latest_version} is available."
-                    show_optional_update_dialog(self, latest_version, download_url, changelog)
-                else:
-                    show_up_to_date_dialog(self, current_version)
-            except ImportError:
-                # If packaging is not available, show a simple dialog
-                if latest_version and latest_version != current_version:
-                    changelog = f"Update to version {latest_version} is available."
-                    show_optional_update_dialog(self, latest_version, download_url, changelog)
-                else:
-                    show_up_to_date_dialog(self, current_version)
+            logging.info(f"Update check response: latest={latest_version}, minimum={minimum_required_version}, "
+                        f"available={update_available}, required={update_required}, optional={update_optional}")
+            
+            if update_required:
+                show_forced_update_dialog(self, latest_version, minimum_required_version, download_url)
+            elif update_optional:
+                show_optional_update_dialog(self, latest_version, download_url)
+            else:
+                show_up_to_date_dialog(self, current_version)
         else:
             logging.warning(f"Update check failed with status code: {response.status_code}")
             show_update_check_failed_dialog(self)
@@ -1809,9 +1757,9 @@ def check_for_updates_ui(self) -> None:
         logging.error(f"Error checking for updates: {e}")
         show_update_check_failed_dialog(self)
 
-def show_forced_update_dialog(parent, latest_version: str, minimum_version: str, download_url: str, changelog: str) -> None:
+def show_forced_update_dialog(parent, latest_version: str, minimum_version: str, download_url: str) -> None:
     """Show dialog for forced updates (update required)"""
-    current_version = getattr(parent, '__version__', '5.5')
+    current_version = getattr(parent, '__version__', '5.6')
     
     update_message = (
         f"<h3 style='color: #ff6b6b;'>🚨 Update Required</h3>"
@@ -1821,7 +1769,7 @@ def show_forced_update_dialog(parent, latest_version: str, minimum_version: str,
         f"<hr>"
         f"<p style='color: #ff6b6b;'><b>Your version is no longer supported.</b></p>"
         f"<p>You must update to continue using SCTool Tracker.</p>"
-        f"<p><b>What's new:</b><br>{changelog}</p>"
+        f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>View changelog and release notes</a></p>"
     )
 
     msg_box = styled_message_box(
@@ -1832,7 +1780,6 @@ def show_forced_update_dialog(parent, latest_version: str, minimum_version: str,
         QMessageBox.NoButton
     )
     
-    # Only allow update or exit
     update_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
     exit_btn = msg_box.addButton("Exit Application", QMessageBox.RejectRole)
     
@@ -1842,13 +1789,12 @@ def show_forced_update_dialog(parent, latest_version: str, minimum_version: str,
     if msg_box.clickedButton() == update_btn:
         start_update_process(parent, latest_version, download_url)
     else:
-        # Force exit
         logging.info("User chose to exit instead of updating")
         QApplication.quit()
 
-def show_optional_update_dialog(parent, latest_version: str, download_url: str, changelog: str) -> None:
+def show_optional_update_dialog(parent, latest_version: str, download_url: str) -> None:
     """Show dialog for optional updates"""
-    current_version = getattr(parent, '__version__', '5.5')
+    current_version = getattr(parent, '__version__', '5.6')
     
     update_message = (
         f"<h3 style='color: #4CAF50;'>🎉 Update Available</h3>"
@@ -1856,7 +1802,7 @@ def show_optional_update_dialog(parent, latest_version: str, download_url: str, 
         f"<p><b>Latest version:</b> {latest_version}</p>"
         f"<hr>"
         f"<p>A new version is available with improvements and new features!</p>"
-        f"<p><b>What's new:</b><br>{changelog}</p>"
+        f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>View changelog and release notes</a></p>"
         f"<p><i>You can continue using your current version or update now.</i></p>"
     )
 
@@ -1918,17 +1864,14 @@ def show_update_check_failed_dialog(parent) -> None:
 def start_update_process(parent, latest_version: str, download_url: str) -> None:
     """Start the update process"""
     try:
-        # Check if we have the auto_update method from the main class
         if hasattr(parent, 'auto_update'):
             parent.auto_update(latest_version, download_url)
         else:
-            # Fallback - open download URL in browser
             logging.info(f"Opening download URL: {download_url}")
             QDesktopServices.openUrl(QUrl(download_url))
             
     except Exception as e:
         logging.error(f"Error starting update: {e}")
-        # Fallback - open download URL in browser
         QDesktopServices.openUrl(QUrl(download_url))
 
 class CollapsibleSettingsPanel(QWidget):
