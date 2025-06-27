@@ -960,7 +960,7 @@ class ButtonAutomationWidget(QWidget):
         sequence_delay_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
         
         self.sequence_delay_spin = QSpinBox()
-        self.sequence_delay_spin.setRange(10, 1000)
+        self.sequence_delay_spin.setRange(10, 10000)
         self.sequence_delay_spin.setSuffix(" ms")
         self.sequence_delay_spin.setValue(self.button_automation.sequence_delay_ms)
         self.sequence_delay_spin.valueChanged.connect(self.on_sequence_delay_changed)
@@ -977,7 +977,7 @@ class ButtonAutomationWidget(QWidget):
         hold_duration_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
         
         self.hold_duration_spin = QSpinBox()
-        self.hold_duration_spin.setRange(10, 500)
+        self.hold_duration_spin.setRange(10, 5000)
         self.hold_duration_spin.setSuffix(" ms")
         self.hold_duration_spin.setValue(self.button_automation.hold_duration_ms)
         self.hold_duration_spin.valueChanged.connect(self.on_hold_duration_changed)

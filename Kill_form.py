@@ -40,7 +40,7 @@ from twitch_integration import TwitchIntegration, process_twitch_callbacks
 from kill_clip import ButtonAutomation, process_button_automation_callbacks, ButtonAutomationWidget
 from responsive_ui import ScreenScaler, ResponsiveUIHelper, make_popup_responsive
 
-from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel, styled_message_box
+from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel, styled_message_box, check_for_updates_ui
 
 APP_MUTEX_NAME = "SCToolKillfeedMutex_A5F301E7-D3E9-4F6F-BD57-4A114F103240"
 
@@ -60,7 +60,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 5.3")
+            hwnd = FindWindow(None, "SCTool Killfeed 5.5")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -117,11 +117,12 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "5.3"    
+    __version__ = "5.5"
+
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 5.3")
+        self.setWindowTitle("SCTool Killfeed 5.5")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -135,16 +136,24 @@ class KillLoggerGUI(QMainWindow):
         
         _, _, self.scale_factor = ScreenScaler.get_screen_info()
         self.ui_helper = ResponsiveUIHelper(self)
+        
         self.kill_sound_enabled = False
         self.kill_sound_effect = QSoundEffect()
         self.kill_sound_path = resource_path("kill.wav")
         self.kill_sound_volume = 100
+        
+        self.death_sound_enabled = False
+        self.death_sound_effect = QSoundEffect()
+        self.death_sound_path = resource_path("death.wav")
+        self.death_sound_volume = 100
+        
         self.api_key = ""
         self.registration_attempts = 0
         self.local_kills: Dict[str, Any] = {}
         self.kills_local_file = LOCAL_KILLS_FILE
         self.persistent_info = {
-            "monitoring": "",        "registered": "",
+            "monitoring": "",
+            "registered": "",
             "game_mode": "",
             "api_connection": "",
             "twitch_connected": ""
@@ -321,11 +330,15 @@ class KillLoggerGUI(QMainWindow):
         ship_value = self.ship_combo.currentText().strip()
         if not ship_value:
             ship_value = "No Ship"
+        
         config = {
             'monitoring_active': self.monitor_thread.isRunning() if self.monitor_thread else False,
             'kill_sound': self.kill_sound_enabled,
             'kill_sound_path': self.kill_sound_path_input.text().strip(),
             'kill_sound_volume': self.volume_slider.value(),
+            'death_sound': self.death_sound_enabled,
+            'death_sound_path': self.death_sound_path_input.text().strip(),
+            'death_sound_volume': self.death_volume_slider.value(),
             'log_path': self.log_path_input.text().strip(),
             'api_key': self.api_key_input.text().strip(),
             'local_user_name': self.local_user_name,
@@ -633,7 +646,11 @@ class KillLoggerGUI(QMainWindow):
             self.kill_sound_effect.play()
 
     def on_death_detected(self, readout: str, attacker: str) -> None:
-        self.append_kill_readout(readout)
+        self.append_death_readout(readout)
+        if self.death_sound_enabled:
+            self.death_sound_effect.setSource(QUrl.fromLocalFile(self.death_sound_path))
+            self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
+            self.death_sound_effect.play()
 
     def export_logs(self) -> None:
         """Export the kill/death log entries to an HTML file."""
@@ -918,6 +935,36 @@ class KillLoggerGUI(QMainWindow):
             self.kill_display.verticalScrollBar().maximum()
         )
 
+    def append_death_readout(self, text: str) -> None:
+        """Append death readout to display and increment death count"""
+        self.death_count += 1
+        self.update_kill_death_stats()
+        
+        cursor = self.kill_display.textCursor()
+        cursor.movePosition(cursor.End)
+        self.kill_display.setTextCursor(cursor)
+
+        self.kill_display.append(text)
+        
+        if self.last_animation_timer:
+            self.last_animation_timer.stop()
+            
+        highlight_style = """
+            <style type='text/css'>
+                @keyframes fadeIn {
+                    0% { opacity: 0; transform: translateY(-10px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .newEntry {
+                    animation: fadeIn 0.5s ease-out;
+                }
+            </style>
+        """
+
+        self.kill_display.verticalScrollBar().setValue(
+            self.kill_display.verticalScrollBar().maximum()
+        )
+
     def fetch_user_image(self, username: str) -> None:
         try:
             headers = {
@@ -992,7 +1039,6 @@ class KillLoggerGUI(QMainWindow):
     def notify_update(self, latest_version: str, download_url: str) -> None:
         update_message = (
             f"<p>A new version (<b>{latest_version}</b>) is available!</p>"
-            f"<p>An update is required to continue using SCTool Tracker.</p>"
             f"<p>Please choose your update method:</p>"
         )
 
@@ -1022,60 +1068,72 @@ class KillLoggerGUI(QMainWindow):
             self.save_config()
             import os
             os._exit(0)    
-    
-    def showCustomMessageBox(self, title, message, icon=QMessageBox.Information):
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(message)
-        msg_box.setIcon(icon)
-        
-        if hasattr(self, 'scale_factor'):
-            padding = ScreenScaler.scale_size(6, self.scale_factor)
-            border_radius = ScreenScaler.scale_size(4, self.scale_factor)
-            
-            msg_box.setStyleSheet(
-                "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
-                f"QLabel {{ color: #f0f0f0; font-size: {ScreenScaler.scale_font_size(11, self.scale_factor)}px; }}"
-                f"QPushButton {{ background-color: #1e1e1e; color: #f0f0f0; "
-                f"border: 1px solid #ffffff; border-radius: {border_radius}px; "
-                f"padding: {padding}px {padding*2}px; font-size: {ScreenScaler.scale_font_size(10, self.scale_factor)}px; }}"
-                "QPushButton:hover { background-color: #f04747; }"
-            )
-            
-            min_width = ScreenScaler.scale_size(300, self.scale_factor)
-            msg_box.setMinimumWidth(min_width)
-        else:
-            msg_box.setStyleSheet(
-                "QMessageBox { background-color: #0d0d0d; color: #f0f0f0; }"
-                "QLabel { color: #f0f0f0; }"
-                "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
-                "border: 1px solid #ffffff; border-radius: 4px; padding: 6px 12px; }"
-                "QPushButton:hover { background-color: #f04747; }"
-            )
-        
-        return msg_box.exec_()
 
-    def ping_api(self) -> bool:
-        headers = {
-            'X-API-Key': self.api_key,
-            'User-Agent': self.user_agent,
-            'X-Client-ID': self.__client_id__,
-            'X-Client-Version': self.__version__
-        }
-        ping_url = "https://starcitizentool.com/api/v1/ping"
+    def notify_optional_update(self, latest_version: str, download_url: str) -> None:
+        """Show optional update dialog when user manually checks for updates"""
+        update_message = (
+            f"<p>A new version (<b>{latest_version}</b>) is available!</p>"
+            f"<p><b>Your version:</b> {self.__version__}</p>"
+            f"<p>You can update now or continue using your current version.</p>"
+            f"<p>This update includes bug fixes and new features.</p>"
+        )
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Update Available")
+        msg_box.setText(update_message)
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+        auto_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
+        manual_btn = msg_box.addButton("Download Manually", QMessageBox.ActionRole)
+        later_btn = msg_box.addButton("Remind Me Later", QMessageBox.RejectRole)
+
+        msg_box.setDefaultButton(auto_btn)
+        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowCloseButtonHint)
+
+        msg_box.exec_()
+
+        clicked_button = msg_box.clickedButton()
+        if clicked_button == auto_btn:
+            self.auto_update(latest_version, download_url)
+        elif clicked_button == manual_btn:
+            QDesktopServices.openUrl(QUrl(download_url))
+        else:
+            logging.info("User chose to be reminded later about update")
+
+    def check_for_updates_with_optional(self) -> None:
+        """Enhanced version of check_for_updates that always offers optional updates"""
         try:
-            response = requests.get(ping_url, headers=headers, timeout=5)
+            update_url = "https://starcitizentool.com/api/v1/latest_version"
+            headers = {
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+
+            response = requests.get(update_url, headers=headers, timeout=10)
             if response.status_code == 200:
-                self.update_bottom_info("api_connection", "API Connected")
-                return True
+                data = response.json()
+                latest_version = data.get('latest_version')
+                download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
+
+                if latest_version and version.parse(latest_version) > version.parse(self.__version__):
+                    logging.info(f"Update available: {latest_version} (current: {self.__version__})")
+                    # Always show as optional when manually checking
+                    self.notify_optional_update(latest_version, download_url)
+                else:
+                    logging.info(f"No updates available. Current version: {self.__version__}, Latest: {latest_version}")
+                    # Show up-to-date message using utility function
+                    from utlity import show_up_to_date_dialog
+                    show_up_to_date_dialog(self, self.__version__)
             else:
-                logging.error(f"Ping API returned status code: {response.status_code}")
-                self.update_bottom_info("api_connection", "Error API not connected")
-                return False
+                logging.warning(f"Update check failed with status code: {response.status_code}")
+                from utlity import show_update_check_failed_dialog
+                show_update_check_failed_dialog(self)
         except Exception as e:
-            logging.error(f"Error pinging API: {e}")
-            self.update_bottom_info("api_connection", "Error API not connected")
-            return False
+            logging.error(f"Error checking for updates: {e}")
+            from utlity import show_update_check_failed_dialog
+            show_update_check_failed_dialog(self)
 
     def on_ship_updated(self, ship: str) -> None:
         index = self.ship_combo.findText(ship)
@@ -1744,6 +1802,7 @@ class KillLoggerGUI(QMainWindow):
         if hasattr(self, 'game_overlay'):
             if enabled:
                 self.game_overlay.show_overlay()
+               
                 logging.info("Advanced game overlay enabled")
                 self.update_overlay_stats()
             else:
@@ -2077,6 +2136,67 @@ class KillLoggerGUI(QMainWindow):
     def on_kill_sound_volume_changed(self, value: int) -> None:
         self.kill_sound_volume = value
         self.save_config()
+
+    def test_kill_sound(self) -> None:
+        """Test the selected kill sound with current volume settings."""
+        sound_path = self.kill_sound_path_input.text().strip()
+        
+        if not sound_path:
+            QMessageBox.warning(self, "No Sound File", "Please select a sound file first.")
+            return
+            
+        if not os.path.exists(sound_path):
+            QMessageBox.warning(self, "File Not Found", f"The sound file '{sound_path}' was not found.")
+            return
+            
+        try:
+            # Use the same sound effect object and settings as the actual kill sound
+            self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
+            self.kill_sound_effect.setVolume(self.volume_slider.value() / 100.0)
+            self.kill_sound_effect.play()
+        except Exception as e:
+            QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
+
+    def on_death_sound_toggled(self, state: int) -> None:
+        self.death_sound_enabled = (state == Qt.Checked)
+        self.save_config()
+
+    def on_death_sound_file_browse(self) -> None:
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Death Sound File", "",
+            "Audio Files (*.wav *.mp3 *.ogg);;All Files (*)",
+            options=options
+        )
+        if file_path:
+            self.death_sound_path = file_path
+            self.death_sound_path_input.setText(file_path)
+            self.save_config()
+
+    def on_death_sound_volume_changed(self, value: int) -> None:
+        self.death_sound_volume = value
+        self.save_config()
+
+    def test_death_sound(self) -> None:
+        """Test the selected death sound with current volume settings."""
+        sound_path = self.death_sound_path_input.text().strip()
+        
+        if not sound_path:
+            QMessageBox.warning(self, "No Sound File", "Please select a sound file first.")
+            return
+            
+        if not os.path.exists(sound_path):
+            QMessageBox.warning(self, "File Not Found", f"The sound file '{sound_path}' was not found.")
+            return
+            
+        try:
+            # Use the death sound effect object and settings
+            self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
+            self.death_sound_effect.setVolume(self.death_volume_slider.value() / 100.0)
+            self.death_sound_effect.play()
+        except Exception as e:
+            QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
 
     def on_minimize_to_tray_changed(self, state: int) -> None:
         """Handle minimize to tray checkbox state change"""

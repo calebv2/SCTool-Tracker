@@ -6,12 +6,13 @@
 
 ## Overview
 
-SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This comprehensive tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.1.
+SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This comprehensive tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.4.
 
 ### Key Features at a Glance
 
 - **Real-time Combat Tracking**: Monitor kills and deaths as they happen in-game
 - **Advanced Game Overlay**: 5 different overlay modes with global hotkey support
+- **Dual Sound Notifications**: Separate customizable audio alerts for kills and deaths
 - **Twitch Integration**: Automatic clip creation and chat messaging
 - **Button Automation**: Execute custom key sequences on kill events
 - **Profile System**: Fetch player avatars and organization info from RSI website
@@ -43,8 +44,8 @@ The tracker operates by:
 ### Installation
 
 #### Recommended Method (Installer)
-1. Download the latest release (v5.1) from [starcitizentool.com/download-sctool](https://starcitizentool.com/download-sctool)
-2. Run the installer (`SCTool_Killfeed_5.1_Setup.exe`)
+1. Download the latest release (v5.4) from [starcitizentool.com/download-sctool](https://starcitizentool.com/download-sctool)
+2. Run the installer (`SCTool_Killfeed_5.4_Setup.exe`)
 3. Follow the installation wizard instructions
 4. Launch SCTool Tracker from your desktop or start menu
 
@@ -77,9 +78,9 @@ The tracker operates by:
 ## Features
 
 - **Real-time Kill/Death Tracking**: Instantly see your combat events as they happen
-- **API Integration**: Send your kills to the SCTool API for statistics tracking
+- **API Integration**: Send your kills and deaths to the SCTool API for statistics tracking
 - **Ship Detection**: Automatically detects your current ship
-- **Sound Notifications**: Customizable audio alerts for kill events with volume control
+- **Sound Notifications**: Customizable audio alerts for kill and death events with independent volume controls
 - **Missing Kill Detection**: Rescan your log files to find previously undetected kills
 - **Game Mode Detection**: Automatically identifies Arena Commander, Persistent Universe, and other modes
 - **Session Statistics**: Real-time tracking of kills, deaths, K/D ratio, and session duration
@@ -385,19 +386,20 @@ Button sequences use a simple, intuitive format:
 
 ## Sound Notification System
 
-SCTool Tracker includes a comprehensive sound notification system that plays audio alerts when you achieve kills in Star Citizen.
+SCTool Tracker includes a comprehensive dual sound notification system that plays audio alerts for both kills and deaths in Star Citizen.
 
 ### Sound Features
 
+- **Dual Sound Systems**: Separate customizable sound notifications for kills and deaths
 - **Custom Sound Files**: Support for .wav, .mp3, and .ogg audio formats
-- **Volume Control**: Adjustable volume slider from 0-100%
+- **Independent Volume Control**: Adjustable volume sliders from 0-100% for both kill and death sounds
 - **File Browser**: Easy sound file selection through built-in file browser
-- **Default Sound**: Includes a default `kill.wav` file for immediate use
-- **Real-time Testing**: Test your selected sound file before saving
+- **Default Sounds**: Includes default `kill.wav` and `death.wav` files for immediate use
+- **Real-time Testing**: Test your selected sound files before saving
 
 ### Configuration
 
-#### Sound File Setup
+#### Kill Sound Setup
 1. **Navigate to Settings**: Go to the main settings page in SCTool Tracker
 2. **Enable Kill Sound**: Check the "Play sound on kill" checkbox
 3. **Select Audio File**: 
@@ -407,17 +409,28 @@ SCTool Tracker includes a comprehensive sound notification system that plays aud
 4. **Adjust Volume**: Use the volume slider to set your preferred audio level
 5. **Test Sound**: Click the test button to preview your sound selection
 
+#### Death Sound Setup
+1. **Enable Death Sound**: Check the "Play sound on death" checkbox in settings
+2. **Select Death Audio File**: 
+   - Use the default `death.wav` file (included)
+   - Browse for your custom death sound file using the "Browse" button
+   - Supported formats: .wav, .mp3, .ogg
+3. **Adjust Death Volume**: Use the separate death volume slider to set your preferred audio level
+4. **Test Death Sound**: Click the death sound test button to preview your selection
+
 #### Sound File Recommendations
-- **Duration**: Keep sounds short (1-3 seconds) to avoid overlapping with rapid kills
+- **Duration**: Keep sounds short (1-3 seconds) to avoid overlapping with rapid events
 - **Volume**: Choose sounds that are audible but not disruptive to gameplay
 - **Format**: .wav files offer the best compatibility and performance
 - **Quality**: Use high-quality audio files for best results
+- **Differentiation**: Use distinctly different sounds for kills vs deaths to provide clear audio feedback
 
 ### Integration with Gameplay
 
-The sound system is designed to enhance your gaming experience:
+The dual sound system is designed to enhance your gaming experience:
 
-- **Immediate Feedback**: Audio confirmation of successful kills
+- **Immediate Feedback**: Audio confirmation of both successful kills and deaths
+- **Event Differentiation**: Distinct sounds help you quickly identify kill vs death events
 - **Customization**: Use sounds that match your playstyle or streaming setup
 - **Performance**: Minimal impact on game performance
 - **Reliability**: Consistent playback even during intense combat scenarios
@@ -425,10 +438,11 @@ The sound system is designed to enhance your gaming experience:
 ### Troubleshooting Sound Issues
 
 #### Common Problems
-- **No Sound Playing**: Verify audio file path and format compatibility
-- **Volume Too Low/High**: Adjust the volume slider in settings
+- **No Sound Playing**: Verify audio file paths and format compatibility
+- **Volume Too Low/High**: Adjust the respective volume sliders in settings
 - **Audio Conflicts**: Check for conflicts with other audio software
 - **File Format Issues**: Convert audio files to .wav format if experiencing problems
+- **One Sound Type Not Working**: Check that both kill and death sounds are enabled and configured separately
 
 #### Advanced Solutions
 - **Audio Drivers**: Ensure Windows audio drivers are up to date
@@ -500,6 +514,7 @@ SCTool Tracker/
 ├── twitch_config.json            # Twitch integration settings
 ├── button_automation_config.json  # Button automation sequences
 ├── kill.wav                       # Default kill sound notification
+├── death.wav                      # Default death sound notification
 ├── avatar_default_big.jpg         # Default profile image fallback
 ├── chris2.ico                     # Application icon
 ├── README.md                      # This documentation file
@@ -508,7 +523,7 @@ SCTool Tracker/
 ├── build/                         # Build artifacts (generated)
 ├── EXE/                          # Distribution files
 │   ├── Kill_main.exe             # Main executable
-│   ├── SCTool_Killfeed_5.1_Setup.exe # Installer
+│   ├── SCTool_Killfeed_5.4_Setup.exe # Installer
 │   └── License.txt               # License information
 └── __pycache__/                  # Python cache files (generated)
 ```
@@ -727,7 +742,7 @@ The application stores configuration and data in the following locations:
 
 ### Static Resources
 - **Ship Database**: `ships.json` in application directory - Complete Star Citizen ship list
-- **Sound Files**: `kill.wav` in application directory - Default kill notification sound
+- **Sound Files**: `kill.wav` and `death.wav` in application directory - Default kill and death notification sounds
 - **Default Assets**: `avatar_default_big.jpg` and icons in application directory
 - **Profile Images**: Fetched at runtime from RSI website and cached temporarily in memory
 
@@ -810,10 +825,10 @@ Contributions to SCTool Tracker are welcome! If you'd like to contribute:
 4. **Report Issues**: Use Discord or GitHub issues for bug reports with log files attached
 
 ### Version Information
-- **Current Version**: 5.1
+- **Current Version**: 5.4
 - **Release Date**: Updated regularly with Star Citizen patches
 - **Compatibility**: Star Citizen Live, PTU, and Arena Commander modes
 - **Platform**: Windows 10/11 (64-bit recommended)
 
 ### License and Legal
-SCTool Tracker is provided as-is for use with Star Citizen. This tool does not modify game files or provide any competitive advantage - it only reads publicly available log data that the game generates during normal gameplay.
+SCTool Tracker is provided as-is for use with Star Citizen. This tool does not modify game files or provide any competitive advantage - it only reads available log data that the game generates during normal gameplay.

@@ -7,6 +7,7 @@ import json
 import time
 import logging
 import shutil
+import requests
 
 from responsive_ui import ScreenScaler
 from overlay import GameOverlay, OverlayControlPanel
@@ -221,10 +222,26 @@ def init_ui(self) -> None:
         "margin: 5px 10px; }"
         "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #4a4a4a, stop:1 #303030); }"
-        "QPushButton:pressed { background: #202020; }"
-        "QPushButton:disabled { background: #222222; color: #666666; }"
+        "QPushButton:pressed { background: #202020; }"        "QPushButton:disabled { background: #222222; color: #666666; }"
     )
     sidebar_layout.addWidget(self.rescan_button)
+    
+    # Check for Updates button
+    self.update_button = QPushButton("CHECK FOR UPDATES")
+    self.update_button.setIcon(QIcon(resource_path("update_icon.png")))
+    self.update_button.clicked.connect(lambda: check_for_updates_ui(self))
+    self.update_button.setToolTip("Check for the latest version of SCTool Tracker")
+    self.update_button.setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
+        "border-radius: 4px; padding: 10px; font-weight: bold; font-size: 12px; "
+        "margin: 5px 10px; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #4a4a4a, stop:1 #303030); }"
+        "QPushButton:pressed { background: #202020; }"
+    )
+    sidebar_layout.addWidget(self.update_button)
+    
     separator = QWidget()
     separator.setFixedHeight(1)
     separator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -655,7 +672,7 @@ def init_ui(self) -> None:
         "3. After login, select which Discord server to associate with your kills<br>"
         "4. Navigate to <a href='https://starcitizentool.com/kills/manage_api_keys'>starcitizentool.com/kills/manage_api_keys</a><br>"
         "5. Verify your in-game name<br>"
-        "6. Generate an API key and paste it here"
+        "6. Generate an API key and paste it here<br>"
         "Instructions are also available <a href='https://www.youtube.com/watch?v=L62qvxopKak'>HERE</a>"
     )
     api_help.setStyleSheet(
@@ -763,8 +780,19 @@ def init_ui(self) -> None:
     sound_browse_btn.setFixedWidth(120)
     sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
     
+    test_sound_btn = QPushButton("Test Sound")
+    test_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
+    test_sound_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+    )
+    test_sound_btn.setFixedWidth(120)
+    test_sound_btn.clicked.connect(self.test_kill_sound)
+    
     sound_path_layout.addWidget(self.kill_sound_path_input)
     sound_path_layout.addWidget(sound_browse_btn)
+    sound_path_layout.addWidget(test_sound_btn)
     
     sound_card_layout.addRow(sound_path_label, sound_path_container)
     
@@ -789,8 +817,7 @@ def init_ui(self) -> None:
         "stop:0 #f04747, stop:1 #d03737); border: 1px solid #2a2a2a; "
         "width: 20px; height: 20px; margin: -6px 0; border-radius: 10px; }"
         "QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-        "stop:0 #d03737, stop:1 #f04747); border-radius: 5px; }"
-        "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #d03737, stop:1 #f04747); border-radius: 5px; }"        "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #ff5757, stop:1 #e04747); border: 1px solid #f04747; }"
     )
     volume_layout.addWidget(self.volume_slider)
@@ -803,6 +830,102 @@ def init_ui(self) -> None:
     self.volume_slider.valueChanged.connect(lambda value: self.volume_percentage.setText(f"{value}%"))
     
     sound_card_layout.addRow(volume_label, volume_container)
+    
+    # Death Sound Section
+    death_separator = QFrame()
+    death_separator.setFrameShape(QFrame.HLine)
+    death_separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
+    sound_card_layout.addRow(death_separator)
+    
+    self.death_sound_checkbox = QCheckBox("Enable Death Sound")
+    self.death_sound_checkbox.setChecked(False)
+    self.death_sound_checkbox.stateChanged.connect(self.on_death_sound_toggled)
+    self.death_sound_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
+    )
+    sound_card_layout.addRow("", self.death_sound_checkbox)
+    
+    death_sound_path_label = QLabel("Death Sound File:")
+    death_sound_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    
+    death_sound_path_container = QWidget()
+    death_sound_path_container.setStyleSheet("background: transparent; border: none;")
+    death_sound_path_layout = QHBoxLayout(death_sound_path_container)
+    death_sound_path_layout.setContentsMargins(0, 0, 0, 0)
+    death_sound_path_layout.setSpacing(10)
+    
+    self.death_sound_path_input = QLineEdit()
+    self.death_sound_path_input.setText(self.death_sound_path)
+    self.death_sound_path_input.setStyleSheet(
+        "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
+        "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
+    )
+    
+    death_sound_browse_btn = QPushButton("Browse")
+    death_sound_browse_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+    )
+    death_sound_browse_btn.setFixedWidth(120)
+    death_sound_browse_btn.clicked.connect(self.on_death_sound_file_browse)
+    
+    test_death_sound_btn = QPushButton("Test Sound")
+    test_death_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
+    test_death_sound_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+    )
+    test_death_sound_btn.setFixedWidth(120)
+    test_death_sound_btn.clicked.connect(self.test_death_sound)
+    
+    death_sound_path_layout.addWidget(self.death_sound_path_input)
+    death_sound_path_layout.addWidget(death_sound_browse_btn)
+    death_sound_path_layout.addWidget(test_death_sound_btn)
+    
+    sound_card_layout.addRow(death_sound_path_label, death_sound_path_container)
+    
+    death_volume_label = QLabel("Death Sound Volume:")
+    death_volume_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    
+    death_volume_container = QWidget()
+    death_volume_container.setStyleSheet("background: transparent; border: none;")
+    death_volume_layout = QVBoxLayout(death_volume_container)
+    death_volume_layout.setContentsMargins(0, 0, 0, 0)
+    death_volume_layout.setSpacing(10)
+    
+    self.death_volume_slider = QSlider(Qt.Horizontal)
+    self.death_volume_slider.setRange(0, 100)
+    self.death_volume_slider.setValue(self.death_sound_volume)
+    self.death_volume_slider.valueChanged.connect(self.on_death_sound_volume_changed)
+    self.death_volume_slider.setStyleSheet(
+        "QSlider::groove:horizontal { border: 1px solid #2a2a2a; height: 10px; "
+        "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a1a1a, stop:1 #2a2a2a); "
+        "margin: 2px 0; border-radius: 5px; }"
+        "QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #f04747, stop:1 #d03737); border: 1px solid #2a2a2a; "
+        "width: 20px; height: 20px; margin: -6px 0; border-radius: 10px; }"
+        "QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+        "stop:0 #d03737, stop:1 #f04747); border-radius: 5px; }"
+        "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #ff5757, stop:1 #e04747); border: 1px solid #f04747; }"
+    )
+    death_volume_layout.addWidget(self.death_volume_slider)
+
+    self.death_volume_percentage = QLabel(f"{self.death_sound_volume}%")
+    self.death_volume_percentage.setAlignment(Qt.AlignCenter)
+    self.death_volume_percentage.setStyleSheet("QLabel { color: #f0f0f0; background: transparent; border: none; }")
+    death_volume_layout.addWidget(self.death_volume_percentage)
+
+    self.death_volume_slider.valueChanged.connect(lambda value: self.death_volume_percentage.setText(f"{value}%"))
+    
+    sound_card_layout.addRow(death_volume_label, death_volume_container)
+    
     sound_layout.addWidget(sound_card)
     sound_layout.addStretch(1)
     
@@ -1127,8 +1250,7 @@ def init_ui(self) -> None:
         }
         QPushButton:pressed {
             background-color: #14171a;
-        }
-    """)
+        }    """)
     github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/calebv2/SCTool-Tracker/tree/main")))
     support_card_layout.addRow("", github_btn)
 
@@ -1366,7 +1488,11 @@ def load_config(self) -> None:
     try:
         if os.path.isfile(CONFIG_FILE):
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
+                content = f.read().strip()
+                if not content:
+                    logging.warning("Configuration file is empty, using defaults")
+                    return
+                config = json.loads(content)
 
             self.api_key = config.get('api_key', '')
             self.api_key_input.setText(self.api_key)
@@ -1375,7 +1501,6 @@ def load_config(self) -> None:
             log_path = config.get('log_path', '')
             if log_path:
                 self.log_path_input.setText(log_path)
-            
             killer_ship = config.get('killer_ship', 'No Ship')
             if killer_ship != 'No Ship':
                 index = self.ship_combo.findText(killer_ship)
@@ -1394,6 +1519,17 @@ def load_config(self) -> None:
             
             self.kill_sound_volume = config.get('kill_sound_volume', 100)
             self.volume_slider.setValue(self.kill_sound_volume)
+            
+            # Load death sound settings
+            self.death_sound_enabled = config.get('death_sound', False)
+            self.death_sound_checkbox.setChecked(self.death_sound_enabled)
+            death_sound_path = config.get('death_sound_path', '')
+            if death_sound_path and os.path.isfile(death_sound_path):
+                self.death_sound_path = death_sound_path
+                self.death_sound_path_input.setText(death_sound_path)
+            
+            self.death_sound_volume = config.get('death_sound_volume', 100)
+            self.death_volume_slider.setValue(self.death_sound_volume)
             
             self.twitch_enabled = config.get('twitch_enabled', False)
             self.twitch_enabled_checkbox.setChecked(self.twitch_enabled)
@@ -1417,11 +1553,12 @@ def load_config(self) -> None:
             self.twitch.set_clip_delay(clip_delay)
             self.clip_delay_slider.setValue(clip_delay)
             self.clip_delay_value.setText(f"{clip_delay} seconds")
-            
             self.minimize_to_tray = config.get('minimize_to_tray', False)
             self.minimize_to_tray_checkbox.setChecked(self.minimize_to_tray)
+            
             self.start_with_system = config.get('start_with_system', False)
             self.start_with_system_checkbox.setChecked(self.start_with_system)
+            
             self.local_user_name = config.get('local_user_name', '')
             if self.local_user_name:
                 self.user_display.setText(f"User: {self.local_user_name}")
@@ -1432,6 +1569,15 @@ def load_config(self) -> None:
                 QTimer.singleShot(500, self.toggle_monitoring)
                 
             logging.info("Configuration loaded successfully")
+    except json.JSONDecodeError as e:
+        logging.error(f"Configuration file is corrupted (JSON error): {e}")
+        logging.info("The config file will be recreated with default settings")
+        # Remove the corrupted file so it gets recreated with defaults
+        try:
+            os.remove(CONFIG_FILE)
+            logging.info("Removed corrupted configuration file")
+        except Exception as remove_error:
+            logging.error(f"Could not remove corrupted config file: {remove_error}")
     except Exception as e:
         logging.error(f"Failed to load config: {e}")
         
@@ -1548,6 +1694,242 @@ def apply_styles(self) -> None:
     QApplication.instance().setStyleSheet(
         QApplication.instance().styleSheet() + dialog_style
     )
+
+def check_for_updates_ui(self) -> None:
+    """Check for newer versions of the application with minimum version support"""
+    try:
+        # Use the existing check_for_updates method if available
+        if hasattr(self, 'check_for_updates_with_optional') and callable(getattr(self, 'check_for_updates_with_optional')):
+            # Use the enhanced method that always shows optional updates
+            self.check_for_updates_with_optional()
+            return
+            
+        # Fallback implementation for testing
+        # First try the new API endpoint with minimum version support
+        update_url = "https://starcitizentool.com/api/v1/check-update"
+        
+        # Get current version (fallback if not available)
+        current_version = getattr(self, '__version__', '5.5')
+        client_id = getattr(self, '__client_id__', 'sctool-tracker')
+        user_agent = getattr(self, 'user_agent', 'SCTool-Tracker/5.5')
+        
+        headers = {
+            'User-Agent': user_agent,
+            'X-Client-ID': client_id,
+            'X-Client-Version': current_version,
+            'Content-Type': 'application/json'
+        }
+        
+        payload = {
+            'current_version': current_version
+        }
+        
+        logging.info(f"Checking for updates... Current version: {current_version}")
+        
+        try:
+            # Try new API endpoint first
+            response = requests.post(update_url, json=payload, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                
+                latest_version = data.get('latest_version')
+                minimum_required_version = data.get('minimum_required_version')
+                update_required = data.get('update_required', False)
+                update_optional = data.get('update_optional', False)
+                download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
+                changelog = data.get('changelog', 'Bug fixes and performance improvements')
+                
+                logging.info(f"Update check response: latest={latest_version}, minimum={minimum_required_version}, "
+                            f"required={update_required}, optional={update_optional}")
+                
+                # Import packaging.version for proper version comparison
+                from packaging import version
+                
+                # When manually checking, override the API decision with proper logic
+                if latest_version and minimum_required_version:
+                    current_ver = version.parse(current_version)
+                    latest_ver = version.parse(latest_version)
+                    minimum_ver = version.parse(minimum_required_version)
+                    
+                    if current_ver < minimum_ver:
+                        # Force update - user is below minimum required version
+                        show_forced_update_dialog(self, latest_version, minimum_required_version, download_url, changelog)
+                    elif current_ver < latest_ver:
+                        # Optional update - user is above minimum but below latest
+                        show_optional_update_dialog(self, latest_version, download_url, changelog)
+                    else:
+                        # Up to date - user has latest or newer version
+                        show_up_to_date_dialog(self, current_version)
+                elif latest_version and latest_version != current_version:
+                    # Fallback: any newer version available - show as optional since user manually checked
+                    show_optional_update_dialog(self, latest_version, download_url, changelog)
+                else:
+                    # Up to date
+                    show_up_to_date_dialog(self, current_version)
+                return
+        except:
+            # Fall back to old API endpoint
+            pass
+            
+        # Fallback to original API endpoint
+        update_url = "https://starcitizentool.com/api/v1/latest_version"
+        headers = {
+            'User-Agent': user_agent,
+            'X-Client-ID': client_id,
+            'X-Client-Version': current_version
+        }
+        
+        response = requests.get(update_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            latest_version = data.get('latest_version')
+            download_url = data.get('download_url', 'https://starcitizentool.com/download-sctool')
+            
+            # Import packaging.version for comparison
+            try:
+                from packaging import version
+                if latest_version and version.parse(latest_version) > version.parse(current_version):
+                    # Update available - treat as optional since no minimum version info
+                    changelog = f"Update to version {latest_version} is available."
+                    show_optional_update_dialog(self, latest_version, download_url, changelog)
+                else:
+                    show_up_to_date_dialog(self, current_version)
+            except ImportError:
+                # If packaging is not available, show a simple dialog
+                if latest_version and latest_version != current_version:
+                    changelog = f"Update to version {latest_version} is available."
+                    show_optional_update_dialog(self, latest_version, download_url, changelog)
+                else:
+                    show_up_to_date_dialog(self, current_version)
+        else:
+            logging.warning(f"Update check failed with status code: {response.status_code}")
+            show_update_check_failed_dialog(self)
+            
+    except Exception as e:
+        logging.error(f"Error checking for updates: {e}")
+        show_update_check_failed_dialog(self)
+
+def show_forced_update_dialog(parent, latest_version: str, minimum_version: str, download_url: str, changelog: str) -> None:
+    """Show dialog for forced updates (update required)"""
+    current_version = getattr(parent, '__version__', '5.5')
+    
+    update_message = (
+        f"<h3 style='color: #ff6b6b;'>🚨 Update Required</h3>"
+        f"<p><b>Your version:</b> {current_version}</p>"
+        f"<p><b>Latest version:</b> {latest_version}</p>"
+        f"<p><b>Minimum required:</b> {minimum_version}</p>"
+        f"<hr>"
+        f"<p style='color: #ff6b6b;'><b>Your version is no longer supported.</b></p>"
+        f"<p>You must update to continue using SCTool Tracker.</p>"
+        f"<p><b>What's new:</b><br>{changelog}</p>"
+    )
+
+    msg_box = styled_message_box(
+        parent, 
+        "Update Required", 
+        update_message, 
+        QMessageBox.Critical,
+        QMessageBox.NoButton
+    )
+    
+    # Only allow update or exit
+    update_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
+    exit_btn = msg_box.addButton("Exit Application", QMessageBox.RejectRole)
+    
+    msg_box.setDefaultButton(update_btn)
+    msg_box.exec_()
+    
+    if msg_box.clickedButton() == update_btn:
+        start_update_process(parent, latest_version, download_url)
+    else:
+        # Force exit
+        logging.info("User chose to exit instead of updating")
+        QApplication.quit()
+
+def show_optional_update_dialog(parent, latest_version: str, download_url: str, changelog: str) -> None:
+    """Show dialog for optional updates"""
+    current_version = getattr(parent, '__version__', '5.5')
+    
+    update_message = (
+        f"<h3 style='color: #4CAF50;'>🎉 Update Available</h3>"
+        f"<p><b>Your version:</b> {current_version}</p>"
+        f"<p><b>Latest version:</b> {latest_version}</p>"
+        f"<hr>"
+        f"<p>A new version is available with improvements and new features!</p>"
+        f"<p><b>What's new:</b><br>{changelog}</p>"
+        f"<p><i>You can continue using your current version or update now.</i></p>"
+    )
+
+    msg_box = styled_message_box(
+        parent, 
+        "Update Available", 
+        update_message, 
+        QMessageBox.Information
+    )
+    
+    update_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
+    later_btn = msg_box.addButton("Remind Me Later", QMessageBox.ActionRole)
+    skip_btn = msg_box.addButton("Skip This Version", QMessageBox.RejectRole)
+    
+    msg_box.setDefaultButton(update_btn)
+    msg_box.exec_()
+    
+    if msg_box.clickedButton() == update_btn:
+        start_update_process(parent, latest_version, download_url)
+    elif msg_box.clickedButton() == later_btn:
+        logging.info("User chose to be reminded later about update")
+    else:
+        logging.info("User chose to skip this version")
+
+def show_up_to_date_dialog(parent, current_version: str) -> None:
+    """Show dialog when application is up to date"""
+    update_message = (
+        f"<h3 style='color: #4CAF50;'>✅ You're Up to Date!</h3>"
+        f"<p><b>Current version:</b> {current_version}</p>"
+        f"<p>You have the latest version of SCTool Tracker.</p>"
+        f"<p>No updates are needed at this time.</p>"
+    )
+
+    msg_box = styled_message_box(
+        parent, 
+        "Up to Date", 
+        update_message, 
+        QMessageBox.Information
+    )
+    msg_box.exec_()
+
+def show_update_check_failed_dialog(parent) -> None:
+    """Show dialog when update check fails"""
+    update_message = (
+        f"<h3 style='color: #ff9800;'>⚠️ Update Check Failed</h3>"
+        f"<p>Unable to check for updates at this time.</p>"
+        f"<p>Please check your internet connection and try again.</p>"
+        f"<p>You can also visit <a href='https://starcitizentool.com/download-sctool'>starcitizentool.com</a> manually.</p>"
+    )
+
+    msg_box = styled_message_box(
+        parent, 
+        "Update Check Failed", 
+        update_message, 
+        QMessageBox.Warning
+    )
+    msg_box.exec_()
+
+def start_update_process(parent, latest_version: str, download_url: str) -> None:
+    """Start the update process"""
+    try:
+        # Check if we have the auto_update method from the main class
+        if hasattr(parent, 'auto_update'):
+            parent.auto_update(latest_version, download_url)
+        else:
+            # Fallback - open download URL in browser
+            logging.info(f"Opening download URL: {download_url}")
+            QDesktopServices.openUrl(QUrl(download_url))
+            
+    except Exception as e:
+        logging.error(f"Error starting update: {e}")
+        # Fallback - open download URL in browser
+        QDesktopServices.openUrl(QUrl(download_url))
 
 class CollapsibleSettingsPanel(QWidget):
     """Legacy class for backwards compatibility"""
