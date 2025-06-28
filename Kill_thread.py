@@ -412,7 +412,7 @@ class RescanThread(QThread):
         self._stop_event = True
 
 class ApiSenderThread(QThread):
-    apiResponse = pyqtSignal(str, dict)
+    apiResponse = pyqtSignal(str, object)
 
     def __init__(self, api_endpoint: str, headers: Dict[str, str], payload: dict, local_key: str, parent: Optional[Any] = None) -> None:
         super().__init__(parent)
@@ -430,16 +430,22 @@ class ApiSenderThread(QThread):
                 resp = requests.post(self.api_endpoint, headers=self.headers, json=self.payload, timeout=10)
                 if resp.status_code == 201:
                     data_resp = resp.json()
-                    server_msg = data_resp.get("message", "")
-                    if "duplicate" in server_msg.lower():
-                        self.apiResponse.emit("Duplicate kill. Not logged (server).", data_resp)
+                    if isinstance(data_resp, dict):
+                        server_msg = data_resp.get("message", "")
+                        if "duplicate" in server_msg.lower():
+                            self.apiResponse.emit("Duplicate kill. Not logged (server).", data_resp)
+                        else:
+                            self.apiResponse.emit("Kill logged successfully.", data_resp)
                     else:
                         self.apiResponse.emit("Kill logged successfully.", data_resp)
                     return
                 elif resp.status_code == 200:
                     data_resp = resp.json()
-                    if data_resp.get("message") == "NPC not logged":
-                        self.apiResponse.emit("NPC kill not logged.", data_resp)
+                    if isinstance(data_resp, dict):
+                        if data_resp.get("message") == "NPC not logged":
+                            self.apiResponse.emit("NPC kill not logged.", data_resp)
+                        else:
+                            self.apiResponse.emit("Kill logged successfully.", data_resp)
                     else:
                         self.apiResponse.emit("Kill logged successfully.", data_resp)
                     return
@@ -455,4 +461,4 @@ class ApiSenderThread(QThread):
                 self.apiResponse.emit(error_text, {})
                 time.sleep(self.backoff)
                 self.backoff *= 2
-        self.apiResponse.emit("API request failed after maximum retries.")
+        self.apiResponse.emit("API request failed after maximum retries.", {})

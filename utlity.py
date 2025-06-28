@@ -1710,9 +1710,9 @@ def check_for_updates_ui(self) -> None:
             self.check_for_updates_with_optional()
             return
             
-        current_version = getattr(self, '__version__', '5.6')
+        current_version = getattr(self, '__version__', '5.6.1')
         client_id = getattr(self, '__client_id__', 'sctool-tracker')
-        user_agent = getattr(self, 'user_agent', 'SCTool-Tracker/5.6')
+        user_agent = getattr(self, 'user_agent', 'SCTool-Tracker/5.6.1')
         
         update_url = "https://starcitizentool.com/api/v1/check-update"
         
@@ -1759,7 +1759,7 @@ def check_for_updates_ui(self) -> None:
 
 def show_forced_update_dialog(parent, latest_version: str, minimum_version: str, download_url: str) -> None:
     """Show dialog for forced updates (update required)"""
-    current_version = getattr(parent, '__version__', '5.6')
+    current_version = getattr(parent, '__version__', '5.6.1')
     
     update_message = (
         f"<h3 style='color: #ff6b6b;'>🚨 Update Required</h3>"
@@ -1794,7 +1794,7 @@ def show_forced_update_dialog(parent, latest_version: str, minimum_version: str,
 
 def show_optional_update_dialog(parent, latest_version: str, download_url: str) -> None:
     """Show dialog for optional updates"""
-    current_version = getattr(parent, '__version__', '5.6')
+    current_version = getattr(parent, '__version__', '5.6.1')
     
     update_message = (
         f"<h3 style='color: #4CAF50;'>🎉 Update Available</h3>"

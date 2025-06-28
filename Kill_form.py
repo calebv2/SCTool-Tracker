@@ -60,7 +60,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 5.6")
+            hwnd = FindWindow(None, "SCTool Killfeed 5.6.1")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -117,12 +117,12 @@ PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow):
     __client_id__ = "kill_logger_client"
-    __version__ = "5.6"
+    __version__ = "5.6.1"
 
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 5.6")
+        self.setWindowTitle("SCTool Killfeed 5.6.1")
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -496,7 +496,7 @@ class KillLoggerGUI(QMainWindow):
         api_thread.apiResponse.connect(lambda msg, response_data, key=local_key: self.handle_missing_api_response(msg, key, response_data))
         api_thread.start()
 
-    def handle_missing_api_response(self, msg: str, local_key: str, response_data: dict = None) -> None:
+    def handle_missing_api_response(self, msg: str, local_key: str, response_data=None) -> None:
         success = False
         is_duplicate = False
 
@@ -601,7 +601,6 @@ class KillLoggerGUI(QMainWindow):
     def ping_api(self) -> bool:
         """Test API connectivity by pinging the server"""
         try:
-            # Construct the ping endpoint URL
             ping_url = self.api_endpoint.replace('/kills', '/ping')
             
             headers = {
@@ -616,7 +615,6 @@ class KillLoggerGUI(QMainWindow):
             if response.status_code == 200:
                 data = response.json()
                 if 'registered_in_game_name' in data:
-                    # Update local user name if returned by the ping
                     registered_name = data['registered_in_game_name']
                     if registered_name and not self.local_user_name:
                         self.local_user_name = registered_name
