@@ -96,6 +96,8 @@ class ButtonAutomation:
         
         self.sequence_last_execution = {}
         self.sequence_debounce_ms = 1000
+        self.skip_recent_kills = False
+        self.skip_recent_kills_ms = 5000
         
         self.is_executing = False
         
@@ -118,6 +120,12 @@ class ButtonAutomation:
                 self.hold_duration_ms = config.get('hold_duration_ms', 50)
                 self.debounce_ms = config.get('debounce_ms', 500)
                 self.sequence_debounce_ms = config.get('sequence_debounce_ms', 1000)
+                self.skip_recent_kills = config.get('skip_recent_kills', False)
+                self.skip_recent_kills_ms = config.get('skip_recent_kills_ms', 5000)
+                
+                for seq in self.button_sequences:
+                    if 'skip_if_recent' not in seq:
+                        seq['skip_if_recent'] = False
                 
                 logging.info(f"Button automation config loaded: {len(self.button_sequences)} sequences")
             else:
@@ -129,6 +137,8 @@ class ButtonAutomation:
             self.button_sequences = []
             self.debounce_ms = 500
             self.sequence_debounce_ms = 1000
+            self.skip_recent_kills = False
+            self.skip_recent_kills_ms = 5000
 
     def _create_default_config(self) -> None:
         """Create default configuration file with sample data"""
@@ -141,12 +151,14 @@ class ButtonAutomation:
                 {
                     "name": "GForce",
                     "key_sequence": "alt+shift+f10",
-                    "enabled": True
+                    "enabled": True,
+                    "skip_if_recent": False
                 },
                 {
                     "name": "wertwer",
                     "key_sequence": "s",
-                    "enabled": True
+                    "enabled": True,
+                    "skip_if_recent": False
                 }
             ]
             self.press_delay_seconds = 0
@@ -154,6 +166,8 @@ class ButtonAutomation:
             self.hold_duration_ms = 50
             self.debounce_ms = 500
             self.sequence_debounce_ms = 1000
+            self.skip_recent_kills = False
+            self.skip_recent_kills_ms = 5000
             self.save_config()
         except Exception as e:
             logging.error(f"Error creating default button automation config: {e}")
@@ -171,7 +185,9 @@ class ButtonAutomation:
                 'sequence_delay_ms': self.sequence_delay_ms,
                 'hold_duration_ms': self.hold_duration_ms,
                 'debounce_ms': getattr(self, 'debounce_ms', 500),
-                'sequence_debounce_ms': getattr(self, 'sequence_debounce_ms', 1000)
+                'sequence_debounce_ms': getattr(self, 'sequence_debounce_ms', 1000),
+                'skip_recent_kills': getattr(self, 'skip_recent_kills', False),
+                'skip_recent_kills_ms': getattr(self, 'skip_recent_kills_ms', 5000)
             }
             
             with open(BUTTON_CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -211,7 +227,7 @@ class ButtonAutomation:
         logging.info(f"Key hold duration set to {self.hold_duration_ms}ms")
         self.save_config()
 
-    def add_button_sequence(self, name: str, key_sequence: str, enabled: bool = True) -> bool:
+    def add_button_sequence(self, name: str, key_sequence: str, enabled: bool = True, skip_if_recent: bool = False) -> bool:
         """Add a new button sequence"""
         try:
             if not self._validate_key_sequence(key_sequence):
@@ -223,7 +239,8 @@ class ButtonAutomation:
                     self.button_sequences[i] = {
                         'name': name,
                         'key_sequence': key_sequence,
-                        'enabled': enabled
+                        'enabled': enabled,
+                        'skip_if_recent': skip_if_recent
                     }
                     self.save_config()
                     logging.info(f"Updated button sequence: {name} -> {key_sequence}")
@@ -232,7 +249,8 @@ class ButtonAutomation:
             self.button_sequences.append({
                 'name': name,
                 'key_sequence': key_sequence,
-                'enabled': enabled
+                'enabled': enabled,
+                'skip_if_recent': skip_if_recent
             })
             self.save_config()
             logging.info(f"Added button sequence: {name} -> {key_sequence}")
@@ -371,7 +389,20 @@ class ButtonAutomation:
             self.is_executing = True
             
             executed_sequences = []
+            skipped_sequences = []
             current_time = time.time() * 1000
+            recent_kill_detected = False
+            if self.skip_recent_kills and hasattr(kill_data, 'get'):
+                timestamp = kill_data.get('timestamp')
+                if timestamp:
+                    try:
+                        kill_time = datetime.fromisoformat(timestamp)
+                        kill_time_ms = kill_time.timestamp() * 1000
+                        if current_time - kill_time_ms < self.skip_recent_kills_ms:
+                            recent_kill_detected = True
+                            logging.info(f"Recent kill detected within {self.skip_recent_kills_ms}ms")
+                    except (ValueError, TypeError) as e:
+                        logging.error(f"Error parsing kill timestamp: {e}")
             
             for sequence in self.button_sequences:
                 if not sequence.get('enabled', True):
@@ -383,6 +414,11 @@ class ButtonAutomation:
                 last_exec_time = self.sequence_last_execution.get(name, 0)
                 if current_time - last_exec_time < self.sequence_debounce_ms:
                     logging.debug(f"Skipping sequence '{name}' due to debouncing ({self.sequence_debounce_ms}ms)")
+                    continue
+                
+                if sequence.get('skip_if_recent', False) and recent_kill_detected:
+                    logging.info(f"Skipping sequence '{name}' due to recent kill")
+                    skipped_sequences.append(name)
                     continue
                 
                 logging.info(f"Executing button sequence: {name} ({key_sequence})")
@@ -399,8 +435,13 @@ class ButtonAutomation:
             
             if executed_sequences:
                 result = f"Executed sequences: {', '.join(executed_sequences)}"
+                if skipped_sequences:
+                    result += f" | Skipped due to recent kill: {', '.join(skipped_sequences)}"
             else:
-                result = "No sequences executed"
+                if skipped_sequences:
+                    result = f"All sequences skipped due to recent kill: {', '.join(skipped_sequences)}"
+                else:
+                    result = "No sequences executed"
             
             self._handle_press_result(result, kill_data, press_request_id)
             
@@ -539,7 +580,8 @@ class ButtonAutomation:
             {
                 'name': seq['name'],
                 'key_sequence': seq['key_sequence'],
-                'enabled': seq.get('enabled', True)
+                'enabled': seq.get('enabled', True),
+                'skip_if_recent': seq.get('skip_if_recent', False)
             }
             for seq in self.button_sequences
         ]
@@ -580,6 +622,34 @@ class ButtonAutomation:
             logging.error(f"Error testing sequence {name}: {e}")
             return False
 
+    def set_skip_recent_kills(self, enabled: bool) -> None:
+        """Enable or disable skipping recent kills globally"""
+        self.skip_recent_kills = enabled
+        self.save_config()
+        logging.info(f"Skip recent kills {'enabled' if enabled else 'disabled'}")
+
+    def set_skip_recent_kills_time(self, milliseconds: int) -> None:
+        """Set the time threshold in milliseconds for recent kills"""
+        self.skip_recent_kills_ms = max(500, int(milliseconds))
+        self.save_config()
+        logging.info(f"Skip recent kills time set to {self.skip_recent_kills_ms}ms")
+
+    def toggle_sequence_skip_if_recent(self, name: str) -> bool:
+        """Toggle whether a sequence should be skipped if there was a recent kill"""
+        try:
+            for seq in self.button_sequences:
+                if seq['name'] == name:
+                    seq['skip_if_recent'] = not seq.get('skip_if_recent', False)
+                    self.save_config()
+                    logging.info(f"Toggled 'skip if recent' for {name}: {seq['skip_if_recent']}")
+                    return seq['skip_if_recent']
+            
+            logging.warning(f"Button sequence not found: {name}")
+            return False
+        except Exception as e:
+            logging.error(f"Error toggling skip if recent: {e}")
+            return False
+
 def process_button_automation_callbacks(button_automation) -> None:
     """Process any pending button automation callbacks in the main thread"""
     if hasattr(button_automation, 'process_press_callbacks'):
@@ -599,7 +669,13 @@ class ButtonSequenceDialog(QDialog):
         if sequence_data:
             self.load_sequence_data()
     def setup_ui(self):
-        self.setWindowTitle("Add/Edit Button Sequence")
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+                
+        self.setWindowTitle(t("Add/Edit Button Sequence"))
         self.setModal(True)
         self.resize(400, 300)
         
@@ -644,12 +720,12 @@ class ButtonSequenceDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        name_label = QLabel("Sequence Name:")
-        name_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
-        layout.addWidget(name_label)
+        self.name_label = QLabel(t("Sequence Name:"))
+        self.name_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+        layout.addWidget(self.name_label)
         
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("e.g., 'Screenshot', 'Quick Chat'")
+        self.name_input.setPlaceholderText(t("e.g., 'Screenshot', 'Quick Chat'"))
         self.name_input.setStyleSheet(
             "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
             "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
@@ -657,19 +733,19 @@ class ButtonSequenceDialog(QDialog):
         )
         layout.addWidget(self.name_input)
         
-        sequence_group = QGroupBox("Key Sequence")
-        sequence_group.setStyleSheet(
+        self.sequence_group = QGroupBox(t("Key Sequence"))
+        self.sequence_group.setStyleSheet(
             "QGroupBox { color: #ffffff; font-weight: bold; background: transparent; border: 1px solid #333333; "
             "border-radius: 8px; margin-top: 10px; padding-top: 10px; }"
             "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 10px 0 10px; }"
         )
-        sequence_layout = QVBoxLayout(sequence_group)
+        sequence_layout = QVBoxLayout(self.sequence_group)
         sequence_layout.setContentsMargins(15, 15, 15, 15)
         sequence_layout.setSpacing(10)
         
-        sequence_desc = QLabel("Enter key sequence (comma-separated):")
-        sequence_desc.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }")
-        sequence_layout.addWidget(sequence_desc)
+        self.sequence_desc = QLabel(t("Enter key sequence (comma-separated):"))
+        self.sequence_desc.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }")
+        sequence_layout.addWidget(self.sequence_desc)
         
         self.sequence_input = QTextEdit()
         self.sequence_input.setMaximumHeight(80)
@@ -678,30 +754,33 @@ class ButtonSequenceDialog(QDialog):
             "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
             "QTextEdit:hover, QTextEdit:focus { border-color: #ff6b35; }"
         )
-        self.sequence_input.setPlaceholderText("Examples:ctrl+c")
+        self.sequence_input.setPlaceholderText(t("Examples: ctrl+c"))
         sequence_layout.addWidget(self.sequence_input)
         
-        help_label = QLabel(
-            "Supported formats:\n"
-            "• Single keys: f12, space, enter\n"
-            "• Combinations: ctrl+c, alt+tab\n"
-        )
-        help_label.setStyleSheet("color: #888888; font-size: 11px;")
-        sequence_layout.addWidget(help_label)
+        self.help_label = QLabel()
+        help_parts = [
+            t("Supported formats:"),
+            f"• {t('Single keys: f12, space, enter')}",
+            f"• {t('Combinations: ctrl+c, alt+tab')}"
+        ]
+        help_text = "\n".join(help_parts)
+        self.help_label.setText(help_text)
+        self.help_label.setStyleSheet("color: #888888; font-size: 11px;")
+        sequence_layout.addWidget(self.help_label)
         
-        layout.addWidget(sequence_group)
-        capture_group = QGroupBox("Or Capture Hotkey")
-        capture_group.setStyleSheet(
+        layout.addWidget(self.sequence_group)
+        self.capture_group = QGroupBox(t("Or Capture Hotkey"))
+        self.capture_group.setStyleSheet(
             "QGroupBox { color: #ffffff; font-weight: bold; background: transparent; border: 1px solid #333333; "
             "border-radius: 8px; margin-top: 10px; padding-top: 10px; }"
             "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 10px 0 10px; }"
         )
-        capture_layout = QVBoxLayout(capture_group)
+        capture_layout = QVBoxLayout(self.capture_group)
         capture_layout.setContentsMargins(15, 15, 15, 15)
         
-        capture_instruction = QLabel("Click 'Capture' multiple times to build a sequence:")
-        capture_instruction.setStyleSheet("color: #cccccc; font-size: 12px;")
-        capture_layout.addWidget(capture_instruction)
+        self.capture_instruction = QLabel(t("Click 'Capture' multiple times to build a sequence:"))
+        self.capture_instruction.setStyleSheet("color: #cccccc; font-size: 12px;")
+        capture_layout.addWidget(self.capture_instruction)
         
         self.hotkey_capture = HotkeyCapture()
         self.hotkey_capture.hotkey_captured.connect(self.on_hotkey_captured)
@@ -709,9 +788,9 @@ class ButtonSequenceDialog(QDialog):
         
         capture_button_layout = QHBoxLayout()
         
-        clear_capture_button = QPushButton("Clear Sequence")
-        clear_capture_button.clicked.connect(self.clear_captured_sequence)
-        clear_capture_button.setStyleSheet(
+        self.clear_capture_button = QPushButton(t("Clear Sequence"))
+        self.clear_capture_button.clicked.connect(self.clear_captured_sequence)
+        self.clear_capture_button.setStyleSheet(
             "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
             "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
             "padding: 8px 12px; font-weight: bold; }"
@@ -719,14 +798,17 @@ class ButtonSequenceDialog(QDialog):
             "stop:0 #4a4a4a, stop:1 #303030); }"
             "QPushButton:pressed { background: #202020; }"
         )
-        capture_button_layout.addWidget(clear_capture_button)
+        capture_button_layout.addWidget(self.clear_capture_button)
         
         capture_button_layout.addStretch()
         capture_layout.addLayout(capture_button_layout)
         
-        layout.addWidget(capture_group)
+        layout.addWidget(self.capture_group)
         
-        self.enabled_checkbox = QCheckBox("Enable this sequence")
+        checkbox_layout = QVBoxLayout()
+        checkbox_layout.setSpacing(10)
+        
+        self.enabled_checkbox = QCheckBox(t("Enable this sequence"))
         self.enabled_checkbox.setChecked(True)
         self.enabled_checkbox.setStyleSheet(
             "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
@@ -734,10 +816,22 @@ class ButtonSequenceDialog(QDialog):
             "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
             "QCheckBox::indicator:checked { border: 1px solid #ff6b35; background-color: #ff6b35; border-radius: 3px; }"
         )
-        layout.addWidget(self.enabled_checkbox)
-        test_button = QPushButton("Test Sequence")
-        test_button.clicked.connect(self.test_sequence)
-        test_button.setStyleSheet(
+        checkbox_layout.addWidget(self.enabled_checkbox)
+        
+        self.skip_recent_checkbox = QCheckBox(t("Skip if another kill happens within time limit"))
+        self.skip_recent_checkbox.setChecked(False)
+        self.skip_recent_checkbox.setStyleSheet(
+            "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
+            "QCheckBox::indicator { width: 20px; height: 20px; }"
+            "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+            "QCheckBox::indicator:checked { border: 1px solid #ff6b35; background-color: #ff6b35; border-radius: 3px; }"
+        )
+        checkbox_layout.addWidget(self.skip_recent_checkbox)
+        
+        layout.addLayout(checkbox_layout)
+        self.test_button = QPushButton(t("Test Sequence"))
+        self.test_button.clicked.connect(self.test_sequence)
+        self.test_button.setStyleSheet(
             "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
             "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
             "padding: 12px; font-weight: bold; }"
@@ -745,17 +839,17 @@ class ButtonSequenceDialog(QDialog):
             "stop:0 #4a4a4a, stop:1 #303030); }"
             "QPushButton:pressed { background: #202020; }"
         )
-        layout.addWidget(test_button)
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.setStyleSheet(
+        layout.addWidget(self.test_button)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.setStyleSheet(
             "QDialogButtonBox QPushButton { background-color: #2a2a2a; color: white; "
             "border: 1px solid #555555; padding: 8px 16px; font-weight: bold; }"
             "QDialogButtonBox QPushButton:hover { background-color: #3a3a3a; border: 1px solid #777777; }"
             "QDialogButtonBox QPushButton:pressed { background-color: #ff6b35; }"
         )
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
     
     def load_sequence_data(self):
         """Load existing sequence data into the dialog"""
@@ -763,6 +857,7 @@ class ButtonSequenceDialog(QDialog):
             self.name_input.setText(self.sequence_data.get('name', ''))
             self.sequence_input.setPlainText(self.sequence_data.get('key_sequence', ''))
             self.enabled_checkbox.setChecked(self.sequence_data.get('enabled', True))
+            self.skip_recent_checkbox.setChecked(self.sequence_data.get('skip_if_recent', False))
 
     def on_hotkey_captured(self, hotkey: str):
         """Handle captured hotkey - avoid duplicates when pressing the same key multiple times"""
@@ -787,12 +882,14 @@ class ButtonSequenceDialog(QDialog):
     
     def test_sequence(self):
         """Test the current sequence"""
+        from language_manager import t
+        
         sequence = self.sequence_input.toPlainText().strip()
         if not sequence:
             msg = QMessageBox(self)
-            msg.setWindowTitle("Test Sequence")
+            msg.setWindowTitle(t("Test Sequence"))
             msg.setIcon(QMessageBox.Warning)
-            msg.setText("Please enter a key sequence first.")
+            msg.setText(t("Please enter a key sequence first."))
             msg.setStyleSheet("""
                 QMessageBox {
                     background-color: #222222;
@@ -820,9 +917,9 @@ class ButtonSequenceDialog(QDialog):
         
         if temp_automation.test_sequence("test"):
             msg = QMessageBox(self)
-            msg.setWindowTitle("Test Sequence")
+            msg.setWindowTitle(t("Test Sequence"))
             msg.setIcon(QMessageBox.Information)
-            msg.setText("Sequence executed successfully!")
+            msg.setText(t("Sequence executed successfully!"))
             msg.setStyleSheet("""
                 QMessageBox {
                     background-color: #222222;
@@ -846,9 +943,9 @@ class ButtonSequenceDialog(QDialog):
             msg.exec_()
         else:
             msg = QMessageBox(self)
-            msg.setWindowTitle("Test Sequence")
+            msg.setWindowTitle(t("Test Sequence"))
             msg.setIcon(QMessageBox.Warning)
-            msg.setText("Failed to execute sequence. Please check the key format.")            
+            msg.setText(t("Failed to execute sequence. Please check the key format."))            
             msg.setStyleSheet("""
                 QMessageBox {
                     background-color: #222222;
@@ -882,9 +979,70 @@ class ButtonSequenceDialog(QDialog):
         return {
             'name': name,
             'key_sequence': sequence,
-            'enabled': self.enabled_checkbox.isChecked()
+            'enabled': self.enabled_checkbox.isChecked(),
+            'skip_if_recent': self.skip_recent_checkbox.isChecked()
         }
 
+    def update_translations(self):
+        """Update UI text for current language"""
+        try:
+            from language_manager import t
+            
+            self.setWindowTitle(t("Add/Edit Button Sequence"))
+            
+            if hasattr(self, 'name_label'):
+                self.name_label.setText(t("Sequence Name:"))
+            if hasattr(self, 'sequence_desc'):
+                self.sequence_desc.setText(t("Enter key sequence (comma-separated):"))
+            if hasattr(self, 'capture_instruction'):
+                self.capture_instruction.setText(t("Click 'Capture' multiple times to build a sequence:"))
+            if hasattr(self, 'help_label'):
+                help_parts = [
+                    t("Supported formats:"),
+                    f"• {t('Single keys: f12, space, enter')}",
+                    f"• {t('Combinations: ctrl+c, alt+tab')}"
+                ]
+                help_text = "\n".join(help_parts)
+                self.help_label.setText(help_text)
+                self.help_label.update()
+            if hasattr(self, 'sequence_group'):
+                self.sequence_group.setTitle(t("Key Sequence"))
+            if hasattr(self, 'capture_group'):
+                self.capture_group.setTitle(t("Or Capture Hotkey"))
+            
+            if hasattr(self, 'clear_capture_button'):
+                self.clear_capture_button.setText(t("Clear Sequence"))
+            if hasattr(self, 'test_button'):
+                self.test_button.setText(t("Test Sequence"))
+
+            if hasattr(self, 'button_box'):
+                for button in self.button_box.buttons():
+                    role = self.button_box.buttonRole(button)
+                    if role == QDialogButtonBox.AcceptRole:
+                        button.setText(t("OK"))
+                    elif role == QDialogButtonBox.RejectRole:
+                        button.setText(t("Cancel"))
+            
+            if hasattr(self, 'enabled_checkbox'):
+                self.enabled_checkbox.setText(t("Enable this sequence"))
+            if hasattr(self, 'skip_recent_checkbox'):
+                self.skip_recent_checkbox.setText(t("Skip if another kill happens within time limit"))
+
+            if hasattr(self, 'name_input'):
+                self.name_input.setPlaceholderText(t("e.g., 'Screenshot', 'Quick Chat'"))
+            if hasattr(self, 'sequence_input'):
+                self.sequence_input.setPlaceholderText(t("Examples: ctrl+c"))
+                
+        except Exception as e:
+            logging.error(f"Error updating ButtonSequenceDialog translations: {e}")
+
+    def showEvent(self, event):
+        """Override showEvent to ensure translations are applied"""
+        super().showEvent(event)
+        try:
+            self.update_translations()
+        except Exception as e:
+            logging.error(f"Error updating translations on show: {e}")
 
 class ButtonAutomationWidget(QWidget):
     """Main widget for button automation configuration"""
@@ -896,11 +1054,17 @@ class ButtonAutomationWidget(QWidget):
         self.refresh_sequences()
     
     def setup_ui(self):
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+                
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(15)
         
-        self.master_enabled = QCheckBox("Enable Button Automation")
+        self.master_enabled = QCheckBox(t("Enable Button Automation"))
         self.master_enabled.setChecked(self.button_automation.enabled)
         self.master_enabled.toggled.connect(self.on_master_enabled_changed)
         self.master_enabled.setStyleSheet(
@@ -911,7 +1075,7 @@ class ButtonAutomationWidget(QWidget):
         )
         layout.addWidget(self.master_enabled)
         
-        settings_group = QGroupBox("Automation Settings")
+        settings_group = QGroupBox(t("Automation Settings"))
         settings_group.setStyleSheet(
             "QGroupBox { color: #ffffff; font-weight: bold; background: transparent; border: 1px solid #333333; "
             "border-radius: 8px; margin-top: 10px; padding-top: 10px; }"
@@ -922,7 +1086,7 @@ class ButtonAutomationWidget(QWidget):
         settings_layout.setSpacing(15)
         settings_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         
-        press_delay_label = QLabel("Press Delay:")
+        press_delay_label = QLabel(t("Press Delay:"))
         press_delay_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
         
         delay_container = QWidget()
@@ -990,7 +1154,63 @@ class ButtonAutomationWidget(QWidget):
         )
         settings_layout.addRow(hold_duration_label, self.hold_duration_spin)
         
-        layout.addWidget(settings_group)
+        recent_kills_group = QGroupBox(t("Recent Kills Protection"))
+        recent_kills_group.setStyleSheet(
+            "QGroupBox { color: #ffffff; font-weight: bold; background: transparent; border: 1px solid #333333; "
+            "border-radius: 8px; margin-top: 10px; padding-top: 10px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 10px 0 10px; }"
+        )
+        recent_kills_layout = QVBoxLayout(recent_kills_group)
+        recent_kills_layout.setContentsMargins(15, 15, 15, 15)
+        recent_kills_layout.setSpacing(15)
+        
+        self.skip_recent_kills_checkbox = QCheckBox(t("Skip key presses if another kill happens within time limit"))
+        self.skip_recent_kills_checkbox.setChecked(self.button_automation.skip_recent_kills)
+        self.skip_recent_kills_checkbox.toggled.connect(self.on_skip_recent_kills_changed)
+        self.skip_recent_kills_checkbox.setStyleSheet(
+            "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
+            "QCheckBox::indicator { width: 20px; height: 20px; }"
+            "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+            "QCheckBox::indicator:checked { border: 1px solid #ff6b35; background-color: #ff6b35; border-radius: 3px; }"
+        )
+        recent_kills_layout.addWidget(self.skip_recent_kills_checkbox)
+        
+        skip_time_container = QWidget()
+        skip_time_layout = QHBoxLayout(skip_time_container)
+        skip_time_layout.setContentsMargins(0, 0, 0, 0)
+        skip_time_layout.setSpacing(10)
+        
+        skip_time_label = QLabel(t("Time limit:"))
+        skip_time_label.setStyleSheet("QLabel { color: #ffffff; background: transparent; border: none; font-size: 14px; }")
+        skip_time_layout.addWidget(skip_time_label)
+        
+        self.skip_time_slider = QSlider(Qt.Horizontal)
+        self.skip_time_slider.setRange(500, 10000)
+        self.skip_time_slider.setSingleStep(100)
+        self.skip_time_slider.setPageStep(1000)
+        self.skip_time_slider.setValue(self.button_automation.skip_recent_kills_ms)
+        self.skip_time_slider.valueChanged.connect(self.on_skip_time_changed)
+        self.skip_time_slider.setStyleSheet(
+            "QSlider::groove:horizontal { border: 1px solid #2a2a2a; height: 10px; "
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a1a1a, stop:1 #2a2a2a); "
+            "margin: 2px 0; border-radius: 5px; }"
+            "QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 #ff6b35, stop:1 #d85527); border: 1px solid #2a2a2a; "
+            "width: 20px; height: 20px; margin: -6px 0; border-radius: 10px; }"
+            "QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+            "stop:0 #d85527, stop:1 #ff6b35); border-radius: 5px; }"
+            "QSlider::handle:horizontal:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 #ff8555, stop:1 #f55527); border: 1px solid #ff6b35; }"
+        )
+        skip_time_layout.addWidget(self.skip_time_slider)
+        
+        self.skip_time_label = QLabel(f"{self.button_automation.skip_recent_kills_ms / 1000:.1f} seconds")
+        self.skip_time_label.setStyleSheet("QLabel { color: #cccccc; min-width: 80px; text-align: right; }")
+        skip_time_layout.addWidget(self.skip_time_label)
+        
+        recent_kills_layout.addWidget(skip_time_container)
+        
+        layout.addWidget(recent_kills_group)
         
         sequences_group = QGroupBox("Button Sequences")
         sequences_group.setStyleSheet(
@@ -1115,24 +1335,52 @@ class ButtonAutomationWidget(QWidget):
         """Handle hold duration changes"""
         self.button_automation.set_hold_duration(value)
     
+    def on_skip_recent_kills_changed(self, enabled):
+        """Handle toggle of skip recent kills checkbox"""
+        self.button_automation.set_skip_recent_kills(enabled)
+        self.skip_time_slider.setEnabled(enabled)
+        
+    def on_skip_time_changed(self, value):
+        """Handle change of skip time slider"""
+        self.button_automation.set_skip_recent_kills_time(value)
+        self.skip_time_label.setText(f"{value / 1000:.1f} seconds")
+    
     def add_sequence(self):
         """Add a new sequence"""
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+            
         dialog = ButtonSequenceDialog(self)
+        try:
+            dialog.update_translations()
+        except Exception as e:
+            logging.debug(f"Error updating dialog translations: {e}")
+            
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_sequence_data()
             if data:
                 if self.button_automation.add_button_sequence(
                     data['name'], 
                     data['key_sequence'], 
-                    data['enabled']
+                    data['enabled'],
+                    data['skip_if_recent']
                 ):
                     self.refresh_sequences()
                     self.update_status()
                 else:
-                    QMessageBox.warning(self, "Add Sequence", "Failed to add sequence. Please check the key format.")
+                    QMessageBox.warning(self, t("Add Sequence"), t("Failed to add sequence. Please check the key format."))
     
     def edit_sequence(self):
         """Edit the selected sequence"""
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+                
         current_item = self.sequence_list.currentItem()
         if not current_item:
             return
@@ -1147,6 +1395,11 @@ class ButtonAutomationWidget(QWidget):
         
         if sequence_data:
             dialog = ButtonSequenceDialog(self, sequence_data)
+            try:
+                dialog.update_translations()
+            except Exception as e:
+                logging.debug(f"Error updating dialog translations: {e}")
+                
             if dialog.exec_() == QDialog.Accepted:
                 data = dialog.get_sequence_data()
                 if data:
@@ -1154,29 +1407,42 @@ class ButtonAutomationWidget(QWidget):
                     if self.button_automation.add_button_sequence(
                         data['name'], 
                         data['key_sequence'], 
-                        data['enabled']
+                        data['enabled'],
+                        data['skip_if_recent']
                     ):
                         self.refresh_sequences()
                         self.update_status()
                     else:
-                        QMessageBox.warning(self, "Edit Sequence", "Failed to update sequence. Please check the key format.")
+                        QMessageBox.warning(self, t("Edit Sequence"), t("Failed to update sequence. Please check the key format."))
     
     def test_sequence(self):
         """Test the selected sequence"""
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+                
         current_item = self.sequence_list.currentItem()
         if not current_item:
-            QMessageBox.information(self, "Test Sequence", "Please select a sequence to test.")
+            QMessageBox.information(self, t("Test Sequence"), t("Please select a sequence to test."))
             return
         
         sequence_name = current_item.data(Qt.UserRole)
         
         if self.button_automation.test_sequence(sequence_name):
-            QMessageBox.information(self, "Test Sequence", f"Sequence '{sequence_name}' executed successfully!")
+            QMessageBox.information(self, t("Test Sequence"), t("Sequence '{sequence_name}' executed successfully!").format(sequence_name=sequence_name))
         else:
-            QMessageBox.warning(self, "Test Sequence", f"Failed to execute sequence '{sequence_name}'.")
+            QMessageBox.warning(self, t("Test Sequence"), t("Failed to execute sequence '{sequence_name}'.").format(sequence_name=sequence_name))
     
     def remove_sequence(self):
         """Remove the selected sequence"""
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+                
         current_item = self.sequence_list.currentItem()
         if not current_item:
             return
@@ -1185,8 +1451,8 @@ class ButtonAutomationWidget(QWidget):
         
         reply = QMessageBox.question(
             self, 
-            "Remove Sequence", 
-            f"Are you sure you want to remove the sequence '{sequence_name}'?",
+            t("Remove Sequence"), 
+            t("Are you sure you want to remove the sequence '{sequence_name}'?").format(sequence_name=sequence_name),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
@@ -1231,18 +1497,110 @@ class ButtonAutomationWidget(QWidget):
     
     def update_status(self):
         """Update the status label"""
+        try:
+            from language_manager import t
+        except ImportError:
+            def t(text):
+                return text
+                
         total = self.button_automation.get_sequence_count()
         enabled_count = self.button_automation.get_enabled_sequence_count()
         
         if self.button_automation.enabled:
-            status = f"Status: Enabled - {enabled_count}/{total} sequences active"
+            status = f"{t('Status: Enabled')} - {enabled_count}/{total} {t('sequences active')}"
             self.status_label.setStyleSheet("color: #ff6b35; font-weight: bold; background: transparent; border: none; font-size: 14px;")
         else:
-            status = f"Status: Disabled - {total} sequences configured"
+            status = f"{t('Status: Disabled')} - {total} {t('sequences configured')}"
             self.status_label.setStyleSheet("color: #888888; font-weight: bold; background: transparent; border: none; font-size: 14px;")
         
         self.status_label.setText(status)
     
+    def update_translations(self):
+        """Update UI text for current language"""
+        try:
+            from language_manager import t
+            
+            if hasattr(self, 'master_enabled'):
+                self.master_enabled.setText(t("Enable Button Automation"))
+            
+            if hasattr(self, 'add_button'):
+                self.add_button.setText(t("Add Sequence"))
+            if hasattr(self, 'edit_button'):
+                self.edit_button.setText(t("Edit"))
+            if hasattr(self, 'test_button'):
+                self.test_button.setText(t("Test"))
+            if hasattr(self, 'remove_button'):
+                self.remove_button.setText(t("Remove"))
+            if hasattr(self, 'enable_all_button'):
+                self.enable_all_button.setText(t("Enable All"))
+            if hasattr(self, 'disable_all_button'):
+                self.disable_all_button.setText(t("Disable All"))
+            
+            try:
+                for widget in self.findChildren(QLabel):
+                    text = widget.text()
+                    if text == "Automation Settings":
+                        widget.setText(t("Automation Settings"))
+                    elif text == "Button Sequences":
+                        widget.setText(t("Button Sequences"))
+                    elif text == "Press Delay:":
+                        widget.setText(t("Press Delay:"))
+                    elif text == "Sequence Delay:":
+                        widget.setText(t("Sequence Delay:"))
+                    elif text == "Key Hold Duration:":
+                        widget.setText(t("Key Hold Duration"))
+                    elif text == "Skip Recent Kills:":
+                        widget.setText(t("Skip Recent Kills"))
+                    elif text == "Time limit:":
+                        widget.setText(t("Time limit:"))
+                    elif text == "Note: Each sequence can be individually set to skip on recent kills":
+                        widget.setText(t("Note: Each sequence can be individually set to skip on recent kills"))
+                    elif text.endswith(" seconds"):
+                        seconds = text.replace(" seconds", "")
+                        widget.setText(f"{seconds} {t('seconds')}")
+                    elif text.startswith("Status: Enabled"):
+                        if "sequences active" in text:
+                            parts = text.split("-")
+                            if len(parts) > 1:
+                                count_part = parts[1].strip()
+                                widget.setText(f"{t('Status: Enabled')} - {count_part.replace('sequences active', t('sequences active'))}")
+                        else:
+                            widget.setText(t("Status: Enabled"))
+                    elif text.startswith("Status: Disabled"):
+                        if "sequences configured" in text:
+                            parts = text.split("-")
+                            if len(parts) > 1:
+                                count_part = parts[1].strip()
+                                widget.setText(f"{t('Status: Disabled')} - {count_part.replace('sequences configured', t('sequences configured'))}")
+                        else:
+                            widget.setText(t("Status: Disabled"))
+            except Exception as e:
+                logging.debug(f"Error updating Button Automation label translations: {e}")
+            
+            try:
+                for group_box in self.findChildren(QGroupBox):
+                    title = group_box.title()
+                    if title == "Automation Settings":
+                        group_box.setTitle(t("Automation Settings"))
+                    elif title == "Button Sequences":
+                        group_box.setTitle(t("Button Sequences"))
+                    elif title == "Recent Kills Protection":
+                        group_box.setTitle(t("Recent Kills Protection"))
+            except Exception as e:
+                logging.debug(f"Error updating Button Automation group box translations: {e}")
+                
+            try:
+                if hasattr(self, 'skip_recent_kills_checkbox'):
+                    self.skip_recent_kills_checkbox.setText(t("Skip key presses if another kill happens within time limit"))
+            except Exception as e:
+                logging.debug(f"Error updating Button Automation checkbox translations: {e}")
+                
+            self.refresh_sequences()
+            self.update_status()
+            
+        except Exception as e:
+            logging.error(f"Error updating Button Automation translations: {e}")
+
     def get_button_automation(self) -> ButtonAutomation:
         """Get the button automation instance"""
         return self.button_automation

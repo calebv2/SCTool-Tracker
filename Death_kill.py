@@ -4,6 +4,7 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
     from urllib.parse import quote
     from fetch import fetch_player_details, fetch_victim_image_base64
     from kill_parser import KillParser
+    from language_manager import t
 
     attacker = data.get('attacker', 'Unknown')
     zone = data.get('zone', 'Unknown')
@@ -27,7 +28,7 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
                 <td colspan="2" style="background: linear-gradient(135deg, #151515, #0d0d0d); border-bottom: 1px solid #333333; padding: 12px 15px;">
                     <div style="font-size:24px; font-weight:bold; color: #f04747; text-shadow: 0 0 5px #f04747; display: flex; align-items: center;">
                         <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #f04747; margin-right: 10px; box-shadow: 0 0 5px #f04747;"></span>
-                        YOU DIED
+                        {t("YOU DIED")}
                     </div>
                 </td>
             </tr>
@@ -36,27 +37,27 @@ def format_death_kill(log_line: str, data: dict, registered_user: str, timestamp
                     <table style="width: 100%; border-collapse: separate; border-spacing: 0 8px;">
                         <tr>
                             <td style="background-color: #0c2026; padding: 12px; border-radius: 8px; border-left: 3px solid #00ccff;">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">Game Mode:</b> <span style="color: #00ccff; text-shadow: 0 0 2px #00ccff;">{last_game_mode if last_game_mode else 'Unknown'}</span></p>
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">Timestamp:</b> {timestamp}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">{t("GAME MODE")}:</b> <span style="color: #00ccff; text-shadow: 0 0 2px #00ccff;">{last_game_mode if last_game_mode else t('Unknown')}</span></p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #00ccff;">{t("Timestamp")}:</b> {timestamp}</p>
                             </td>
                         </tr>
                         <tr>
                             <td style="background-color: #260c0c; padding: 12px; border-radius: 8px; border-left: 3px solid #f04747;">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">Attacker:</b> {attacker_link}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">{t("Attacker")}:</b> {attacker_link}</p>
                                 <p style="font-size:14px; margin:4px 0;">
-                                    <b style="color: #f04747;">Organization:</b> {details.get('org_name', 'None')} 
-                                    <span style="color: #888888;">(Tag:</span> 
+                                    <b style="color: #f04747;">{t("Organization")}:</b> {details.get('org_name', t('None'))} 
+                                    <span style="color: #888888;">({t("Tag")}:</span> 
                                     <a href="https://robertsspaceindustries.com/en/orgs/{details.get('org_tag', 'None')}" 
                                        style="color:#f04747; text-decoration:none;">
-                                       {details.get('org_tag', 'None')}
+                                       {details.get('org_tag', t('None'))}
                                     </a><span style="color: #888888;">)</span>
                                 </p>
                             </td>
                         </tr>
                         <tr>
                             <td style="background-color: #262610; padding: 12px; border-radius: 8px; border-left: 3px solid #ffcc00;">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">Location:</b> {formatted_zone}</p>
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">Damage Type:</b> {formatted_weapon}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">{t("Location")}:</b> {formatted_zone}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">{t("Damage Type")}:</b> {formatted_weapon}</p>
                             </td>
                         </tr>
                     </table>

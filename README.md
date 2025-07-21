@@ -483,51 +483,6 @@ The SCTool Tracker is built with a modular architecture consisting of several ke
 11. Responsive UI system adjusts the interface based on screen resolution and DPI
 12. All events and errors are logged for debugging and troubleshooting purposes
 
-### File Structure
-
-```
-SCTool Tracker/
-├── Kill_main.py                    # Main entry point and initialization
-├── Kill_form.py                    # Primary GUI implementation and logic
-├── Kill_thread.py                  # Background monitoring and API threads
-├── kill_parser.py                  # Log parsing and combat data extraction
-├── overlay.py                      # Advanced overlay system controller
-├── overlays/                       # Overlay display modes
-│   ├── __init__.py
-│   ├── compact_overlay.py          # Compact statistics display
-│   ├── detailed_overlay.py         # Comprehensive statistics view
-│   ├── faded_overlay.py           # Kill/death notifications
-│   ├── horizontal_overlay.py       # Ultrawide monitor layout
-│   ├── minimal_overlay.py         # Minimal statistics display
-│   ├── form.py                    # Overlay form utilities
-│   └── route.py                   # Overlay routing logic
-├── kill_clip.py                   # Button automation and clip system
-├── Registered_kill.py             # Kill event formatting and display
-├── Death_kill.py                  # Death event formatting and display
-├── twitch_integration.py          # Twitch OAuth, clips, and chat
-├── fetch.py                       # RSI profile and image fetching
-├── responsive_ui.py               # High-DPI scaling and responsive design
-├── utlity.py                      # UI utilities and helper functions
-├── requirements.txt               # Python package dependencies
-├── config.json                    # User configuration (generated)
-├── ships.json                     # Star Citizen ship database
-├── twitch_config.json            # Twitch integration settings
-├── button_automation_config.json  # Button automation sequences
-├── kill.wav                       # Default kill sound notification
-├── death.wav                      # Default death sound notification
-├── avatar_default_big.jpg         # Default profile image fallback
-├── chris2.ico                     # Application icon
-├── README.md                      # This documentation file
-├── SCTool.iss                     # Inno Setup installer script
-├── Kill_main.spec                 # PyInstaller build specification
-├── build/                         # Build artifacts (generated)
-├── EXE/                          # Distribution files
-│   ├── Kill_main.exe             # Main executable
-│   ├── SCTool_Killfeed_5.4_Setup.exe # Installer
-│   └── License.txt               # License information
-└── __pycache__/                  # Python cache files (generated)
-```
-
 ## Log File Parsing Details
 
 Star Citizen logs combat events in a specific format that the tracker parses. The key patterns include:

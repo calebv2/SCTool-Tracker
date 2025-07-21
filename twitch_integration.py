@@ -10,6 +10,7 @@ import http.server
 import socketserver
 import socket
 import requests
+import base64
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Callable, List
 from urllib.parse import urlparse, parse_qs
@@ -22,8 +23,25 @@ from PyQt5.QtWidgets import (
 
 TWITCH_CONFIG_FILE = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "SCTool_Tracker", "twitch_config.json")
 
+def get_sctool_image_base64():
+    """Get the SCtool.png image as a base64 data URL"""
+    try:
+        image_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SCtool.png')
+        if os.path.exists(image_path):
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+                base64_data = base64.b64encode(image_data).decode('utf-8')
+                return f"data:image/png;base64,{base64_data}"
+        else:
+            logging.warning(f"SCtool.png not found at {image_path}")
+            return None
+    except Exception as e:
+        logging.error(f"Error loading SCtool.png as base64: {e}")
+        return None
+
 class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
     """Custom handler for Twitch OAuth callback"""
+    
     def do_GET(self):
         """Handle GET request to OAuth callback URL"""
         parsed_url = urlparse(self.path)
@@ -40,6 +58,9 @@ class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html')
                 self.end_headers()
+                
+                bg_image = get_sctool_image_base64()
+                bg_style = f"background-image: url('{bg_image}');" if bg_image else ""
                 
                 error_html = f"""
                 <!DOCTYPE html>
@@ -94,7 +115,8 @@ class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
                             flex-direction: column;
                             min-height: 100vh;
                             font-family: var(--font-family);
-                            background-image: url('Static/SCtool.png');
+                            background: linear-gradient(135deg, var(--background-color) 0%, var(--secondary-color) 100%);
+                            {bg_style}
                             background-repeat: no-repeat;
                             background-position: center center;
                             background-attachment: fixed;
@@ -262,6 +284,9 @@ class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             
+            bg_image = get_sctool_image_base64()
+            bg_style = f"background-image: url('{bg_image}');" if bg_image else ""
+            
             response_content = """
                 <!DOCTYPE html>
                 <html lang="en">
@@ -314,7 +339,8 @@ class TwitchAuthHandler(http.server.SimpleHTTPRequestHandler):
                             flex-direction: column;
                             min-height: 100vh;
                             font-family: var(--font-family);
-                            background-image: url('file:///C:/Users/caleb/OneDrive/Desktop/SCTool Tracker/Static/SCtool.png');
+                            background: linear-gradient(135deg, var(--background-color) 0%, var(--secondary-color) 100%);
+                            """ + bg_style + """
                             background-repeat: no-repeat;
                             background-position: center center;
                             background-attachment: fixed;

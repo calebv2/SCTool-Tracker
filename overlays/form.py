@@ -2,8 +2,14 @@
 
 import sys
 import ctypes
+import os
 from ctypes import wintypes
 
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from language_manager import t
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QTimer
 
@@ -97,7 +103,7 @@ class HotkeyCapture(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        self.capture_button = QPushButton("Click to Capture Hotkey")
+        self.capture_button = QPushButton(t("Click to Capture Hotkey"))
         self.capture_button.setStyleSheet("""
             QPushButton {
                 background-color: #1e1e1e;
@@ -134,8 +140,8 @@ class HotkeyCapture(QWidget):
         """Start capturing hotkey combination"""
         self.capturing = True
         self.pressed_keys.clear()
-        self.captured_modifiers = []  # Clear captured modifiers
-        self.capture_button.setText("Press key combination...")
+        self.captured_modifiers = []
+        self.capture_button.setText(t("Press key combination..."))
         self.capture_button.setStyleSheet("""
             QPushButton {
                 background-color: #ff4444;
@@ -147,7 +153,7 @@ class HotkeyCapture(QWidget):
                 min-height: 30px;
                 font-weight: bold;
             }        """)
-        self.status_label.setText("Press your desired key combination now...")
+        self.status_label.setText(t("Press your desired key combination now..."))
         self.setFocus()
         self.grabKeyboard()
     
@@ -155,7 +161,7 @@ class HotkeyCapture(QWidget):
         """Stop capturing and process the result"""
         self.capturing = False
         self.releaseKeyboard()
-        self.capture_button.setText("Click to Capture Hotkey")
+        self.capture_button.setText(t("Click to Capture Hotkey"))
         self.capture_button.setStyleSheet("""
             QPushButton {
                 background-color: #1e1e1e;
@@ -193,11 +199,11 @@ class HotkeyCapture(QWidget):
                 else:
                     hotkey = main_key
                 
-                self.status_label.setText(f"Captured: {hotkey}")
+                self.status_label.setText(f"{t('Captured:')}: {hotkey}")
                 self.hotkey_captured.emit(hotkey)
-            else:                self.status_label.setText("No valid key detected. Try again.")
+            else:                self.status_label.setText(t("No valid key detected. Try again."))
         else:
-            self.status_label.setText("No keys detected. Try again.")
+            self.status_label.setText(t("No keys detected. Try again."))
     
     def keyPressEvent(self, event):
         """Handle key press during capture"""
@@ -209,7 +215,7 @@ class HotkeyCapture(QWidget):
         
         if key == Qt.Key_Escape:
             self.stop_capture()
-            self.status_label.setText("Capture cancelled.")
+            self.status_label.setText(t("Capture cancelled."))
             return
 
         if key in self.modifier_names or key in self.key_names:
@@ -219,7 +225,7 @@ class HotkeyCapture(QWidget):
 
         current_combo = self.build_current_combo()
         if current_combo:
-            self.status_label.setText(f"Current: {current_combo}")
+            self.status_label.setText(f"{t('Current:')}: {current_combo}")
         event.accept()
     
     def keyReleaseEvent(self, event):
@@ -252,6 +258,16 @@ class HotkeyCapture(QWidget):
             return '+'.join(specific_modifiers) + '+...'
         
         return ""
+    
+    def update_translations(self):
+        """Update UI text when language changes"""
+        if hasattr(self, 'capture_button'):
+            if self.capturing:
+                self.capture_button.setText(t("Press key combination..."))
+                if hasattr(self, 'status_label') and self.status_label.text().startswith("Press your desired"):
+                    self.status_label.setText(t("Press your desired key combination now..."))
+            else:
+                self.capture_button.setText(t("Click to Capture Hotkey"))
 
 class GlobalHotkeyThread(QThread):
     """Thread to handle global hotkey detection"""
@@ -328,16 +344,16 @@ class GlobalHotkeyThread(QThread):
             elif part in VK_CODES:
                 self.key_code = VK_CODES[part]
             else:
-                print(f"Warning: Unknown key '{part}' in hotkey combination '{key_combo}'")
+                print(t("Warning: Unknown key '%s' in hotkey combination '%s'") % (part, key_combo))
     
     def run(self):
         """Run the hotkey detection loop"""
         if not sys.platform.startswith('win'):
-            print("Global hotkeys are only supported on Windows")
+            print(t("Global hotkeys are only supported on Windows"))
             return
             
         if self.key_code == 0:
-            print(f"Invalid hotkey combination: {self.key_combination}")
+            print(t("Invalid hotkey combination: %s") % self.key_combination)
             return
             
         self.running = True
@@ -351,12 +367,12 @@ class GlobalHotkeyThread(QThread):
         if not success:
             error_code = kernel32.GetLastError()
             if error_code == 1409:
-                print(f"Hotkey {self.key_combination} is already registered by another application")
+                print(t("Hotkey %s is already registered by another application") % self.key_combination)
             else:
-                print(f"Failed to register hotkey {self.key_combination}. Error code: {error_code}")
+                print(t("Failed to register hotkey %s. Error code: %s") % (self.key_combination, error_code))
             return
         
-        print(f"Successfully registered global hotkey: {self.key_combination}")
+        print(t("Successfully registered global hotkey: %s") % self.key_combination)
         
         try:
             msg = wintypes.MSG()
@@ -374,7 +390,7 @@ class GlobalHotkeyThread(QThread):
                 
         finally:
             user32.UnregisterHotKey(None, self.hotkey_id)
-            print(f"Unregistered hotkey: {self.key_combination}")
+            print(t("Unregistered hotkey: %s") % self.key_combination)
     
     def stop(self):
         """Stop the hotkey detection"""

@@ -1,5 +1,10 @@
 # faded_overlay.py
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from language_manager import t
+
 from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QWidget, QLabel, QApplication
 )
@@ -54,13 +59,13 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
         if formatted_weapon != 'Unknown':
             weapon_clean = formatted_weapon
         else:
-            weapon_clean = self.clean_weapon_name(weapon)
+            weapon_clean = clean_weapon_name(weapon)
             
     except ImportError:
         details = {'org_name': 'Unknown', 'org_tag': 'Unknown'}
         attacker_image_data_uri = ""
         formatted_zone = zone.replace('_', ' ').title()
-        weapon_clean = self.clean_weapon_name(weapon)
+        weapon_clean = clean_weapon_name(weapon)
 
     notification_widget = QWidget()
     notification_layout = QHBoxLayout(notification_widget)
@@ -71,7 +76,7 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
     text_layout = QVBoxLayout(text_container)
     text_layout.setSpacing(12)
 
-    header = QLabel("YOU DIED")
+    header = QLabel(t("YOU DIED"))
     header.setAlignment(Qt.AlignLeft)
     header.setStyleSheet(f"""
         QLabel {{
@@ -84,7 +89,7 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
     """)
     text_layout.addWidget(header)
 
-    attacker_label = QLabel(f"KILLED BY: {attacker.upper()}")
+    attacker_label = QLabel(f"{t('KILLED BY:')} {attacker.upper()}")
     attacker_label.setAlignment(Qt.AlignLeft)
     attacker_label.setStyleSheet(f"""
         QLabel {{
@@ -104,7 +109,7 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
     org_info.setSpacing(4)
     
     if org_name != 'None' and org_name != 'Unknown':
-        org_label = QLabel(f"Organization: {org_name}")
+        org_label = QLabel(f"{t('Organization')}: {org_name}")
         org_label.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_secondary'].name()};
@@ -116,7 +121,7 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
         org_info.addWidget(org_label)
         
         if org_tag != 'None' and org_tag != 'Unknown':
-            tag_label = QLabel(f"Tag: [{org_tag}]")
+            tag_label = QLabel(f"{t('Tag')}: [{org_tag}]")
             tag_label.setStyleSheet(f"""
                 QLabel {{
                     color: {self.colors['accent'].name()};
@@ -127,7 +132,7 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
             """)
             org_info.addWidget(tag_label)
     else:
-        org_label = QLabel("Organization: Independent")
+        org_label = QLabel(f"{t('Organization')}: {t('Independent')}")
         org_label.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_secondary'].name()};
@@ -142,8 +147,8 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
 
     details_layout = QVBoxLayout()
     details_layout.setSpacing(6)
-    
-    weapon_label = QLabel(f"Weapon: {weapon_clean}")
+
+    weapon_label = QLabel(f"{t('Weapon')}: {weapon_clean}")
     weapon_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_primary'].name()};
@@ -152,8 +157,8 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
             background: transparent;
         }}
     """)
-    
-    location_label = QLabel(f"Location: {formatted_zone}")
+
+    location_label = QLabel(f"{t('Location')}: {formatted_zone}")
     location_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_primary'].name()};
@@ -162,8 +167,8 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
             background: transparent;
         }}
     """)
-    
-    mode_label = QLabel(f"Mode: {game_mode}")
+
+    mode_label = QLabel(f"{t('Mode')}: {game_mode}")
     mode_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['info_color'].name()};
@@ -236,13 +241,16 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
         
         notification_layout.addWidget(image_container, 0)
 
-    if self.faded_container.layout():
-        old_layout = self.faded_container.layout()
-        while old_layout.count():
-            child = old_layout.takeAt(0)
-            if child.widget():
-                child.widget().setParent(None)
-        old_layout.setParent(None)
+    try:
+        if self.faded_container and self.faded_container.layout():
+            old_layout = self.faded_container.layout()
+            while old_layout.count():
+                child = old_layout.takeAt(0)
+                if child.widget():
+                    child.widget().setParent(None)
+            old_layout.setParent(None)
+    except (RuntimeError, AttributeError):
+        pass
     
     new_layout = QVBoxLayout(self.faded_container)
     new_layout.setContentsMargins(0, 0, 0, 0)
@@ -278,7 +286,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
         details = {'org_name': 'Unknown', 'org_tag': 'Unknown'}
         victim_image_data_uri = ""
         formatted_zone = zone.replace('_', ' ').title()
-        weapon_clean = self.clean_weapon_name(weapon)
+        weapon_clean = clean_weapon_name(weapon)
     
     notification_widget = QWidget()
     notification_layout = QHBoxLayout(notification_widget)
@@ -288,8 +296,8 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
     text_container = QWidget()
     text_layout = QVBoxLayout(text_container)
     text_layout.setSpacing(12)
-    
-    header = QLabel("YOU KILLED")
+
+    header = QLabel(t("YOU KILLED"))
     header.setAlignment(Qt.AlignLeft)
     header.setStyleSheet(f"""
         QLabel {{
@@ -301,8 +309,8 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
         }}
     """)
     text_layout.addWidget(header)
-    
-    victim_label = QLabel(victim.upper())
+
+    victim_label = QLabel(t(victim.upper()))
     victim_label.setAlignment(Qt.AlignLeft)
     victim_label.setStyleSheet(f"""
         QLabel {{
@@ -322,7 +330,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
     org_info.setSpacing(4)
     
     if org_name != 'None' and org_name != 'Unknown':
-        org_label = QLabel(f"Organization: {org_name}")
+        org_label = QLabel(f"{t('Organization')}: {org_name}")
         org_label.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_secondary'].name()};
@@ -334,7 +342,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
         org_info.addWidget(org_label)
         
         if org_tag != 'None' and org_tag != 'Unknown':
-            tag_label = QLabel(f"Tag: [{org_tag}]")
+            tag_label = QLabel(f"{t('Tag')}: [{org_tag}]")
             tag_label.setStyleSheet(f"""
                 QLabel {{
                     color: {self.colors['accent'].name()};
@@ -345,7 +353,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
             """)
             org_info.addWidget(tag_label)
     else:
-        org_label = QLabel("Organization: Independent")
+        org_label = QLabel(f"{t('Organization')}: {t('Independent')}")
         org_label.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_secondary'].name()};
@@ -360,8 +368,8 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
     
     details_layout = QVBoxLayout()
     details_layout.setSpacing(6)
-    
-    weapon_label = QLabel(f"Weapon: {weapon_clean}")
+
+    weapon_label = QLabel(f"{t('Weapon')}: {weapon_clean}")
     weapon_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_primary'].name()};
@@ -371,7 +379,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
         }}
     """)
     
-    location_label = QLabel(f"Location: {formatted_zone}")
+    location_label = QLabel(f"{t('Location')}: {formatted_zone}")
     location_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_primary'].name()};
@@ -381,7 +389,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
         }}
     """)
     
-    mode_label = QLabel(f"Mode: {game_mode}")
+    mode_label = QLabel(f"{t('Mode')}: {game_mode}")
     mode_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['info_color'].name()};
@@ -453,9 +461,12 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
         
         notification_layout.addWidget(image_container, 0)
 
-    self.faded_container.setLayout(QVBoxLayout())
-    self.faded_container.layout().setContentsMargins(0, 0, 0, 0)
-    self.faded_container.layout().addWidget(notification_widget)
+    try:
+        self.faded_container.setLayout(QVBoxLayout())
+        self.faded_container.layout().setContentsMargins(0, 0, 0, 0)
+        self.faded_container.layout().addWidget(notification_widget)
+    except (RuntimeError, AttributeError):
+        return
     
     self.show_faded_notification()
 
@@ -469,12 +480,16 @@ def show_faded_notification(self):
     else:
         self.stop_all_faded_animations()
 
-    self.faded_container.adjustSize()
-    self.adjustSize()
+    try:
+        self.faded_container.adjustSize()
+        self.adjustSize()
 
-    natural_size = self.faded_container.sizeHint()
-    min_width = max(natural_size.width() + 20, 300)
-    min_height = max(natural_size.height() + 20, 150)
+        natural_size = self.faded_container.sizeHint()
+        min_width = max(natural_size.width() + 20, 300)
+        min_height = max(natural_size.height() + 20, 150)
+    except (RuntimeError, AttributeError):
+        min_width = 300
+        min_height = 150
     self.resize(min_width, min_height)
 
     self.faded_container.show()
@@ -500,7 +515,7 @@ def show_faded_positioning_helper(self):
     text_layout = QVBoxLayout(text_container)
     text_layout.setSpacing(12)
 
-    header = QLabel("POSITIONING HELPER")
+    header = QLabel(t("POSITIONING HELPER"))
     header.setAlignment(Qt.AlignLeft)
     header.setStyleSheet(f"""
         QLabel {{
@@ -513,7 +528,7 @@ def show_faded_positioning_helper(self):
     """)
     text_layout.addWidget(header)
 
-    player_label = QLabel("SAMPLE PLAYER NAME")
+    player_label = QLabel(t("SAMPLE PLAYER NAME"))
     player_label.setAlignment(Qt.AlignLeft)
     player_label.setStyleSheet(f"""
         QLabel {{
@@ -529,7 +544,7 @@ def show_faded_positioning_helper(self):
     org_info = QVBoxLayout()
     org_info.setSpacing(4)
     
-    org_label = QLabel("Organization: Example Organization")
+    org_label = QLabel(t("Organization") + ": " + t("Example Organization"))
     org_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -540,7 +555,7 @@ def show_faded_positioning_helper(self):
     """)
     org_info.addWidget(org_label)
     
-    tag_label = QLabel("Tag: [EXMP]")
+    tag_label = QLabel(t("Tag") + ": [EXMP]")
     tag_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['accent'].name()};
@@ -556,7 +571,7 @@ def show_faded_positioning_helper(self):
     details_layout = QVBoxLayout()
     details_layout.setSpacing(6)
     
-    weapon_label = QLabel("Weapon: Sample Weapon Name")
+    weapon_label = QLabel(t("Weapon") + ": " + t("Sample Weapon Name"))
     weapon_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_primary'].name()};
@@ -566,7 +581,7 @@ def show_faded_positioning_helper(self):
         }}
     """)
     
-    location_label = QLabel("Location: Sample Location")
+    location_label = QLabel(t("Location") + ": " + t("Sample Location"))
     location_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_primary'].name()};
@@ -576,7 +591,7 @@ def show_faded_positioning_helper(self):
         }}
     """)
     
-    mode_label = QLabel("Mode: Arena Commander")
+    mode_label = QLabel(t("Mode") + ": " + t("Arena Commander"))
     mode_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['info_color'].name()};
@@ -586,7 +601,7 @@ def show_faded_positioning_helper(self):
         }}
     """)
     
-    instruction_label = QLabel("Drag to position this overlay")
+    instruction_label = QLabel(t("Drag to position this overlay"))
     instruction_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['accent'].name()};
@@ -629,9 +644,12 @@ def show_faded_positioning_helper(self):
     
     notification_layout.addWidget(image_container, 0)
 
-    self.faded_container.setLayout(QVBoxLayout())
-    self.faded_container.layout().setContentsMargins(0, 0, 0, 0)
-    self.faded_container.layout().addWidget(notification_widget)
+    try:
+        self.faded_container.setLayout(QVBoxLayout())
+        self.faded_container.layout().setContentsMargins(0, 0, 0, 0)
+        self.faded_container.layout().addWidget(notification_widget)
+    except (RuntimeError, AttributeError):
+        return
 
     self.faded_container.adjustSize()
     self.adjustSize()
@@ -699,8 +717,11 @@ def hide_positioning_helper(self):
         self.positioning_mode = False
         
     if hasattr(self, 'countdown_timer'):
-        self.countdown_timer.stop()
-        self.countdown_timer.deleteLater()
+        try:
+            self.countdown_timer.stop()
+            self.countdown_timer.deleteLater()
+        except (RuntimeError, AttributeError):
+            pass
         delattr(self, 'countdown_timer')
         
     if hasattr(self, 'countdown_label'):
@@ -782,22 +803,28 @@ def clear_faded_container(self):
         if hasattr(self, 'countdown_seconds'):
             delattr(self, 'countdown_seconds')
 
-    if hasattr(self, 'faded_container'):
-        if self.faded_container.layout():
-            old_layout = self.faded_container.layout()
-            while old_layout.count():
-                child = old_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
+    if hasattr(self, 'faded_container') and self.faded_container is not None:
+        try:
+            if self.faded_container.layout():
+                old_layout = self.faded_container.layout()
+                while old_layout.count():
+                    child = old_layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+        except RuntimeError:
+            pass
 
     self.faded_container = QWidget()
     self.faded_container.setAttribute(Qt.WA_TransparentForMouseEvents)
     self.faded_container.setStyleSheet("background: transparent;")
 
-    if hasattr(self, 'layout') and self.layout():
-        self.layout().addWidget(self.faded_container)
+    try:
+        if hasattr(self, 'layout') and self.layout():
+            self.layout().addWidget(self.faded_container)
+    except (RuntimeError, AttributeError):
+        pass
 
-def clean_weapon_name(self, weapon_name: str) -> str:
+def clean_weapon_name(weapon_name: str) -> str:
     """Clean weapon name by removing long ID strings and replacing underscores with spaces"""
     weapon_name = re.sub(r'_\d+$', '', weapon_name)
     weapon_name = weapon_name.replace('_', ' ')

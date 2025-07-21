@@ -2,12 +2,13 @@
 
 """
 SCTool Killfeed
-Version: 5.6.1
 """
 
 import sys
 import logging
 import atexit
+import os
+import json
 from PyQt5.QtWidgets import QApplication
 from responsive_ui import enable_high_dpi_support
 
@@ -26,7 +27,22 @@ def cleanup_hotkeys():
 
 atexit.register(cleanup_hotkeys)
 
+def should_start_minimized():
+    """Check if the app should start minimized (when starting with Windows and minimize to tray is enabled)"""
+    try:
+        from Kill_form import get_appdata_paths
+        config_file, _, _ = get_appdata_paths()
+        
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config.get('start_with_system', False) and config.get('minimize_to_tray', False)
+    except Exception as e:
+        logging.error(f"Error checking if app should start minimized: {e}")
+    
+    return False
+
 from Kill_form import main
 
 if __name__ == "__main__":
-    main()
+    main(start_minimized=should_start_minimized())

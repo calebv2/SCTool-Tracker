@@ -6,7 +6,7 @@ from typing import Optional
 CHROME_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/112.0.5615.121 Safari/537.36"
+    "Chrome/131.0.0.0 Safari/537.36"
 )
 KILL_LOG_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> \[Notice\] <Actor Death> CActor::Kill: '(?P<victim>[^']+)' "
@@ -18,6 +18,8 @@ KILL_LOG_PATTERN = re.compile(
 GAME_MODE_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> Loading GameModeRecord='(?P<game_mode>[^']+)' with EGameModeId='[^']+'"
 )
+
+VERSION = "5.6.4"
 
 GAME_MODE_MAPPING = {
     'EA_TeamElimination': 'Team Elimination',

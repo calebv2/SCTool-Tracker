@@ -1,5 +1,10 @@
 # horizontal_overlay.py
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from language_manager import t
+
 from PyQt5.QtWidgets import (
     QVBoxLayout, 
     QHBoxLayout, 
@@ -18,7 +23,7 @@ def create_horizontal_ui(self):
     title_layout = QHBoxLayout()
     title_layout.setSpacing(5)
     
-    title = QLabel("SCTool Killfeed")
+    title = QLabel(t("SCTool Killfeed"))
     title.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['accent'].name()};
@@ -58,7 +63,7 @@ def create_horizontal_ui(self):
     
     kills_container = QVBoxLayout()
     kills_container.setSpacing(0)
-    kills_label = QLabel("KILLS")
+    kills_label = QLabel(t("KILLS"))
     kills_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -84,7 +89,7 @@ def create_horizontal_ui(self):
 
     deaths_container = QVBoxLayout()
     deaths_container.setSpacing(0)
-    deaths_label = QLabel("DEATHS")
+    deaths_label = QLabel(t("DEATHS"))
     deaths_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -110,7 +115,7 @@ def create_horizontal_ui(self):
 
     kd_container = QVBoxLayout()
     kd_container.setSpacing(0)
-    kd_label = QLabel("K/D")
+    kd_label = QLabel(t("K/D"))
     kd_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -149,7 +154,7 @@ def create_horizontal_ui(self):
     session_info_section = QVBoxLayout()
     session_info_section.setSpacing(2)
     
-    self.session_time_label_h = QLabel("Session: 00:00")
+    self.session_time_label_h = QLabel(t("Session") + ": 00:00")
     self.session_time_label_h.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['info_color'].name()};
@@ -159,7 +164,7 @@ def create_horizontal_ui(self):
         }}
     """)
     
-    self.game_mode_label_h = QLabel("Mode: Unknown")
+    self.game_mode_label_h = QLabel(t("Mode") + ": " + t("Unknown"))
     self.game_mode_label_h.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -170,7 +175,7 @@ def create_horizontal_ui(self):
     """)
     self.game_mode_label_h.setWordWrap(True)
     
-    self.ship_label_h = QLabel("Ship: Unknown")
+    self.ship_label_h = QLabel(t("Ship") + ": " + t("Unknown"))
     self.ship_label_h.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -199,7 +204,7 @@ def create_horizontal_ui(self):
     if self.config.get('show_latest_kill', True):
         kill_info = QVBoxLayout()
         kill_info.setSpacing(2)
-        kill_title = QLabel("LATEST KILL")
+        kill_title = QLabel(t("LATEST KILL"))
         kill_title.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['kill_color'].name()};
@@ -209,7 +214,7 @@ def create_horizontal_ui(self):
             }}
         """)
         kill_title.setAlignment(Qt.AlignCenter)
-        self.latest_kill_info_h = QLabel("No kills yet")
+        self.latest_kill_info_h = QLabel(t("No kills yet"))
         self.latest_kill_info_h.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -226,7 +231,7 @@ def create_horizontal_ui(self):
     if self.config.get('show_latest_death', True):
         death_info = QVBoxLayout()
         death_info.setSpacing(2)
-        death_title = QLabel("LATEST DEATH")
+        death_title = QLabel(t("LATEST DEATH"))
         death_title.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['death_color'].name()};
@@ -236,7 +241,7 @@ def create_horizontal_ui(self):
             }}
         """)
         death_title.setAlignment(Qt.AlignCenter)
-        self.latest_death_info_h = QLabel("No deaths yet")
+        self.latest_death_info_h = QLabel(t("No deaths yet"))
         self.latest_death_info_h.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};

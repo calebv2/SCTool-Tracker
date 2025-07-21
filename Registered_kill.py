@@ -11,6 +11,7 @@ def format_registered_kill(
     from urllib.parse import quote
     from fetch import fetch_player_details, fetch_victim_image_base64
     from kill_parser import KillParser
+    from language_manager import t
     import re
 
     victim = data.get('victim', 'Unknown')
@@ -18,11 +19,11 @@ def format_registered_kill(
     damage_type = data.get('damage_type', 'Unknown')
     weapon = data.get('weapon', 'Unknown')
     
-    killer_ship = data.get('killer_ship', "Player destruction")
+    killer_ship = data.get('killer_ship', t("Player destruction"))
     killer_ship = re.sub(r'_\d+$', '', killer_ship)
     killer_ship = killer_ship.replace("_", " ")
     killer_ship = re.sub(r'\s+\d+$', '', killer_ship)
-    if killer_ship.lower() == "no ship":
+    if killer_ship.lower() == t("no ship").lower():
         killer_ship = ""
     
     formatted_zone = KillParser.format_zone(zone)
@@ -39,18 +40,18 @@ def format_registered_kill(
     )
     
     if damage_type.lower() == "vehicledestruction":
-        if killer_ship.lower() not in ["vehicle destruction", "player destruction", ""]:
-            engagement = f"{killer_ship} using {formatted_weapon}"
+        if killer_ship.lower() not in [t("vehicle destruction").lower(), t("player destruction").lower(), ""]:
+            engagement = f"{killer_ship} {t('using')} {formatted_weapon}"
         else:
             engagement = f"{formatted_weapon}"
-        method = "Vehicle destruction"
+        method = t("Vehicle destruction")
     else:
         engagement = f"{formatted_weapon}"
-        method = "Player destruction"
+        method = t("Player destruction")
 
     header_text = (
-        "New Kill Recorded Successfully"
-        if success else "New Kill Did Not Get Recorded Successfully"
+        t("New Kill Recorded Successfully")
+        if success else t("New Kill Did Not Get Recorded Successfully")
     )
     
     readout = f"""
@@ -66,7 +67,7 @@ def format_registered_kill(
                 <td colspan="2" style="background: linear-gradient(135deg, #151515, #0d0d0d); border-bottom: 1px solid #333333; padding: 12px 15px;">
                     <div style="font-size:22px; font-weight:bold; color: #66ff66; text-shadow: 0 0 5px #66ff66; display: flex; align-items: center;">
                         <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #66ff66; margin-right: 10px; box-shadow: 0 0 5px #66ff66;"></span>
-                        YOU KILLED {victim.upper()}
+                        {t("YOU KILLED")} {victim.upper()}
                     </div>
                 </td>
             </tr>
@@ -75,27 +76,27 @@ def format_registered_kill(
                     <table style="width: 100%; border-collapse: separate; border-spacing: 0 8px;">
                         <tr>
                             <td style="background-color: #262610; padding: 12px; border-radius: 8px; border-left: 3px solid #ffcc00;">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">Timestamp:</b> {display_timestamp}</p>
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">Game Mode:</b> <span style="color: #00ccff; text-shadow: 0 0 2px #00ccff;">{last_game_mode if last_game_mode else 'Unknown'}</span></p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">{t("Timestamp")}:</b> {display_timestamp}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #ffcc00;">{t("GAME MODE")}:</b> <span style="color: #00ccff; text-shadow: 0 0 2px #00ccff;">{last_game_mode if last_game_mode else t('Unknown')}</span></p>
                             </td>
                         </tr>
                         <tr>
                             <td style="background-color: #102610; padding: 12px; border-radius: 8px; border-left: 3px solid #66ff66;">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #66ff66;">Attacker:</b> <span style="color: #66ff66; text-shadow: 0 0 2px #66ff66;">{registered_user}</span></p>
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #66ff66;">Engagement:</b> {engagement}</p>
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #66ff66;">Method:</b> {method}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #66ff66;">{t("Attacker")}:</b> <span style="color: #66ff66; text-shadow: 0 0 2px #66ff66;">{registered_user}</span></p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #66ff66;">{t("Engagement")}:</b> {engagement}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #66ff66;">{t("Method")}:</b> {method}</p>
                             </td>
                         </tr>
                         <tr>
                             <td style="background-color: #260c0c; padding: 12px; border-radius: 8px; border-left: 3px solid #f04747;">
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">Victim:</b> {victim_link}</p>
-                                <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">Location:</b> {formatted_zone}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">{t("Victim")}:</b> {victim_link}</p>
+                                <p style="font-size:14px; margin:4px 0;"><b style="color: #f04747;">{t("Location")}:</b> {formatted_zone}</p>
                                 <p style="font-size:14px; margin:4px 0;">
-                                    <b style="color: #f04747;">Organization:</b> {details.get('org_name', 'None')} 
-                                    <span style="color: #888888;">(Tag:</span>
+                                    <b style="color: #f04747;">{t("Organization")}:</b> {details.get('org_name', t('None'))} 
+                                    <span style="color: #888888;">({t("Tag")}:</span>
                                     <a href="https://robertsspaceindustries.com/en/orgs/{details.get('org_tag', 'None')}"
                                        style="color:#f04747; text-decoration:none;">
-                                       {details.get('org_tag', 'None')}
+                                       {details.get('org_tag', t('None'))}
                                     </a><span style="color: #888888;">)</span>
                                 </p>
                             </td>
@@ -119,10 +120,10 @@ def format_registered_kill(
 </html>
 """
     
-    payload_ship = killer_ship if killer_ship.lower() not in ["vehicle destruction", "player destruction"] else ""
+    payload_ship = killer_ship if killer_ship.lower() not in [t("vehicle destruction").lower(), t("player destruction").lower()] else ""
     payload = {
         'log_line': log_line.strip(),
-        'game_mode': last_game_mode if last_game_mode else "Unknown",
+        'game_mode': last_game_mode if last_game_mode else t("Unknown"),
         'killer_ship': payload_ship,
         'method': method
     }

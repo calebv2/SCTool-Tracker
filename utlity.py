@@ -11,6 +11,8 @@ import requests
 
 from responsive_ui import ScreenScaler
 from overlay import GameOverlay, OverlayControlPanel
+from language_manager import t, get_language_manager
+from kill_parser import VERSION
 from PyQt5.QtGui import QKeyEvent
 from datetime import datetime, timedelta
 from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QKeySequence
@@ -19,7 +21,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QLineEdit, QFormLayout, QComboBox, QCheckBox,
     QSlider, QFileDialog, QTextBrowser, QScrollArea, QFrame,
-    QSizePolicy, QApplication, QStackedWidget, QMessageBox
+    QSizePolicy, QApplication, QStackedWidget, QMessageBox, QGroupBox
 )
 
 from PyQt5.QtCore import (
@@ -110,7 +112,7 @@ def init_ui(self) -> None:
     app_title.setAlignment(Qt.AlignCenter)
     logo_layout.addWidget(app_title)
     
-    self.user_display = QLabel("User: Not logged in")
+    self.user_display = QLabel(t("Not logged in"))
     self.user_display.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 12px; background: transparent; border: none; }"
     )
@@ -166,7 +168,7 @@ def init_ui(self) -> None:
     game_mode_status.addWidget(game_mode_label)
     game_mode_status.addStretch()
     
-    self.game_mode_display = QLabel("Mode: Unknown")
+    self.game_mode_display = QLabel(t("Mode: Unknown"))
     self.game_mode_display.setStyleSheet(
         "QLabel { color: #00ccff; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
     )
@@ -226,7 +228,6 @@ def init_ui(self) -> None:
     )
     sidebar_layout.addWidget(self.rescan_button)
     
-    # Check for Updates button
     self.update_button = QPushButton("CHECK FOR UPDATES")
     self.update_button.setIcon(QIcon(resource_path("update_icon.png")))
     self.update_button.clicked.connect(lambda: check_for_updates_ui(self))
@@ -249,42 +250,42 @@ def init_ui(self) -> None:
     sidebar_layout.addWidget(separator)
     self.nav_buttons = []
 
-    killfeed_btn = self.create_nav_button("Killfeed", "dashboard")
+    killfeed_btn = self.create_nav_button(t("Killfeed"), "dashboard")
     killfeed_btn.setCheckable(True)
     killfeed_btn.setChecked(True)
     self.nav_buttons.append(killfeed_btn)
     sidebar_layout.addWidget(killfeed_btn)
 
-    killfeed_settings_btn = self.create_nav_button("Killfeed Settings", "killfeed_tab")
+    killfeed_settings_btn = self.create_nav_button(t("Killfeed Settings"), "killfeed_tab")
     killfeed_settings_btn.setCheckable(True)
     self.nav_buttons.append(killfeed_settings_btn)
     sidebar_layout.addWidget(killfeed_settings_btn)    
-    api_btn = self.create_nav_button("API Settings", "api_tab") 
+    api_btn = self.create_nav_button(t("API Settings"), "api_tab") 
     api_btn.setCheckable(True)
     self.nav_buttons.append(api_btn)
     sidebar_layout.addWidget(api_btn)
 
-    sound_btn = self.create_nav_button("Sound Settings", "sound_tab")
+    sound_btn = self.create_nav_button(t("Sound Settings"), "sound_tab")
     sound_btn.setCheckable(True)
     self.nav_buttons.append(sound_btn)
     sidebar_layout.addWidget(sound_btn)
     
-    twitch_btn = self.create_nav_button("Twitch Integration", "twitch_tab")
+    twitch_btn = self.create_nav_button(t("Twitch Integration"), "twitch_tab")
     twitch_btn.setCheckable(True)
     self.nav_buttons.append(twitch_btn)
     sidebar_layout.addWidget(twitch_btn)
 
-    button_automation_btn = self.create_nav_button("Button Automation", "button_automation_tab")
+    button_automation_btn = self.create_nav_button(t("Button Automation"), "button_automation_tab")
     button_automation_btn.setCheckable(True)
     self.nav_buttons.append(button_automation_btn)
     sidebar_layout.addWidget(button_automation_btn)
 
-    overlay_btn = self.create_nav_button("Game Overlay", "overlay_tab")
+    overlay_btn = self.create_nav_button(t("Game Overlay"), "overlay_tab")
     overlay_btn.setCheckable(True)
     self.nav_buttons.append(overlay_btn)
     sidebar_layout.addWidget(overlay_btn)
 
-    support_btn = self.create_nav_button("Support", "support_tab")
+    support_btn = self.create_nav_button(t("Support"), "support_tab")
     support_btn.setCheckable(True)
     self.nav_buttons.append(support_btn)
     sidebar_layout.addWidget(support_btn)
@@ -381,13 +382,13 @@ def init_ui(self) -> None:
     tracking_layout.setSpacing(15)
     tracking_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
-    tracking_header = QLabel("TRACKING CONFIGURATION")
+    tracking_header = QLabel(t("TRACKING CONFIGURATION"))
     tracking_header.setStyleSheet(
         "QLabel { color: #2196F3; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     tracking_layout.addRow(tracking_header)
     
-    tracking_desc = QLabel("Configure the core settings for tracking your Star Citizen gameplay and kills.")
+    tracking_desc = QLabel(t("Configure the core settings for tracking your Star Citizen gameplay and kills."))
     tracking_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; margin-bottom: 10px; }"
     )
@@ -399,7 +400,7 @@ def init_ui(self) -> None:
     separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
     tracking_layout.addRow(separator)
 
-    log_path_label = QLabel("Game.log Path:")
+    log_path_label = QLabel(t("Game.log Path:"))
     log_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     log_path_container = QWidget()
@@ -409,14 +410,14 @@ def init_ui(self) -> None:
     log_path_layout.setSpacing(10)
     
     self.log_path_input = QLineEdit()
-    self.log_path_input.setPlaceholderText("Enter path to your Game.log")
+    self.log_path_input.setPlaceholderText(t("Enter path to your Game.log"))
     self.log_path_input.setStyleSheet(
         "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
         "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
     
-    browse_log_btn = QPushButton("Browse")
+    browse_log_btn = QPushButton(t("Browse"))
     browse_log_btn.setIcon(QIcon(resource_path("browse_icon.png")))
     browse_log_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
@@ -431,12 +432,12 @@ def init_ui(self) -> None:
     
     tracking_layout.addRow(log_path_label, log_path_container)
 
-    log_help = QLabel("Path to your Star Citizen Game.log file (typically StarCitizen\\LIVE\\game.log)")
+    log_help = QLabel(t("Path to your Star Citizen Game.log file (typically StarCitizen\\LIVE\\game.log)"))
     log_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
     log_help.setWordWrap(True)
     tracking_layout.addRow("", log_help)
     
-    ship_label = QLabel("Current Ship:")
+    ship_label = QLabel(t("Current Ship:"))
     ship_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     self.ship_combo = QComboBox()
@@ -463,7 +464,7 @@ def init_ui(self) -> None:
     
     tracking_layout.addRow(ship_label, self.ship_combo)
 
-    ship_help = QLabel("Select the ship you're currently flying (included with kill data)")
+    ship_help = QLabel(t("Select the ship you're currently flying (included with kill data)"))
     ship_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
     ship_help.setWordWrap(True)
     tracking_layout.addRow("", ship_help)
@@ -478,13 +479,13 @@ def init_ui(self) -> None:
     data_layout.setContentsMargins(20, 20, 20, 20)
     data_layout.setSpacing(20)
     
-    data_header = QLabel("DATA MANAGEMENT")
+    data_header = QLabel(t("DATA MANAGEMENT"))
     data_header.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     data_layout.addWidget(data_header)
     
-    data_desc = QLabel("Export your kill logs and access application data files for backup or troubleshooting.")
+    data_desc = QLabel(t("Export your kill logs and access application data files for backup or troubleshooting."))
     data_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
     )
@@ -497,7 +498,7 @@ def init_ui(self) -> None:
     data_buttons_layout.setContentsMargins(0, 0, 0, 0)
     data_buttons_layout.setSpacing(15)
     
-    self.export_button = QPushButton("EXPORT LOGS")
+    self.export_button = QPushButton(t("EXPORT LOGS"))
     self.export_button.setIcon(QIcon(resource_path("export_icon.png")))
     self.export_button.clicked.connect(self.export_logs)
     self.export_button.setStyleSheet(
@@ -509,7 +510,7 @@ def init_ui(self) -> None:
         "QPushButton:pressed { background: #202020; }"
     )
     
-    self.files_button = QPushButton("OPEN DATA FOLDER")
+    self.files_button = QPushButton(t("OPEN DATA FOLDER"))
     self.files_button.setIcon(QIcon(resource_path("files_icon.png")))
     self.files_button.clicked.connect(self.open_tracker_files)
     self.files_button.setStyleSheet(
@@ -527,8 +528,7 @@ def init_ui(self) -> None:
     
     data_layout.addWidget(data_buttons_container)
     
-    data_help = QLabel("• Export logs creates an HTML file with all recorded kills and deaths\n"
-                      "• Data folder contains configuration files, logs, and saved kill records")
+    data_help = QLabel(t("• Export logs creates an HTML file with all recorded kills and deaths\\n• Data folder contains configuration files, logs, and saved kill records"))
     data_help.setStyleSheet(
         "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
     )
@@ -545,13 +545,13 @@ def init_ui(self) -> None:
     preferences_layout.setContentsMargins(20, 20, 20, 20)
     preferences_layout.setSpacing(15)
     
-    preferences_header = QLabel("APPLICATION PREFERENCES")
+    preferences_header = QLabel(t("APPLICATION PREFERENCES"))
     preferences_header.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     preferences_layout.addWidget(preferences_header)
 
-    preferences_desc = QLabel("Configure how SCTool Tracker behaves when starting and minimizing.")
+    preferences_desc = QLabel(t("Configure how SCTool Tracker behaves when starting and minimizing."))
     preferences_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
     )
@@ -564,7 +564,7 @@ def init_ui(self) -> None:
     tray_layout.setContentsMargins(0, 0, 0, 0)
     tray_layout.setSpacing(8)
     
-    self.minimize_to_tray_checkbox = QCheckBox("Minimize to system tray")
+    self.minimize_to_tray_checkbox = QCheckBox(t("Minimize to system tray"))
     self.minimize_to_tray_checkbox.setChecked(self.minimize_to_tray)
     self.minimize_to_tray_checkbox.stateChanged.connect(self.on_minimize_to_tray_changed)
     self.minimize_to_tray_checkbox.setStyleSheet(
@@ -575,7 +575,7 @@ def init_ui(self) -> None:
     )
     tray_layout.addWidget(self.minimize_to_tray_checkbox)
     
-    tray_desc = QLabel("When minimized, the application will hide in the system tray instead of the taskbar")
+    tray_desc = QLabel(t("When minimized, the application will hide in the system tray instead of the taskbar"))
     tray_desc.setStyleSheet(
         "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
     )
@@ -590,7 +590,7 @@ def init_ui(self) -> None:
     autostart_layout.setContentsMargins(0, 0, 0, 0)
     autostart_layout.setSpacing(8)
     
-    self.start_with_system_checkbox = QCheckBox("Start with Windows")
+    self.start_with_system_checkbox = QCheckBox(t("Start with Windows"))
     self.start_with_system_checkbox.setChecked(self.start_with_system)
     self.start_with_system_checkbox.stateChanged.connect(self.on_start_with_system_changed)
     self.start_with_system_checkbox.setStyleSheet(
@@ -601,14 +601,26 @@ def init_ui(self) -> None:
     )
     autostart_layout.addWidget(self.start_with_system_checkbox)
     
-    autostart_desc = QLabel("Launch SCTool Tracker automatically when your computer starts")
+    autostart_desc = QLabel(t("Launch SCTool Tracker automatically when your computer starts"))
     autostart_desc.setStyleSheet(
         "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
     )
     autostart_desc.setWordWrap(True)
     autostart_layout.addWidget(autostart_desc)
     
-    preferences_layout.addWidget(autostart_container)    
+    preferences_layout.addWidget(autostart_container)
+    
+    language_container = QWidget()
+    language_container.setStyleSheet("background: transparent; border: none;")
+    language_layout = QVBoxLayout(language_container)
+    language_layout.setContentsMargins(0, 0, 0, 0)
+    language_layout.setSpacing(8)
+    
+    self.language_selector_container = language_container
+    self.language_selector_layout = language_layout
+    
+    preferences_layout.addWidget(language_container)
+    
     killfeed_settings_layout.addWidget(preferences_card)
     killfeed_settings_layout.addStretch(1)
 
@@ -627,20 +639,20 @@ def init_ui(self) -> None:
     api_card_layout.setSpacing(15)
     api_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
-    api_header = QLabel("API CONNECTION")
+    api_header = QLabel(t("API CONNECTION"))
     api_header.setStyleSheet(
         "QLabel { color: #00BCD4; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     api_card_layout.addRow(api_header)
     
-    api_desc = QLabel("Connect to the SCTool online service to track your kill statistics across sessions and compare with other players.")
+    api_desc = QLabel(t("Connect to the SCTool online service to track your kill statistics across sessions and compare with other players."))
     api_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
     )
     api_desc.setWordWrap(True)
     api_card_layout.addRow(api_desc)
     
-    self.send_to_api_checkbox = QCheckBox("Send Kills to API")
+    self.send_to_api_checkbox = QCheckBox(t("Send Kills to API"))
     self.send_to_api_checkbox.setChecked(True)
     self.send_to_api_checkbox.setStyleSheet(
         "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; }"
@@ -650,10 +662,10 @@ def init_ui(self) -> None:
     )
     api_card_layout.addRow("", self.send_to_api_checkbox)
     
-    api_key_label = QLabel("API Key:")
+    api_key_label = QLabel(t("API Key:"))
     api_key_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; }")
     self.api_key_input = QLineEdit()
-    self.api_key_input.setPlaceholderText("Enter your API key here")
+    self.api_key_input.setPlaceholderText(t("Enter your API key here"))
 
     self.api_key_input.setStyleSheet(
         "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
@@ -664,17 +676,6 @@ def init_ui(self) -> None:
     api_card_layout.addRow(api_key_label, self.api_key_input)
     
     api_help = QLabel()
-    api_help.setText(
-        "Your API key connects your account to the SCTool Tracker service.<br><br>"
-        "<b>How to get an API key:</b><br>"
-        "1. Visit <a href='https://starcitizentool.com/'>starcitizentool.com</a> and log in<br>"
-        "2. You must be in a Discord server that has the SCTool Discord bot and had been given the member or allowed role<br>"
-        "3. After login, select which Discord server to associate with your kills<br>"
-        "4. Navigate to <a href='https://starcitizentool.com/kills/manage_api_keys'>starcitizentool.com/kills/manage_api_keys</a><br>"
-        "5. Verify your in-game name<br>"
-        "6. Generate an API key and paste it here<br>"
-        "Instructions are also available <a href='https://www.youtube.com/watch?v=L62qvxopKak'>HERE</a>"
-    )
     api_help.setStyleSheet(
         "QLabel { color: #aaaaaa; background: transparent; border: none; }"
         "QLabel a { color: #f04747; text-decoration: none; }"
@@ -683,6 +684,30 @@ def init_ui(self) -> None:
     api_help.setTextFormat(Qt.RichText)
     api_help.setOpenExternalLinks(True)
     api_help.setWordWrap(True)
+    
+    # Set initial API help text with proper instructions
+    instructions_text = t('Instructions are also available HERE')
+    # Replace "HERE" with a clickable link
+    if 'HERE' in instructions_text:
+        base_text = instructions_text.replace('HERE', '')
+        here_link = f'{base_text}<a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
+    else:
+        # Fallback if translation doesn't contain "HERE"
+        here_link = f'{instructions_text} <a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
+    
+    initial_api_help_text = (
+        f"<b>{t('How to get an API key:')}</b><br><br>"
+        f"{t('1. Visit starcitizentool.com and log in')}<br>"
+        f"{t('2. You must be in a Discord server that has the SCTool Discord bot and had been given the member or allowed role')}<br>"
+        f"{t('3. After login, select which Discord server to associate with your kills')}<br>"
+        f"{t('4. Navigate to starcitizentool.com/kills/manage_api_keys')}<br>"
+        f"{t('5. Verify your in-game name')}<br>"
+        f"{t('6. Generate an API key and paste it here')}<br><br>"
+        f"{here_link}"
+    )
+    api_help.setText(initial_api_help_text)
+    
+    self.api_help_label = api_help
     api_card_layout.addRow("", api_help)
     
     api_link_container = QWidget()
@@ -690,7 +715,7 @@ def init_ui(self) -> None:
     api_link_layout = QHBoxLayout(api_link_container)
     api_link_layout.setContentsMargins(0, 10, 0, 0)
     
-    api_link_button = QPushButton("MANAGE API KEYS")
+    api_link_button = QPushButton(t("MANAGE API KEYS"))
     api_link_button.setIcon(QIcon(resource_path("link_icon.png")))
     api_link_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://starcitizentool.com/kills/manage_api_keys")))
     api_link_button.setStyleSheet(
@@ -725,13 +750,13 @@ def init_ui(self) -> None:
     sound_card_layout.setSpacing(15)
     sound_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
-    sound_header = QLabel("SOUND OPTIONS")
+    sound_header = QLabel(t("SOUND OPTIONS"))
     sound_header.setStyleSheet(
         "QLabel { color: #FF9800; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
     )
     sound_card_layout.addRow(sound_header)
     
-    sound_desc = QLabel("Configure sound notifications for when you get kills in Star Citizen.")
+    sound_desc = QLabel(t("Configure sound notifications for when you get kills in Star Citizen."))
     sound_desc.setStyleSheet(
         "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; margin-bottom: 10px; }"
     )
@@ -743,7 +768,7 @@ def init_ui(self) -> None:
     sound_separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
     sound_card_layout.addRow(sound_separator)
     
-    self.kill_sound_checkbox = QCheckBox("Enable Kill Sound")
+    self.kill_sound_checkbox = QCheckBox(t("Enable Kill Sound"))
     self.kill_sound_checkbox.setChecked(False)
     self.kill_sound_checkbox.stateChanged.connect(self.on_kill_sound_toggled)
     self.kill_sound_checkbox.setStyleSheet(
@@ -754,7 +779,7 @@ def init_ui(self) -> None:
     )
     sound_card_layout.addRow("", self.kill_sound_checkbox)
     
-    sound_path_label = QLabel("Kill Sound File:")
+    sound_path_label = QLabel(t("Kill Sound File:"))
     sound_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     sound_path_container = QWidget()
@@ -771,7 +796,7 @@ def init_ui(self) -> None:
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
     
-    sound_browse_btn = QPushButton("Browse")
+    sound_browse_btn = QPushButton(t("Browse"))
     sound_browse_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
@@ -780,7 +805,7 @@ def init_ui(self) -> None:
     sound_browse_btn.setFixedWidth(120)
     sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
     
-    test_sound_btn = QPushButton("Test Sound")
+    test_sound_btn = QPushButton(t("Test Sound"))
     test_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
     test_sound_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
@@ -796,7 +821,7 @@ def init_ui(self) -> None:
     
     sound_card_layout.addRow(sound_path_label, sound_path_container)
     
-    volume_label = QLabel("Volume:")
+    volume_label = QLabel(t("Volume:"))
     volume_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     volume_container = QWidget()
@@ -831,13 +856,12 @@ def init_ui(self) -> None:
     
     sound_card_layout.addRow(volume_label, volume_container)
     
-    # Death Sound Section
     death_separator = QFrame()
     death_separator.setFrameShape(QFrame.HLine)
     death_separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
     sound_card_layout.addRow(death_separator)
     
-    self.death_sound_checkbox = QCheckBox("Enable Death Sound")
+    self.death_sound_checkbox = QCheckBox(t("Enable Death Sound"))
     self.death_sound_checkbox.setChecked(False)
     self.death_sound_checkbox.stateChanged.connect(self.on_death_sound_toggled)
     self.death_sound_checkbox.setStyleSheet(
@@ -848,7 +872,7 @@ def init_ui(self) -> None:
     )
     sound_card_layout.addRow("", self.death_sound_checkbox)
     
-    death_sound_path_label = QLabel("Death Sound File:")
+    death_sound_path_label = QLabel(t("Death Sound File:"))
     death_sound_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     death_sound_path_container = QWidget()
@@ -865,7 +889,7 @@ def init_ui(self) -> None:
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
     
-    death_sound_browse_btn = QPushButton("Browse")
+    death_sound_browse_btn = QPushButton(t("Browse"))
     death_sound_browse_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
@@ -874,7 +898,7 @@ def init_ui(self) -> None:
     death_sound_browse_btn.setFixedWidth(120)
     death_sound_browse_btn.clicked.connect(self.on_death_sound_file_browse)
     
-    test_death_sound_btn = QPushButton("Test Sound")
+    test_death_sound_btn = QPushButton(t("Test Sound"))
     test_death_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
     test_death_sound_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
@@ -890,7 +914,7 @@ def init_ui(self) -> None:
     
     sound_card_layout.addRow(death_sound_path_label, death_sound_path_container)
     
-    death_volume_label = QLabel("Death Sound Volume:")
+    death_volume_label = QLabel(t("Death Sound Volume:"))
     death_volume_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
     death_volume_container = QWidget()
@@ -1131,12 +1155,12 @@ def init_ui(self) -> None:
     overlay_card_layout.setSpacing(15)
     overlay_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
-    overlay_header = QLabel("GAME OVERLAY")
+    overlay_header = QLabel(t("GAME OVERLAY"))
     overlay_header.setStyleSheet("QLabel { color: #00ff41; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
 
     overlay_card_layout.addRow(overlay_header)
     
-    overlay_desc = QLabel("Configure the in-game overlay that displays your kill/death statistics in real-time while playing Star Citizen.")
+    overlay_desc = QLabel(t("Configure the in-game overlay that displays your kill/death statistics in real-time while playing Star Citizen."))
     overlay_desc.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }")
 
     overlay_desc.setWordWrap(True)
@@ -1168,28 +1192,32 @@ def init_ui(self) -> None:
     
     support_header = QLabel("SUPPORT & HELP")
     support_header.setStyleSheet("QLabel { color: #4CAF50; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
+    self.support_header = support_header
     support_card_layout.addRow(support_header)
     
     api_setup_header = QLabel("API Setup")
     api_setup_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    self.api_setup_header = api_setup_header
     support_card_layout.addRow(api_setup_header)
     
-    api_steps_text = """
-        <b>Important Steps:</b><br><br>
-        <b>1. Admin Setup:</b> An administrator in your Discord server must first configure the allowed member role within the SCTool Admin Config section.<br><br>
-        <b>2. Login:</b> Ensure you are logged into SCTool on this website.<br><br>
-        <b>3. Navigate:</b> Go to your Member Server section.<br><br>
-        <b>4. Manage API:</b> Find and access the 'Manage API' section to set up your API key.<br><br>
-        <b>Note:</b> You need a verified API key to use the Kill Feed feature.
-    """
+    api_steps_text = (
+        f"<b>{t('Important Steps:')}</b><br><br>"
+        f"<b>1. {t('Admin Setup:')}</b> {t('An administrator in your Discord server must first configure the allowed member role within the SCTool Admin Config section.')}<br><br>"
+        f"<b>2. {t('Login:')}</b> {t('Ensure you are logged into SCTool on this website.')}<br><br>"
+        f"<b>3. {t('Navigate:')}</b> {t('Go to your Member Server section.')}<br><br>"
+        f"<b>4. {t('Manage API:')}</b> {t('Find and access the Manage API section to set up your API key.')}<br><br>"
+        f"<b>{t('Note:')}</b> {t('You need a verified API key to use the Kill Feed feature.')}"
+    )
     
     api_steps_label = QLabel(api_steps_text)
     api_steps_label.setStyleSheet("QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; padding: 10px; }")
     api_steps_label.setWordWrap(True)
+    self.api_steps_label = api_steps_label
     support_card_layout.addRow(api_steps_label)
 
     help_header = QLabel("Need Help?")
     help_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    self.help_header_label = help_header
     support_card_layout.addRow(help_header)
 
     video_btn = QPushButton("📺 Watch Setup Video")
@@ -1211,6 +1239,7 @@ def init_ui(self) -> None:
         }
     """)
     video_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://www.youtube.com/watch?v=d8SwnmVPuGI")))
+    self.video_btn = video_btn
     support_card_layout.addRow("", video_btn)
 
     discord_btn = QPushButton("💬 Join SCTool Discord")
@@ -1232,6 +1261,7 @@ def init_ui(self) -> None:
         }
     """)
     discord_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://discord.gg/PCXmwGPZ94")))
+    self.discord_btn = discord_btn
     support_card_layout.addRow("", discord_btn)
 
     github_btn = QPushButton("📚 GitHub Documentation")
@@ -1252,10 +1282,12 @@ def init_ui(self) -> None:
             background-color: #14171a;
         }    """)
     github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/calebv2/SCTool-Tracker/tree/main")))
+    self.github_btn = github_btn
     support_card_layout.addRow("", github_btn)
 
     support_dev_header = QLabel("Support Development")
     support_dev_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    self.support_dev_header = support_dev_header
     support_card_layout.addRow(support_dev_header)
 
     patreon_btn = QPushButton("❤️ Support on Patreon")
@@ -1277,6 +1309,7 @@ def init_ui(self) -> None:
         }
     """)
     patreon_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://patreon.com/VenutoMan")))
+    self.patreon_btn = patreon_btn
     support_card_layout.addRow("", patreon_btn)
 
     kofi_btn = QPushButton("☕ Buy me a Coffee")
@@ -1298,6 +1331,7 @@ def init_ui(self) -> None:
         }
     """)
     kofi_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://ko-fi.com/sctool")))
+    self.kofi_btn = kofi_btn
     support_card_layout.addRow("", kofi_btn)
 
     version_label = QLabel("Ensure you have the latest version and stay up to date.")
@@ -1482,6 +1516,26 @@ def switch_page(self, index):
 
     for i, button in enumerate(self.nav_buttons):
         button.setChecked(i == index)
+    
+    try:
+        if index == 0:
+            self.update_main_ui_translations()
+        elif index == 1:
+            self.update_killfeed_settings_translations()
+        elif index == 2:
+            self.update_api_settings_translations()
+        elif index == 3:
+            self.update_sound_settings_translations()
+        elif index == 4:
+            self.update_twitch_settings_translations()
+        elif index == 5:
+            self.update_button_automation_translations()
+        elif index == 6:
+            self.update_overlay_settings_translations()
+        elif index == 7:
+            self.update_support_section_translations()
+    except Exception as e:
+        logging.error(f"Error updating translations for page {index}: {e}")
 
 def load_config(self) -> None:
     """Load configuration from config file"""
@@ -1520,7 +1574,6 @@ def load_config(self) -> None:
             self.kill_sound_volume = config.get('kill_sound_volume', 100)
             self.volume_slider.setValue(self.kill_sound_volume)
             
-            # Load death sound settings
             self.death_sound_enabled = config.get('death_sound', False)
             self.death_sound_checkbox.setChecked(self.death_sound_enabled)
             death_sound_path = config.get('death_sound_path', '')
@@ -1561,9 +1614,13 @@ def load_config(self) -> None:
             
             self.local_user_name = config.get('local_user_name', '')
             if self.local_user_name:
-                self.user_display.setText(f"User: {self.local_user_name}")
+                self.user_display.setText(f"{self.local_user_name}")
                 self.update_user_profile_image(self.local_user_name)
                 self.rescan_button.setEnabled(True)
+            
+            language_code = config.get('language', 'en')
+            from language_manager import language_manager
+            language_manager.set_language(language_code)
             
             if config.get('monitoring_active', False):
                 QTimer.singleShot(500, self.toggle_monitoring)
@@ -1710,9 +1767,9 @@ def check_for_updates_ui(self) -> None:
             self.check_for_updates_with_optional()
             return
             
-        current_version = getattr(self, '__version__', '5.6.1')
+        current_version = getattr(self, '__version__', VERSION)
         client_id = getattr(self, '__client_id__', 'sctool-tracker')
-        user_agent = getattr(self, 'user_agent', 'SCTool-Tracker/5.6.1')
+        user_agent = getattr(self, 'user_agent', f'SCTool-Tracker/{VERSION}')
         
         update_url = "https://starcitizentool.com/api/v1/check-update"
         
@@ -1759,29 +1816,29 @@ def check_for_updates_ui(self) -> None:
 
 def show_forced_update_dialog(parent, latest_version: str, minimum_version: str, download_url: str) -> None:
     """Show dialog for forced updates (update required)"""
-    current_version = getattr(parent, '__version__', '5.6.1')
+    current_version = getattr(parent, '__version__', VERSION)
     
     update_message = (
-        f"<h3 style='color: #ff6b6b;'>🚨 Update Required</h3>"
-        f"<p><b>Your version:</b> {current_version}</p>"
-        f"<p><b>Latest version:</b> {latest_version}</p>"
-        f"<p><b>Minimum required:</b> {minimum_version}</p>"
+        f"<h3 style='color: #ff6b6b;'>🚨 {t('Update Required')}</h3>"
+        f"<p><b>{t('Your version')}:</b> {current_version}</p>"
+        f"<p><b>{t('Latest version')}:</b> {latest_version}</p>"
+        f"<p><b>{t('Minimum required')}:</b> {minimum_version}</p>"
         f"<hr>"
-        f"<p style='color: #ff6b6b;'><b>Your version is no longer supported.</b></p>"
-        f"<p>You must update to continue using SCTool Tracker.</p>"
-        f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>View changelog and release notes</a></p>"
+        f"<p style='color: #ff6b6b;'><b>{t('Your version is no longer supported.')}</b></p>"
+        f"<p>{t('You must update to continue using SCTool Tracker.')}</p>"
+        f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>{t('View changelog and release notes')}</a></p>"
     )
 
     msg_box = styled_message_box(
         parent, 
-        "Update Required", 
+        t("Update Required"), 
         update_message, 
         QMessageBox.Critical,
         QMessageBox.NoButton
     )
     
-    update_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
-    exit_btn = msg_box.addButton("Exit Application", QMessageBox.RejectRole)
+    update_btn = msg_box.addButton(t("Update Now"), QMessageBox.AcceptRole)
+    exit_btn = msg_box.addButton(t("Exit Application"), QMessageBox.RejectRole)
     
     msg_box.setDefaultButton(update_btn)
     msg_box.exec_()
@@ -1794,28 +1851,28 @@ def show_forced_update_dialog(parent, latest_version: str, minimum_version: str,
 
 def show_optional_update_dialog(parent, latest_version: str, download_url: str) -> None:
     """Show dialog for optional updates"""
-    current_version = getattr(parent, '__version__', '5.6.1')
+    current_version = getattr(parent, '__version__', VERSION)
     
     update_message = (
-        f"<h3 style='color: #4CAF50;'>🎉 Update Available</h3>"
-        f"<p><b>Your version:</b> {current_version}</p>"
-        f"<p><b>Latest version:</b> {latest_version}</p>"
+        f"<h3 style='color: #4CAF50;'>🎉 {t('Update Available')}</h3>"
+        f"<p><b>{t('Your version')}:</b> {current_version}</p>"
+        f"<p><b>{t('Latest version')}:</b> {latest_version}</p>"
         f"<hr>"
-        f"<p>A new version is available with improvements and new features!</p>"
-        f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>View changelog and release notes</a></p>"
-        f"<p><i>You can continue using your current version or update now.</i></p>"
+        f"<p>{t('A new version is available with improvements and new features!')}</p>"
+        f"<p>📖 <a href='https://github.com/calebv2/SCTool-Tracker/blob/main/README.md'>{t('View changelog and release notes')}</a></p>"
+        f"<p><i>{t('You can continue using your current version or update now.')}</i></p>"
     )
 
     msg_box = styled_message_box(
         parent, 
-        "Update Available", 
+        t("Update Available"), 
         update_message, 
         QMessageBox.Information
     )
     
-    update_btn = msg_box.addButton("Update Now", QMessageBox.AcceptRole)
-    later_btn = msg_box.addButton("Remind Me Later", QMessageBox.ActionRole)
-    skip_btn = msg_box.addButton("Skip This Version", QMessageBox.RejectRole)
+    update_btn = msg_box.addButton(t("Update Now"), QMessageBox.AcceptRole)
+    later_btn = msg_box.addButton(t("Remind Me Later"), QMessageBox.ActionRole)
+    skip_btn = msg_box.addButton(t("Skip This Version"), QMessageBox.RejectRole)
     
     msg_box.setDefaultButton(update_btn)
     msg_box.exec_()
@@ -1830,15 +1887,15 @@ def show_optional_update_dialog(parent, latest_version: str, download_url: str) 
 def show_up_to_date_dialog(parent, current_version: str) -> None:
     """Show dialog when application is up to date"""
     update_message = (
-        f"<h3 style='color: #4CAF50;'>✅ You're Up to Date!</h3>"
-        f"<p><b>Current version:</b> {current_version}</p>"
-        f"<p>You have the latest version of SCTool Tracker.</p>"
-        f"<p>No updates are needed at this time.</p>"
+        f"<h3 style='color: #4CAF50;'>✅ {t('You are Up to Date!')}</h3>"
+        f"<p><b>{t('Current version')}:</b> {current_version}</p>"
+        f"<p>{t('You have the latest version of SCTool Tracker.')}</p>"
+        f"<p>{t('No updates are needed at this time.')}</p>"
     )
 
     msg_box = styled_message_box(
         parent, 
-        "Up to Date", 
+        t("Up to Date"), 
         update_message, 
         QMessageBox.Information
     )
@@ -1847,15 +1904,15 @@ def show_up_to_date_dialog(parent, current_version: str) -> None:
 def show_update_check_failed_dialog(parent) -> None:
     """Show dialog when update check fails"""
     update_message = (
-        f"<h3 style='color: #ff9800;'>⚠️ Update Check Failed</h3>"
-        f"<p>Unable to check for updates at this time.</p>"
-        f"<p>Please check your internet connection and try again.</p>"
-        f"<p>You can also visit <a href='https://starcitizentool.com/download-sctool'>starcitizentool.com</a> manually.</p>"
+        f"<h3 style='color: #ff9800;'>⚠️ {t('Update Check Failed')}</h3>"
+        f"<p>{t('Unable to check for updates at this time.')}</p>"
+        f"<p>{t('Please check your internet connection and try again.')}</p>"
+        f"<p>{t('You can also visit')} <a href='https://starcitizentool.com/download-sctool'>starcitizentool.com</a> {t('manually.')}></p>"
     )
 
     msg_box = styled_message_box(
         parent, 
-        "Update Check Failed", 
+        t("Update Check Failed"), 
         update_message, 
         QMessageBox.Warning
     )
@@ -1885,3 +1942,725 @@ class CollapsibleSettingsPanel(QWidget):
         
     def addWidget(self, widget):
         self.layout.addWidget(widget)
+
+class TranslationMixin:
+    """Mixin class containing translation update methods"""
+    
+    def update_killfeed_settings_translations(self):
+        """Update killfeed settings UI text for current language"""
+        try:
+            if hasattr(self, 'nav_buttons') and self.nav_buttons:
+                nav_texts = [
+                    t("Killfeed"),
+                    t("Killfeed Settings"), 
+                    t("API Settings"),
+                    t("Sound Settings"),
+                    t("Twitch Integration"),
+                    t("Button Automation"),
+                    t("Game Overlay"),
+                    t("Support")
+                ]
+                for i, button in enumerate(self.nav_buttons):
+                    if i < len(nav_texts):
+                        button.setText(nav_texts[i])
+            
+            try:
+                for widget in self.findChildren(QLabel):
+                    text = widget.text()
+                    if text == "TRACKING CONFIGURATION":
+                        widget.setText(t("TRACKING CONFIGURATION"))
+                    elif text.startswith("Configure the core settings"):
+                        widget.setText(t("Configure the core settings for tracking your Star Citizen gameplay and kills."))
+                    elif text == "Game.log Path:":
+                        widget.setText(t("Game.log Path:"))
+                    elif text.startswith("Path to your Star Citizen Game.log"):
+                        widget.setText(t("Path to your Star Citizen Game.log file (typically StarCitizen\\LIVE\\game.log)"))
+                    elif text == "Current Ship:":
+                        widget.setText(t("Current Ship:"))
+                    elif text.startswith("Select the ship you're currently flying"):
+                        widget.setText(t("Select the ship you're currently flying (included with kill data)"))
+                    elif text == "DATA MANAGEMENT":
+                        widget.setText(t("DATA MANAGEMENT"))
+                    elif text.startswith("Export your kill logs"):
+                        widget.setText(t("Export your kill logs and access application data files for backup or troubleshooting."))
+                    elif text.startswith("• Export logs creates"):
+                        widget.setText(t("• Export logs creates an HTML file with all recorded kills and deaths\\n• Data folder contains configuration files, logs, and saved kill records"))
+                    elif text == "APPLICATION PREFERENCES":
+                        widget.setText(t("APPLICATION PREFERENCES"))
+                    elif text.startswith("Configure how SCTool Tracker behaves"):
+                        widget.setText(t("Configure how SCTool Tracker behaves when starting and minimizing."))
+                    elif text.startswith("When minimized, the application will hide"):
+                        widget.setText(t("When minimized, the application will hide in the system tray instead of the taskbar"))
+                    elif text.startswith("Launch SCTool Tracker automatically"):
+                        widget.setText(t("Launch SCTool Tracker automatically when your computer starts"))
+                    elif text == "Language:":
+                        widget.setText(t("Language:"))
+                    elif text.startswith("Choose your preferred language"):
+                        widget.setText(t("Choose your preferred language for the application interface"))
+            except Exception as e:
+                logging.debug(f"Error updating killfeed settings label translations: {e}")
+
+            if hasattr(self, 'log_path_input'):
+                self.log_path_input.setPlaceholderText(t("Enter path to your Game.log"))
+
+            if hasattr(self, 'export_button'):
+                self.export_button.setText(t("EXPORT LOGS"))
+            if hasattr(self, 'files_button'):
+                self.files_button.setText(t("OPEN DATA FOLDER"))
+
+            if hasattr(self, 'send_to_api_checkbox'):
+                self.send_to_api_checkbox.setText(t("Send kills to API"))
+            if hasattr(self, 'minimize_to_tray_checkbox'):
+                self.minimize_to_tray_checkbox.setText(t("Minimize to system tray"))
+            if hasattr(self, 'start_with_system_checkbox'):
+                self.start_with_system_checkbox.setText(t("Start with Windows"))
+                
+            try:
+                for input_widget in self.findChildren(QLineEdit):
+                    placeholder = input_widget.placeholderText()
+                    if placeholder == "Enter path to your Game.log":
+                        input_widget.setPlaceholderText(t("Enter path to your Game.log"))
+            except Exception as e:
+                logging.debug(f"Error updating killfeed settings input translations: {e}")
+            
+            try:
+                for button in self.findChildren(QPushButton):
+                    text = button.text()
+                    if text == "Browse":
+                        button.setText(t("Browse"))
+            except Exception as e:
+                logging.debug(f"Error updating killfeed settings button translations: {e}")
+                
+            logging.info("Killfeed settings translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating killfeed settings translations: {e}")
+
+    def update_all_translations(self):
+        """Update translations for all UI sections"""
+        try:
+            self.update_killfeed_settings_translations()
+            self.update_api_settings_translations()
+            self.update_sound_settings_translations()
+            self.update_twitch_settings_translations()
+            self.update_button_automation_translations()
+            self.update_overlay_settings_translations()
+            self.update_support_section_translations()
+            self.update_main_ui_translations()
+            
+            self.force_update_all_overlay_translations()
+            
+            logging.info("All translations updated successfully")
+            
+        except Exception as e:
+            logging.error(f"Error updating all translations: {e}")
+
+    def force_update_all_overlay_translations(self):
+        """Force update all overlay-related translations across the entire application"""
+        try:
+            app = QApplication.instance()
+            if app:
+                for widget in app.allWidgets():
+                    try:
+                        if hasattr(widget, 'update_translations'):
+                            widget_class_name = widget.__class__.__name__.lower()
+                            if any(term in widget_class_name for term in ['overlay', 'control', 'panel', 'hotkey']):
+                                widget.update_translations()
+                        
+                        if isinstance(widget, QLabel) and hasattr(widget, 'text'):
+                            text = widget.text()
+                            if ("Use global hotkey to toggle overlay visibility" in text or
+                                "Use global hotkey" in text and "overlay" in text and "visibility" in text or
+                                "hotkey" in text.lower() and "overlay" in text.lower() and "toggle" in text.lower()):
+                                widget.setText(f"""
+                                    <b>{t('Instructions:')}</b><br>
+                                    • {t('Left-click and drag to move the overlay')}<br>
+                                    • {t('Ctrl + Mouse wheel to adjust opacity')}<br>
+                                    • {t('Click the mode button (●/◐) on overlay to cycle modes')}<br>
+                                    • {t('Use global hotkey to toggle overlay visibility')}<br>
+                                    • {t('Overlay stays on top of all windows including games')}
+                                    """)
+                                logging.info(f"Force updated overlay instructions label with text: {text[:50]}...")
+                    except Exception as e:
+                        pass
+                        
+            logging.info("Force overlay translation update completed")
+            
+        except Exception as e:
+            logging.error(f"Error in force_update_all_overlay_translations: {e}")
+
+    def update_api_settings_translations(self):
+        """Update API settings UI text for current language"""
+        print(f"[DEBUG] update_api_settings_translations called - current language: {get_language_manager().current_language}")
+        
+        if hasattr(self, 'api_key_input'):
+            self.api_key_input.setPlaceholderText(t("Enter your API key here"))
+            print("[DEBUG] Updated API key input placeholder")
+
+        if hasattr(self, 'api_help_label'):
+            print("[DEBUG] Found api_help_label - updating with current language text")
+            
+            # Create the API help text with clickable HERE link
+            instructions_text = t('Instructions are also available HERE')
+            # Replace "HERE" with a clickable link
+            if 'HERE' in instructions_text:
+                base_text = instructions_text.replace('HERE', '')
+                here_link = f'{base_text}<a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
+            else:
+                # Fallback if translation doesn't contain "HERE"
+                here_link = f'{instructions_text} <a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
+            
+            api_help_text = (
+                f"<b>{t('How to get an API key:')}</b><br><br>"
+                f"{t('1. Visit starcitizentool.com and log in')}<br>"
+                f"{t('2. You must be in a Discord server that has the SCTool Discord bot and had been given the member or allowed role')}<br>"
+                f"{t('3. After login, select which Discord server to associate with your kills')}<br>"
+                f"{t('4. Navigate to starcitizentool.com/kills/manage_api_keys')}<br>"
+                f"{t('5. Verify your in-game name')}<br>"
+                f"{t('6. Generate an API key and paste it here')}<br><br>"
+                f"{here_link}"
+            )
+            self.api_help_label.setText(api_help_text)
+            print(f"[DEBUG] API help label updated with full instructions")
+            
+            # Force immediate UI refresh for this widget
+            self.api_help_label.update()
+            self.api_help_label.repaint()
+            print("[DEBUG] Forced immediate repaint of api_help_label")
+        else:
+            print("[DEBUG] api_help_label reference not found")
+
+        if hasattr(self, 'api_steps_label'):
+            api_steps_text = (
+                f"<b>{t('Important Steps:')}</b><br><br>"
+                f"<b>1. {t('Admin Setup:')}</b> {t('An administrator in your Discord server must first configure the allowed member role within the SCTool Admin Config section.')}<br><br>"
+                f"<b>2. {t('Login:')}</b> {t('Ensure you are logged into SCTool on this website.')}<br><br>"
+                f"<b>3. {t('Navigate:')}</b> {t('Go to your Member Server section.')}<br><br>"
+                f"<b>4. {t('Manage API:')}</b> {t('Find and access the Manage API section to set up your API key.')}<br><br>"
+                f"<b>{t('Note:')}</b> {t('You need a verified API key to use the Kill Feed feature.')}"
+            )
+            self.api_steps_label.setText(api_steps_text)
+            logging.info(f"API steps label updated with translations")
+
+        try:
+            # Update common UI elements using JSON translations only
+            for widget in self.findChildren(QLabel):
+                text = widget.text()
+                
+                # Main section headers
+                if text == "API CONNECTION":
+                    widget.setText(t("API CONNECTION"))
+                elif text == "API Settings" or text == "API SETTINGS":
+                    widget.setText(t("API Settings"))
+                
+                # Main descriptions - use exact matches from JSON
+                elif text.startswith("Connect to the SCTool online service"):
+                    widget.setText(t("Connect to the SCTool online service to track your kill statistics across sessions and compare with other players."))
+                elif text.startswith("Your API key connects"):
+                    widget.setText(t("Your API key connects your account to the SCTool Tracker service."))
+                
+                # HTML formatted content with all API setup steps
+                elif "<b>" in text and ("Important Steps:" in text or "Admin Setup:" in text or "Login:" in text or "Navigate:" in text or "Manage API:" in text):
+                    api_steps_text = (
+                        f"<b>{t('Important Steps:')}</b><br><br>"
+                        f"<b>1. {t('Admin Setup:')}</b> {t('An administrator in your Discord server must first configure the allowed member role within the SCTool Admin Config section.')}<br><br>"
+                        f"<b>2. {t('Login:')}</b> {t('Ensure you are logged into SCTool on this website.')}<br><br>"
+                        f"<b>3. {t('Navigate:')}</b> {t('Go to your Member Server section.')}<br><br>"
+                        f"<b>4. {t('Manage API:')}</b> {t('Find and access the Manage API section to set up your API key.')}<br><br>"
+                        f"<b>{t('Note:')}</b> {t('You need a verified API key to use the Kill Feed feature.')}"
+                    )
+                    widget.setText(api_steps_text)
+                    logging.info(f"Updated HTML formatted API steps widget with translations")
+                    
+        except Exception as e:
+            logging.debug(f"Error updating API label translations: {e}")
+        
+        try:
+            # Update buttons
+            for button in self.findChildren(QPushButton):
+                if button.text() == "MANAGE API KEYS":
+                    button.setText(t("MANAGE API KEYS"))
+        except Exception as e:
+            logging.debug(f"Error updating API button translations: {e}")
+        
+        try:
+            # Update checkboxes
+            if hasattr(self, 'send_to_api_checkbox'):
+                self.send_to_api_checkbox.setText(t("Send kills to API"))
+            
+            logging.info("API settings translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating API settings translations: {e}")
+
+    def update_sound_settings_translations(self):
+        """Update sound settings UI text for current language"""
+        try:
+            if hasattr(self, 'kill_sound_checkbox'):
+                self.kill_sound_checkbox.setText(t("Enable Kill Sound"))
+            if hasattr(self, 'death_sound_checkbox'):
+                self.death_sound_checkbox.setText(t("Enable Death Sound"))
+            if hasattr(self, 'kill_sound_test_button'):
+                self.kill_sound_test_button.setText(t("Test Sound"))
+            if hasattr(self, 'death_sound_test_button'):
+                self.death_sound_test_button.setText(t("Test Sound"))
+        except Exception as e:
+            logging.error(f"Error updating sound settings translations: {e}")
+        
+        try:
+            for widget in self.findChildren(QLabel):
+                text = widget.text()
+                if text == "SOUND OPTIONS":
+                    widget.setText(t("SOUND OPTIONS"))
+                elif text.startswith("Configure sound notifications"):
+                    widget.setText(t("Configure sound notifications for when you get kills in Star Citizen."))
+                elif text == "Kill Sound File:":
+                    widget.setText(t("Kill Sound File:"))
+                elif text == "Death Sound File:":
+                    widget.setText(t("Death Sound File:"))
+                elif text == "Volume:":
+                    widget.setText(t("Volume:"))
+                elif text == "Death Sound Volume:":
+                    widget.setText(t("Death Sound Volume:"))
+        except Exception as e:
+            logging.debug(f"Error updating sound label translations: {e}")
+        
+        try:
+            for button in self.findChildren(QPushButton):
+                if button.text() == "Browse":
+                    button.setText(t("Browse"))
+                elif button.text() == "Test Sound":
+                    button.setText(t("Test Sound"))
+        except Exception as e:
+            logging.debug(f"Error updating sound button translations: {e}")
+        
+        logging.info("Sound settings translations updated")
+
+    def update_twitch_settings_translations(self):
+        """Update Twitch settings UI text for current language"""
+        try:
+            if hasattr(self, 'twitch_enabled_checkbox'):
+                self.twitch_enabled_checkbox.setText(t("Enable Twitch Integration"))
+            if hasattr(self, 'auto_connect_twitch_checkbox'):
+                self.auto_connect_twitch_checkbox.setText(t("Auto-connect to Twitch on startup"))
+            if hasattr(self, 'clip_creation_checkbox'):
+                self.clip_creation_checkbox.setText(t("Create Twitch clips on kill"))
+            if hasattr(self, 'chat_posting_checkbox'):
+                self.chat_posting_checkbox.setText(t("Post kills to Twitch chat"))
+            if hasattr(self, 'twitch_connect_button'):
+                self.twitch_connect_button.setText(t("Connect Twitch"))
+            if hasattr(self, 'twitch_disconnect_button'):
+                self.twitch_disconnect_button.setText(t("Disconnect Twitch"))
+            if hasattr(self, 'twitch_channel_input'):
+                self.twitch_channel_input.setPlaceholderText(t("Enter your Twitch channel name"))
+            
+            try:
+                for widget in self.findChildren(QLabel):
+                    text = widget.text()
+                    if text == "TWITCH INTEGRATION":
+                        widget.setText(t("TWITCH INTEGRATION"))
+                    elif text.startswith("Connect your Twitch account"):
+                        widget.setText(t("Connect your Twitch account to automatically create clips of your kills during your stream."))
+                    elif text == "Enable Twitch Integration":
+                        widget.setText(t("Enable Twitch Integration"))
+                    elif text == "Auto-connect to Twitch on launch":
+                        widget.setText(t("Auto-connect to Twitch on launch"))
+                    elif text == "Twitch Channel:":
+                        widget.setText(t("Twitch Channel:"))
+                    elif text == "CLIP SETTINGS":
+                        widget.setText(t("CLIP SETTINGS"))
+                    elif text.startswith("Note: Clip creation requires"):
+                        widget.setText(t("Note: Clip creation requires you to be actively streaming on Twitch"))
+                    elif text == "Create Twitch clips on kill":
+                        widget.setText(t("Create Twitch clips on kill"))
+                    elif text == "Post kills to Twitch chat":
+                        widget.setText(t("Post kills to Twitch chat"))
+                    elif text == "Customize Twitch chat message:":
+                        widget.setText(t("Customize Twitch chat message:"))
+                    elif text.startswith("Available placeholders:"):
+                        widget.setText(t("Available placeholders: {username}, {victim}, {profile_url}"))
+                    elif text == "Delay after kill:":
+                        widget.setText(t("Delay after kill:"))
+            except Exception as e:
+                logging.debug(f"Error updating Twitch label translations: {e}")
+            
+            if hasattr(self, 'twitch_message_input'):
+                placeholder = self.twitch_message_input.placeholderText()
+                if placeholder and not placeholder.startswith("🔫"):
+                    self.twitch_message_input.setPlaceholderText("🔫 {username} just killed {victim}! 🚀 {profile_url}")
+            
+            logging.info("Twitch settings translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating Twitch settings translations: {e}")
+
+    def update_button_automation_translations(self):
+        """Update Button Automation settings UI text for current language"""
+        try:
+            if hasattr(self, 'button_automation_widget'):
+                if hasattr(self.button_automation_widget, 'update_translations'):
+                    self.button_automation_widget.update_translations()
+            
+            logging.info("Button Automation translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating Button Automation translations: {e}")
+
+    def update_overlay_settings_translations(self):
+        """Update Game Overlay settings UI text for current language"""
+        try:
+            if hasattr(self, 'overlay_settings'):
+                if hasattr(self.overlay_settings, 'update_translations'):
+                    self.overlay_settings.update_translations()
+            
+            if hasattr(self, 'game_overlay'):
+                if hasattr(self.game_overlay, 'update_translations'):
+                    self.game_overlay.update_translations()
+            
+            for widget in self.findChildren(QWidget):
+                if hasattr(widget, 'update_translations') and 'overlay' in widget.__class__.__name__.lower():
+                    try:
+                        widget.update_translations()
+                    except Exception as e:
+                        logging.debug(f"Error updating overlay widget translations: {e}")
+            
+            try:
+                for widget in self.findChildren(QLabel):
+                    if hasattr(widget, 'text'):
+                        text = widget.text()
+                        if "Use global hotkey to toggle overlay visibility" in text:
+                            widget.setText(f"""
+        <b>{t('Instructions:')}</b><br>
+        • {t('Left-click and drag to move the overlay')}<br>
+        • {t('Ctrl + Mouse wheel to adjust opacity')}<br>
+        • {t('Click the mode button (●/◐) on overlay to cycle modes')}<br>
+        • {t('Use global hotkey to toggle overlay visibility')}<br>
+        • {t('Overlay stays on top of all windows including games')}
+        """)
+                            overlay_labels_found += 1
+            except Exception as e:
+                logging.debug(f"Error updating overlay instructions labels: {e}")
+            
+            try:
+                overlay_labels_found = 0
+                
+                for widget in self.findChildren(QLabel):
+                    text = widget.text()
+                    if text == "GAME OVERLAY":
+                        widget.setText(t("GAME OVERLAY"))
+                        overlay_labels_found += 1
+                    elif text == "Game Overlay":
+                        widget.setText(t("Game Overlay"))
+                        overlay_labels_found += 1
+                    elif text == "Superposición del Juego":
+                        widget.setText(t("Game Overlay"))
+                        overlay_labels_found += 1
+                    elif text.startswith("Configure the in-game overlay"):
+                        widget.setText(t("Configure the in-game overlay that displays your kill/death statistics in real-time while playing Star Citizen."))
+                        overlay_labels_found += 1
+                    elif text.startswith("Overlay system with multiple display modes"):
+                        widget.setText(t("Overlay system with multiple display modes, customizable themes, and hotkey support"))
+                        overlay_labels_found += 1
+                    elif text == "Instructions:":
+                        widget.setText(t("Instructions:"))
+                        overlay_labels_found += 1
+                    elif text == "• Press Ctrl+` to toggle the overlay":
+                        widget.setText(t("• Press Ctrl+` to toggle the overlay"))
+                        overlay_labels_found += 1
+                    elif text == "• Ctrl + Mouse wheel to change opacity":
+                        widget.setText(t("• Ctrl + Mouse wheel to change opacity"))
+                        overlay_labels_found += 1
+                    elif text == "• Click the mode selector (F1-F5) to cycle modes":
+                        widget.setText(t("• Click the mode selector (F1-F5) to cycle modes"))
+                        overlay_labels_found += 1
+                    elif text == "• Use global hotkey to toggle overlay visibility":
+                        widget.setText(t("• Use global hotkey to toggle overlay visibility"))
+                        overlay_labels_found += 1
+                    elif text == "• Overlay stays on top of windowed/borderless games":
+                        widget.setText(t("• Overlay stays on top of windowed/borderless games"))
+                        overlay_labels_found += 1
+                    elif text == "Use the capture button to record a key combination":
+                        widget.setText(t("Use the capture button to record a key combination"))
+                        overlay_labels_found += 1
+                    elif text == "Left-click and drag to move the overlay":
+                        widget.setText(t("Left-click and drag to move the overlay"))
+                        overlay_labels_found += 1
+                    elif text == "Ctrl + Mouse wheel to adjust opacity":
+                        widget.setText(t("Ctrl + Mouse wheel to adjust opacity"))
+                        overlay_labels_found += 1
+                    elif text == "Click the mode button (●/◐) on overlay to cycle modes":
+                        widget.setText(t("Click the mode button (●/◐) on overlay to cycle modes"))
+                        overlay_labels_found += 1
+                    elif text == "Use global hotkey to toggle overlay visibility":
+                        widget.setText(t("Use global hotkey to toggle overlay visibility"))
+                        overlay_labels_found += 1
+                    elif text == "Overlay stays on top of all windows including games":
+                        widget.setText(t("Overlay stays on top of all windows including games"))
+                        overlay_labels_found += 1
+                    elif text.startswith("• Press Ctrl+`"):
+                        widget.setText(t("• Press Ctrl+` to toggle the overlay"))
+                        overlay_labels_found += 1
+                    elif text.startswith("• Ctrl + Mouse wheel"):
+                        widget.setText(t("• Ctrl + Mouse wheel to change opacity"))
+                        overlay_labels_found += 1
+                    elif text.startswith("• Click the mode selector"):
+                        widget.setText(t("• Click the mode selector (F1-F5) to cycle modes"))
+                        overlay_labels_found += 1
+                    elif text.startswith("• Use global hotkey"):
+                        widget.setText(t("• Use global hotkey to toggle overlay visibility"))
+                        overlay_labels_found += 1
+                    elif "Use global hotkey" in text and "overlay visibility" in text:
+                        widget.setText(t("• Use global hotkey to toggle overlay visibility"))
+                        overlay_labels_found += 1
+                    elif "global hotkey" in text.lower() and "toggle" in text.lower() and "overlay" in text.lower():
+                        widget.setText(t("• Use global hotkey to toggle overlay visibility"))
+                        overlay_labels_found += 1
+                    elif text.startswith("• Overlay stays on top"):
+                        widget.setText(t("• Overlay stays on top of windowed/borderless games"))
+                        overlay_labels_found += 1
+                
+                logging.debug(f"Overlay settings translation: Found {overlay_labels_found} overlay-related labels to translate")
+            except Exception as e:
+                logging.debug(f"Error updating Overlay section label translations: {e}")
+            
+            try:
+                for button in self.findChildren(QPushButton):
+                    text = button.text()
+                    if text == "Click to Capture":
+                        button.setText(t("Click to Capture"))
+                    elif text == "Reset to Default":
+                        button.setText(t("Reset to Default"))
+                    elif text == "Reset Position":
+                        button.setText(t("Reset Position"))
+                    elif text == "Show Overlay":
+                        button.setText(t("Show Overlay"))
+                    elif text == "Hide Overlay":
+                        button.setText(t("Hide Overlay"))
+            except Exception as e:
+                logging.debug(f"Error updating Overlay section button translations: {e}")
+            
+            logging.info("Game Overlay settings translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating Game Overlay settings translations: {e}")
+
+    def update_support_section_translations(self):
+        """Update Support section UI text for current language"""
+        try:
+            if hasattr(self, 'support_header'):
+                self.support_header.setText(t("SUPPORT & HELP"))
+                
+            if hasattr(self, 'api_setup_header'):
+                self.api_setup_header.setText(t("API Setup"))
+                
+            if hasattr(self, 'help_header_label'):
+                self.help_header_label.setText(t("Need Help?"))
+                
+            if hasattr(self, 'support_dev_header'):
+                self.support_dev_header.setText(t("Support Development"))
+            
+            if hasattr(self, 'api_steps_label'):
+                api_steps_text = (
+                    f"<b>{t('Important Steps:')}</b><br><br>"
+                    f"<b>1. {t('Admin Setup:')}</b> {t('An administrator in your Discord server must first configure the allowed member role within the SCTool Admin Config section.')}<br><br>"
+                    f"<b>2. {t('Login:')}</b> {t('Ensure you are logged into SCTool on this website.')}<br><br>"
+                    f"<b>3. {t('Navigate:')}</b> {t('Go to your Member Server section.')}<br><br>"
+                    f"<b>4. {t('Manage API:')}</b> {t('Find and access the Manage API section to set up your API key.')}<br><br>"
+                    f"<b>{t('Note:')}</b> {t('You need a verified API key to use the Kill Feed feature.')}"
+                )
+                self.api_steps_label.setText(api_steps_text)
+                logging.info(f"Updated API steps label with translated text: {t('Important Steps:')}")
+            else:
+                logging.warning("api_steps_label reference not found - using fallback method")
+                
+            if hasattr(self, 'video_btn'):
+                self.video_btn.setText(f"📺 {t('Watch Setup Video')}")
+                
+            if hasattr(self, 'discord_btn'):
+                self.discord_btn.setText(f"💬 {t('Join SCTool Discord')}")
+                
+            if hasattr(self, 'github_btn'):
+                self.github_btn.setText(f"📚 {t('GitHub Documentation')}")
+                
+            if hasattr(self, 'patreon_btn'):
+                self.patreon_btn.setText(f"❤️ {t('Support on Patreon')}")
+                
+            if hasattr(self, 'kofi_btn'):
+                self.kofi_btn.setText(f"☕ {t('Buy me a Coffee')}")
+            
+            try:
+                for widget in self.findChildren(QLabel):
+                    text = widget.text()
+                    if text.startswith("Ensure you have the latest version"):
+                        widget.setText(t("Ensure you have the latest version and stay up to date."))
+            except Exception as e:
+                logging.debug(f"Error updating fallback Support label translations: {e}")
+
+            try:
+                for button in self.findChildren(QPushButton):
+                    button_text = button.text()
+                    if "GESTIONAR CLAVES API" in button_text or ("MANAGE API KEYS" in button_text and "manage" in button_text.lower()):
+                        button.setText(t("MANAGE API KEYS"))
+                    elif "Enviar Bajas a API" in button_text or ("Send Kills to API" in button_text and "send" in button_text.lower()):
+                        button.setText(t("Send Kills to API"))
+            except Exception as e:
+                logging.debug(f"Error updating fallback Support button translations: {e}")
+            
+            logging.info("Support section translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating Support section translations: {e}")
+
+    def update_main_ui_translations(self):
+        try:
+            """Update main UI elements like status displays and buttons"""
+            if hasattr(self, 'start_button'):
+                if hasattr(self, 'monitor_thread') and self.monitor_thread and self.monitor_thread.isRunning():
+                    self.start_button.setText(t("STOP MONITORING"))
+                else:
+                    self.start_button.setText(t("START MONITORING"))
+            elif hasattr(self, 'toggle_button'):
+                if hasattr(self, 'monitor_thread') and self.monitor_thread and self.monitor_thread.isRunning():
+                    self.toggle_button.setText(t("STOP MONITORING"))
+                else:
+                    self.toggle_button.setText(t("START MONITORING"))
+            
+            if hasattr(self, 'rescan_button'):
+                self.rescan_button.setText(t("FIND MISSED KILLS"))
+            
+            if hasattr(self, 'update_button'):
+                self.update_button.setText(t("CHECK FOR UPDATES"))
+            
+            if hasattr(self, 'export_button'):
+                self.export_button.setText(t("EXPORT LOGS"))
+            
+            if hasattr(self, 'files_button'):
+                self.files_button.setText(t("OPEN DATA FOLDER"))
+            
+            if hasattr(self, 'user_display'):
+                current_text = self.user_display.text()
+                if "Not logged in" in current_text or t("Not logged in") in current_text:
+                    self.user_display.setText(t("Not logged in"))
+                else:
+                    if hasattr(self, 'local_user_name') and self.local_user_name:
+                        self.user_display.setText(f"{self.local_user_name}")
+                    else:
+                        if ":" in current_text:
+                            parts = current_text.split(":", 1)
+                            if len(parts) == 2:
+                                username = parts[1].strip()
+                                if username:
+                                    self.user_display.setText(f"{username}")
+                        else:
+                            self.user_display.setText(t("Not logged in"))
+            
+            if hasattr(self, 'twitch_indicator'):
+                current_text = self.twitch_indicator.text()
+                if current_text == "Twitch Connected" or "Conectado" in current_text:
+                    self.twitch_indicator.setText(t("Twitch Connected"))
+                elif current_text == "Twitch Not Connected" or "No conectado" in current_text or "Not Connected" in current_text:
+                    self.twitch_indicator.setText(t("Twitch Not Connected"))
+            
+            if hasattr(self, 'game_mode_display'):
+                current_text = self.game_mode_display.text()
+                if ":" in current_text:
+                    parts = current_text.split(":", 1)
+                    if len(parts) == 2:
+                        mode = parts[1].strip()
+                        if mode == "Unknown" or mode == t("Unknown"):
+                            self.game_mode_display.setText(t("Mode: Unknown"))
+                        else:
+                            self.game_mode_display.setText(f"{t('Mode:')} {mode}")
+                else:
+                    if current_text == "Unknown" or current_text == t("Unknown"):
+                        self.game_mode_display.setText(t("Mode: Unknown"))
+                    else:
+                        self.game_mode_display.setText(f"{t('Mode:')} {current_text}")
+            
+            if hasattr(self, 'current_ship_display'):
+                current_text = self.current_ship_display.text()
+                if current_text == "No Ship" or current_text == t("No Ship"):
+                    self.current_ship_display.setText(t("No Ship"))
+            
+            try:
+                for widget in self.findChildren(QLabel):
+                    text = widget.text()
+                    if text == "MONITORING":
+                        widget.setText(t("MONITORING"))
+                    elif text == "API CONNECTED":
+                        widget.setText(t("API CONNECTED"))
+                    elif text == "TWITCH CONNECTED":
+                        widget.setText(t("TWITCH CONNECTED"))
+                    elif text == "GAME MODE":
+                        widget.setText(t("GAME MODE"))
+                    elif text == "CURRENT SHIP":
+                        widget.setText(t("CURRENT SHIP"))
+                    elif text == "KILL FEED":
+                        widget.setText(t("KILL FEED"))
+                    elif text == "TRACKING CONFIGURATION":
+                        widget.setText(t("TRACKING CONFIGURATION"))
+                    elif text == "DATA MANAGEMENT":
+                        widget.setText(t("DATA MANAGEMENT"))
+                    elif text == "APPLICATION PREFERENCES":
+                        widget.setText(t("APPLICATION PREFERENCES"))
+                    elif text == "SCTool Tracker":
+                        widget.setText(t("SCTool Tracker"))
+                    elif text == "KILLS":
+                        widget.setText(t("KILLS"))
+                    elif text == "DEATHS":
+                        widget.setText(t("DEATHS"))
+                    elif text == "K/D RATIO":
+                        widget.setText(t("K/D RATIO"))
+                    elif text == "SESSION TIME":
+                        widget.setText(t("SESSION TIME"))
+                    elif text == "Game.log Path:":
+                        widget.setText(t("Game.log Path:"))
+                    elif text == "Current Ship:":
+                        widget.setText(t("Current Ship:"))
+                    elif text == "API Key:":
+                        widget.setText(t("API Key:"))
+                    elif text == "Language:":
+                        widget.setText(t("Language:"))
+                    elif text.startswith("Configure the core settings"):
+                        widget.setText(t("Configure the core settings for tracking your Star Citizen gameplay and kills."))
+                    elif text.startswith("Export your kill logs"):
+                        widget.setText(t("Export your kill logs and access application data files for backup or troubleshooting."))
+                    elif text.startswith("Configure how SCTool Tracker behaves"):
+                        widget.setText(t("Configure how SCTool Tracker behaves when starting and minimizing."))
+                    elif text.startswith("Path to your Star Citizen Game.log"):
+                        widget.setText(t("Path to your Star Citizen Game.log file (typically StarCitizen\\LIVE\\game.log)"))
+                    elif text.startswith("Select the ship you're currently flying"):
+                        widget.setText(t("Select the ship you're currently flying (included with kill data)"))
+                    elif text.startswith("When minimized, the application will hide"):
+                        widget.setText(t("When minimized, the application will hide in the system tray instead of the taskbar"))
+                    elif text.startswith("Launch SCTool Tracker automatically"):
+                        widget.setText(t("Launch SCTool Tracker automatically when your computer starts"))
+                    elif text.startswith("Choose your preferred language"):
+                        widget.setText(t("Choose your preferred language for the application interface"))
+            except Exception as e:
+                logging.debug(f"Error updating main UI label translations: {e}")
+            
+            try:
+                for checkbox in self.findChildren(QCheckBox):
+                    text = checkbox.text()
+                    if text == "Minimize to system tray":
+                        checkbox.setText(t("Minimize to system tray"))
+                    elif text == "Start with Windows":
+                        checkbox.setText(t("Start with Windows"))
+                    elif text == "Send kills to API":
+                        checkbox.setText(t("Send kills to API"))
+            except Exception as e:
+                logging.debug(f"Error updating main UI checkbox translations: {e}")
+            
+            try:
+                for input_widget in self.findChildren(QLineEdit):
+                    placeholder = input_widget.placeholderText()
+                    if placeholder == "Enter path to your Game.log":
+                        input_widget.setPlaceholderText(t("Enter path to your Game.log"))
+            except Exception as e:
+                logging.debug(f"Error updating main UI input translations: {e}")
+            
+            logging.info("Main UI translations updated")
+            
+        except Exception as e:
+            logging.error(f"Error updating main UI translations: {e}")

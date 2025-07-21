@@ -1,5 +1,10 @@
 # detailed_overlay.py
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from language_manager import t
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
     QPushButton, QFrame, QScrollArea
@@ -18,7 +23,7 @@ def create_detailed_ui(self):
     header_layout = QHBoxLayout()
     header_layout.setSpacing(8)
     
-    title = QLabel("SCTool Killfeed Overlay")
+    title = QLabel(t("SCTool Killfeed Overlay"))
     title.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['accent'].name()};
@@ -53,7 +58,7 @@ def create_detailed_ui(self):
     stats_grid = QGridLayout()
     stats_grid.setSpacing(5)
 
-    kills_label = QLabel("KILLS")
+    kills_label = QLabel(t("KILLS"))
     kills_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -74,7 +79,7 @@ def create_detailed_ui(self):
     """)
     self.kills_value.setAlignment(Qt.AlignCenter)
     
-    deaths_label = QLabel("DEATHS")
+    deaths_label = QLabel(t("DEATHS"))
     deaths_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -95,7 +100,7 @@ def create_detailed_ui(self):
     """)
     self.deaths_value.setAlignment(Qt.AlignCenter)
     
-    kd_label = QLabel("K/D RATIO")
+    kd_label = QLabel(t("K/D RATIO"))
     kd_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -128,7 +133,7 @@ def create_detailed_ui(self):
     session_info_layout = QVBoxLayout()
     session_info_layout.setSpacing(4)
 
-    self.session_time_label = QLabel("Session: 00:00")
+    self.session_time_label = QLabel(t("Session") + ": 00:00")
     self.session_time_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['info_color'].name()};
@@ -140,7 +145,7 @@ def create_detailed_ui(self):
     """)
     self.session_time_label.setAlignment(Qt.AlignLeft)
 
-    self.game_mode_label = QLabel("Mode: Unknown")
+    self.game_mode_label = QLabel(t("Mode") + ": " + t("Unknown"))
     self.game_mode_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -152,7 +157,7 @@ def create_detailed_ui(self):
     self.game_mode_label.setAlignment(Qt.AlignLeft)
     self.game_mode_label.setWordWrap(True)
 
-    self.ship_label = QLabel("Ship: Unknown")
+    self.ship_label = QLabel(t("Ship") + ": " + t("Unknown"))
     self.ship_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -181,7 +186,7 @@ def create_detailed_ui(self):
         latest_kill_layout.setContentsMargins(8, 6, 8, 6)
         latest_kill_layout.setSpacing(4)
         
-        latest_title = QLabel("LATEST KILL")
+        latest_title = QLabel(t("LATEST KILL"))
         latest_title.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['kill_color'].name()};
@@ -192,7 +197,7 @@ def create_detailed_ui(self):
         """)
         latest_title.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_attacker = QLabel("Attacker: --")
+        self.latest_kill_attacker = QLabel(t("Attacker") + ": --")
         self.latest_kill_attacker.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -203,7 +208,7 @@ def create_detailed_ui(self):
         """)
         self.latest_kill_attacker.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_engagement = QLabel("Engagement: --")
+        self.latest_kill_engagement = QLabel(t("Engagement") + ": --")
         self.latest_kill_engagement.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -214,7 +219,7 @@ def create_detailed_ui(self):
         """)
         self.latest_kill_engagement.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_method = QLabel("Method: --")
+        self.latest_kill_method = QLabel(t("Method") + ": --")
         self.latest_kill_method.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -225,7 +230,7 @@ def create_detailed_ui(self):
         """)
         self.latest_kill_method.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_victim = QLabel("Victim: --")
+        self.latest_kill_victim = QLabel(t("Victim") + ": --")
         self.latest_kill_victim.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -236,7 +241,7 @@ def create_detailed_ui(self):
         """)
         self.latest_kill_victim.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_location = QLabel("Location: --")
+        self.latest_kill_location = QLabel(t("Location") + ": --")
         self.latest_kill_location.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -247,7 +252,7 @@ def create_detailed_ui(self):
         """)
         self.latest_kill_location.setAlignment(Qt.AlignLeft)
         
-        self.latest_kill_organization = QLabel("Organization: -- (Tag: --)")
+        self.latest_kill_organization = QLabel(t("Organization") + ": -- (" + t("Tag") + ": --)")
         self.latest_kill_organization.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -280,7 +285,7 @@ def create_detailed_ui(self):
         latest_death_layout.setContentsMargins(8, 6, 8, 6)
         latest_death_layout.setSpacing(4)
         
-        death_title = QLabel("LATEST DEATH")
+        death_title = QLabel(t("LATEST DEATH"))
         death_title.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['death_color'].name()};
@@ -291,7 +296,7 @@ def create_detailed_ui(self):
         """)
         death_title.setAlignment(Qt.AlignLeft)
         
-        self.latest_death_attacker = QLabel("Attacker: --")
+        self.latest_death_attacker = QLabel(t("Attacker") + ": --")
         self.latest_death_attacker.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -302,7 +307,7 @@ def create_detailed_ui(self):
         """)
         self.latest_death_attacker.setAlignment(Qt.AlignLeft)
         
-        self.latest_death_organization = QLabel("Organization: -- (Tag: --)")
+        self.latest_death_organization = QLabel(t("Organization") + ": -- (" + t("Tag") + ": --)")
         self.latest_death_organization.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -313,7 +318,7 @@ def create_detailed_ui(self):
         """)
         self.latest_death_organization.setAlignment(Qt.AlignLeft)
         
-        self.latest_death_location = QLabel("Location: --")
+        self.latest_death_location = QLabel(t("Location") + ": --")
         self.latest_death_location.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};
@@ -324,7 +329,7 @@ def create_detailed_ui(self):
         """)
         self.latest_death_location.setAlignment(Qt.AlignLeft)
         
-        self.latest_death_damage_type = QLabel("Damage Type: --")
+        self.latest_death_damage_type = QLabel(t("Damage Type") + ": --")
         self.latest_death_damage_type.setStyleSheet(f"""
             QLabel {{
                 color: {self.colors['text_primary'].name()};

@@ -1,5 +1,10 @@
 # minimal_overlay.py
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from language_manager import t
+
 from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 )
@@ -42,7 +47,7 @@ def create_minimal_ui(self):
     kills_section = QVBoxLayout()
     kills_section.setSpacing(0)
     
-    kills_label = QLabel("KILLS")
+    kills_label = QLabel(t("KILLS"))
     kills_label.setAlignment(Qt.AlignCenter)
     kills_label.setStyleSheet(f"""
         QLabel {{
@@ -72,7 +77,7 @@ def create_minimal_ui(self):
     deaths_section = QVBoxLayout()
     deaths_section.setSpacing(0)
     
-    deaths_label = QLabel("DEATHS")
+    deaths_label = QLabel(t("DEATHS"))
     deaths_label.setAlignment(Qt.AlignCenter)
     deaths_label.setStyleSheet(f"""
         QLabel {{
@@ -103,7 +108,7 @@ def create_minimal_ui(self):
     
     layout.addLayout(stats_layout)
     
-    self.game_mode_label_m = QLabel("Mode: Unknown")
+    self.game_mode_label_m = QLabel(t("Mode: Unknown"))
     self.game_mode_label_m.setAlignment(Qt.AlignCenter)
     self.game_mode_label_m.setStyleSheet(f"""
         QLabel {{

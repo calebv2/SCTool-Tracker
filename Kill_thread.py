@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (
 )
 
 from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT, KillParser
+from language_manager import t
 
 from Registered_kill import format_registered_kill
 
@@ -29,7 +30,7 @@ cleanupPattern = re.compile(r'^(.+?)_\d+$')
 class MissingKillsDialog(QDialog):
     def __init__(self, missing_kills, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Missing Kills Found")
+        self.setWindowTitle(t("Missing Kills Found"))
         self.missing_kills = missing_kills
         self.checkbox_list = []
         self.initUI()

@@ -13,6 +13,7 @@ import requests
 import ctypes
 import webbrowser
 import shutil
+from kill_parser import VERSION
 from datetime import datetime
 from packaging import version
 from bs4 import BeautifulSoup
@@ -26,7 +27,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
     QFileDialog, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QCheckBox,
     QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog,
-    QSystemTrayIcon, QMenu, QAction, QFrame, QGraphicsOpacityEffect
+    QSystemTrayIcon, QMenu, QAction, QFrame, QGraphicsOpacityEffect, QScrollArea
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath
 from PyQt5.QtCore import (
@@ -42,7 +43,13 @@ from responsive_ui import ScreenScaler, ResponsiveUIHelper, make_popup_responsiv
 
 from utlity import init_ui, load_config, load_local_kills, apply_styles, CollapsibleSettingsPanel, styled_message_box, check_for_updates_ui
 
+from language_manager import language_manager, t
+from language_selector_widget import LanguageSelector
+from translation_utils import translate_application, setup_auto_translation
+from utlity import TranslationMixin
+
 APP_MUTEX_NAME = "SCToolKillfeedMutex_A5F301E7-D3E9-4F6F-BD57-4A114F103240"
+app_instance = None
 
 def is_already_running():
     """Check if another instance of the application is already running"""
@@ -60,7 +67,7 @@ def find_existing_window():
             FindWindow = ctypes.windll.user32.FindWindowW
             SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
             ShowWindow = ctypes.windll.user32.ShowWindow
-            hwnd = FindWindow(None, "SCTool Killfeed 5.6.1")
+            hwnd = FindWindow(None, f"SCTool Killfeed {VERSION}")
             
             if hwnd:
                 ShowWindow(hwnd, 9)
@@ -115,14 +122,14 @@ SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
 PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
-class KillLoggerGUI(QMainWindow):
+class KillLoggerGUI(QMainWindow, TranslationMixin):
     __client_id__ = "kill_logger_client"
-    __version__ = "5.6.1"
+    __version__ = VERSION
 
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
-        self.setWindowTitle("SCTool Killfeed 5.6.1")
+        self.setWindowTitle(t(f"SCTool Killfeed {VERSION}"))
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
         self.death_count = 0
@@ -198,6 +205,8 @@ class KillLoggerGUI(QMainWindow):
         self.initialize_system_tray()  
         self.rescan_button.setEnabled(False)
         self.handle_auto_connect_twitch()
+        
+        self.setup_translation_system()
         
         self.update_ui_scaling()
 
@@ -280,7 +289,8 @@ class KillLoggerGUI(QMainWindow):
             self.show_from_tray()
             
     def show_from_tray(self) -> None:
-        """Show the main window when activated from tray"""
+        """S
+        he main window when activated from tray"""
         self.showNormal()
         self.activateWindow()
         
@@ -353,7 +363,8 @@ class KillLoggerGUI(QMainWindow):
             'clip_delay_seconds': self.clip_delay_slider.value(),
             'minimize_to_tray': self.minimize_to_tray,
             'start_with_system': self.start_with_system,
-            'twitch_chat_message_template': self.twitch_chat_message_template
+            'twitch_chat_message_template': self.twitch_chat_message_template,
+            'language': language_manager.current_language
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -397,11 +408,11 @@ class KillLoggerGUI(QMainWindow):
                 if selected_kills:
                     self.send_missing_kills(selected_kills)
                 else:
-                    self.append_kill_readout("<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ No kills selected to send.</div>")
+                    self.append_kill_readout(f"<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ {t('No kills selected to send.')}</div>")
             else:
-                self.append_kill_readout("<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ Missing kills were not sent.</div>")
+                self.append_kill_readout(f"<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ {t('Missing kills were not sent.')}</div>")
         else:
-            self.append_kill_readout("<div style='color: #2196F3; font-weight: bold; margin: 10px 0;'>ℹ️ No missing kills found.</div>")
+            self.append_kill_readout(f"<div style='color: #2196F3; font-weight: bold; margin: 10px 0;'>ℹ️ {t('No missing kills found.')}</div>")
     
     def display_missing_kill(self, kill: dict) -> None:
         """Display a missing kill in the kill feed"""
@@ -456,10 +467,14 @@ class KillLoggerGUI(QMainWindow):
         payload = kill["payload"]
         headers = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
             'X-API-Key': self.api_key,
             'User-Agent': self.user_agent,
             'X-Client-ID': self.__client_id__,
-            'X-Client-Version': self.__version__        }
+            'X-Client-Version': self.__version__
+        }
         api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
         api_thread.apiResponse.connect(lambda msg, response_data, key=local_key: self.handle_missing_api_response(msg, key, response_data))
         api_thread.start()
@@ -473,7 +488,7 @@ class KillLoggerGUI(QMainWindow):
             'total': len(missing_kills)
         }
 
-        self.append_kill_readout(f"<div style='color: #4CAF50; font-weight: bold; margin: 10px 0;'>📤 Processing {len(missing_kills)} missing kills...</div>")
+        self.append_kill_readout(f"<div style='color: #4CAF50; font-weight: bold; margin: 10px 0;'>📤 {t('Processing {count} missing kills...').format(count=len(missing_kills))}</div>")
         
         for index, kill in enumerate(missing_kills):
             QTimer.singleShot(index * 500, lambda k=kill: self.send_single_missing_kill(k))
@@ -484,6 +499,9 @@ class KillLoggerGUI(QMainWindow):
         payload = kill["payload"]
         headers = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
             'X-API-Key': self.api_key,
             'User-Agent': self.user_agent,
             'X-Client-ID': self.__client_id__,
@@ -538,12 +556,12 @@ class KillLoggerGUI(QMainWindow):
         results = self.missing_kills_results
 
         summary_html = "<div style='background-color: #1a1a1a; border-left: 4px solid #4CAF50; padding: 15px; margin: 10px 0; border-radius: 5px;'>"
-        summary_html += "<div style='color: #4CAF50; font-weight: bold; font-size: 16px; margin-bottom: 10px;'>📊 Missing Kills Processing Complete</div>"
+        summary_html += f"<div style='color: #4CAF50; font-weight: bold; font-size: 16px; margin-bottom: 10px;'>📊 {t('Missing Kills Processing Complete')}</div>"
 
-        summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>Total processed: <span style='color: #4CAF50; font-weight: bold;'>{results['total']}</span></div>"
+        summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>{t('Total processed')}: <span style='color: #4CAF50; font-weight: bold;'>{results['total']}</span></div>"
         
         if results['new_kills']:
-            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>✅ New kills sent: <span style='color: #4CAF50; font-weight: bold;'>{len(results['new_kills'])}</span></div>"
+            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>✅ {t('New kills sent')}: <span style='color: #4CAF50; font-weight: bold;'>{len(results['new_kills'])}</span></div>"
 
             summary_html += "<div style='margin-left: 20px; margin-bottom: 8px;'>"
             for kill_key in results['new_kills']:
@@ -555,7 +573,7 @@ class KillLoggerGUI(QMainWindow):
             summary_html += "</div>"
         
         if results['duplicates']:
-            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>⚠️ Duplicates found: <span style='color: #FFA726; font-weight: bold;'>{len(results['duplicates'])}</span></div>"
+            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>⚠️ {t('Duplicates found')}: <span style='color: #FFA726; font-weight: bold;'>{len(results['duplicates'])}</span></div>"
 
             summary_html += "<div style='margin-left: 20px; margin-bottom: 8px;'>"
             for kill_key in results['duplicates']:
@@ -563,11 +581,11 @@ class KillLoggerGUI(QMainWindow):
                 if len(parts) >= 2:
                     victim = parts[1]
                     timestamp = parts[0]
-                    summary_html += f"<div style='color: #FFB74D; font-size: 12px;'>• {victim} ({timestamp}) - already on server</div>"
+                    summary_html += f"<div style='color: #FFB74D; font-size: 12px;'>• {victim} ({timestamp}) - {t('already on server')}</div>"
             summary_html += "</div>"
         
         if results['errors']:
-            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>❌ Errors: <span style='color: #F44336; font-weight: bold;'>{len(results['errors'])}</span></div>"
+            summary_html += f"<div style='color: #ffffff; margin-bottom: 8px;'>❌ {t('Errors')}: <span style='color: #F44336; font-weight: bold;'>{len(results['errors'])}</span></div>"
 
             summary_html += "<div style='margin-left: 20px; margin-bottom: 8px;'>"
             for error_item in results['errors']:
@@ -589,7 +607,7 @@ class KillLoggerGUI(QMainWindow):
         match = re.search(r"Registered user:\s+(.+)$", text)
         if match:
             self.local_user_name = match.group(1).strip()
-            self.user_display.setText(f"User: {self.local_user_name}")
+            self.user_display.setText(f"{self.local_user_name}")
             self.update_bottom_info("registered", text)
             self.save_config()
             self.rescan_button.setEnabled(True)
@@ -598,42 +616,400 @@ class KillLoggerGUI(QMainWindow):
     def open_tracker_files(self) -> None:
         webbrowser.open(TRACKER_DIR)
 
-    def ping_api(self) -> bool:
-        """Test API connectivity by pinging the server"""
+    def generate_api_diagnostic_report(self) -> str:
+        """Generate a comprehensive diagnostic report for API connection issues"""
+        import platform
+        import sys
+        
+        diagnostic_info = {
+            "timestamp": datetime.now().isoformat(),
+            "application": {
+                "version": getattr(self, '__version__', 'Unknown'),
+                "client_id": getattr(self, '__client_id__', 'Unknown'),
+                "user_agent": getattr(self, 'user_agent', 'Unknown')
+            },
+            "system": {
+                "platform": platform.platform(),
+                "python_version": sys.version,
+                "architecture": platform.architecture()[0]
+            },
+            "api_configuration": {
+                "endpoint": getattr(self, 'api_endpoint', 'Not configured'),
+                "api_key_provided": bool(getattr(self, 'api_key', None)),
+                "api_key_length": len(getattr(self, 'api_key', '')) if getattr(self, 'api_key', None) else 0,
+                "send_to_api_enabled": getattr(self, 'send_to_api_checkbox', None) and self.send_to_api_checkbox.isChecked()
+            },
+            "network_test": {}
+        }
+        
+        try:
+            import socket
+            import urllib.parse
+            
+            if hasattr(self, 'api_endpoint') and self.api_endpoint:
+                parsed_url = urllib.parse.urlparse(self.api_endpoint)
+                hostname = parsed_url.hostname
+                port = parsed_url.port or (443 if parsed_url.scheme == 'https' else 80)
+                
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                result = sock.connect_ex((hostname, port))
+                sock.close()
+                
+                diagnostic_info["network_test"] = {
+                    "hostname": hostname,
+                    "port": port,
+                    "socket_connection": "SUCCESS" if result == 0 else f"FAILED (error code: {result})"
+                }
+                
+                try:
+                    ping_url = self.api_endpoint.replace('/kills', '/ping')
+                    headers = {
+                        'Accept': 'application/json',
+                        'X-API-Key': getattr(self, 'api_key', ''),
+                        'User-Agent': getattr(self, 'user_agent', 'Unknown')
+                    }
+                    
+                    import requests
+                    ping_response = requests.get(ping_url, headers=headers, timeout=10)
+                    diagnostic_info["api_ping_test"] = {
+                        "ping_url": ping_url,
+                        "status_code": ping_response.status_code,
+                        "response_length": len(ping_response.text),
+                        "content_type": ping_response.headers.get('content-type', 'Unknown'),
+                        "response_preview": ping_response.text[:200] + "..." if len(ping_response.text) > 200 else ping_response.text,
+                        "cloudflare_challenge": "just a moment" in ping_response.text.lower() or "cloudflare" in ping_response.text.lower()
+                    }
+                    
+                    if ping_response.status_code != 200:
+                        diagnostic_info["api_ping_test"]["error_details"] = f"HTTP {ping_response.status_code}: {ping_response.reason}"
+                        
+                        if ping_response.status_code == 403 and diagnostic_info["api_ping_test"]["cloudflare_challenge"]:
+                            diagnostic_info["api_ping_test"]["issue_type"] = "CLOUDFLARE_SECURITY_CHALLENGE"
+                            diagnostic_info["api_ping_test"]["not_api_key_issue"] = True
+                        
+                except Exception as ping_error:
+                    diagnostic_info["api_ping_test"] = {
+                        "error": str(ping_error),
+                        "error_type": type(ping_error).__name__
+                    }
+                    
+        except Exception as e:
+            diagnostic_info["network_test"]["error"] = str(e)
+        
+        report = "=== SCTool Tracker API Diagnostic Report ===\n\n"
+        report += f"Generated: {diagnostic_info['timestamp']}\n\n"
+        
+        report += "APPLICATION INFO:\n"
+        for key, value in diagnostic_info["application"].items():
+            report += f"  {key}: {value}\n"
+        
+        report += "\nSYSTEM INFO:\n"
+        for key, value in diagnostic_info["system"].items():
+            report += f"  {key}: {value}\n"
+        
+        report += "\nAPI CONFIGURATION:\n"
+        for key, value in diagnostic_info["api_configuration"].items():
+            report += f"  {key}: {value}\n"
+        
+        report += "\nNETWORK TEST:\n"
+        for key, value in diagnostic_info["network_test"].items():
+            report += f"  {key}: {value}\n"
+        
+        # Add API ping test results if available
+        if "api_ping_test" in diagnostic_info:
+            report += "\nAPI PING TEST:\n"
+            for key, value in diagnostic_info["api_ping_test"].items():
+                report += f"  {key}: {value}\n"
+        
+        report += "\n=== End of Diagnostic Report ===\n"
+        
+        return report
+
+    def test_api_key_validity(self) -> dict:
+        """Test API key validity and return detailed results"""
+        test_results = {
+            "api_key_format_valid": False,
+            "ping_successful": False,
+            "status_code": None,
+            "error_message": "",
+            "recommendations": []
+        }
+        
+        api_key = getattr(self, 'api_key', '')
+        if api_key and len(api_key) >= 32:
+            test_results["api_key_format_valid"] = True
+        else:
+            test_results["recommendations"].append("API key appears too short or missing")
+        
         try:
             ping_url = self.api_endpoint.replace('/kills', '/ping')
-            
             headers = {
-                'X-API-Key': self.api_key,
+                'Accept': 'application/json',
+                'X-API-Key': api_key,
                 'User-Agent': self.user_agent,
                 'X-Client-ID': self.__client_id__,
                 'X-Client-Version': self.__version__
             }
             
             response = requests.get(ping_url, headers=headers, timeout=10)
+            test_results["status_code"] = response.status_code
             
             if response.status_code == 200:
-                data = response.json()
-                if 'registered_in_game_name' in data:
-                    registered_name = data['registered_in_game_name']
-                    if registered_name and not self.local_user_name:
-                        self.local_user_name = registered_name
-                        if hasattr(self, 'user_display'):
-                            self.user_display.setText(f"User: {self.local_user_name}")
-                        logging.info(f"Retrieved registered username from API: {registered_name}")
-                
-                logging.info("API ping successful")
-                return True
+                test_results["ping_successful"] = True
+            elif response.status_code == 401:
+                test_results["error_message"] = "Invalid or expired API key"
+                test_results["recommendations"].append("Check your API key at https://starcitizentool.com/profile")
+            elif response.status_code == 403:
+                if "just a moment" in response.text.lower() or "cloudflare" in response.text.lower():
+                    test_results["error_message"] = "Cloudflare security challenge blocking access"
+                    test_results["recommendations"].extend([
+                        "This is NOT an API key problem - Cloudflare is blocking your requests",
+                        "Try using a VPN from a different location",
+                        "Contact support - this may require server configuration changes",
+                        "Wait and try again later (may be temporary)"
+                    ])
+                else:
+                    test_results["error_message"] = "Access forbidden"
+                    test_results["recommendations"].append("Verify your account permissions")
+            elif response.status_code == 404:
+                test_results["error_message"] = "API endpoint not found"
+                test_results["recommendations"].append("Update to the latest version")
+            elif response.status_code >= 500:
+                test_results["error_message"] = "Server error"
+                test_results["recommendations"].append("Server is temporarily unavailable, try again later")
             else:
-                logging.warning(f"API ping failed with status code: {response.status_code}")
-                return False
+                test_results["error_message"] = f"Unexpected status code: {response.status_code}"
+                test_results["recommendations"].append("Contact support with this diagnostic information")
                 
         except requests.exceptions.RequestException as e:
+            test_results["error_message"] = str(e)
+            test_results["recommendations"].append("Check your internet connection")
+            
+        return test_results
+
+    def analyze_user_case_7_20_2025(self, diagnostic_report: str) -> str:
+        """Analyze the specific user case from July 20, 2025 and provide targeted advice"""
+        analysis = []
+        
+        if "socket_connection: SUCCESS" in diagnostic_report:
+            analysis.append("✓ Network connectivity to server is working")
+        
+        if "api_key_length: 48" in diagnostic_report:
+            analysis.append("✓ API key length appears correct (48 characters)")
+        
+        if "send_to_api_enabled: True" in diagnostic_report:
+            analysis.append("✓ API integration is enabled")
+        
+        analysis.append("\n🔍 LIKELY CAUSES FOR YOUR ISSUE:")
+        analysis.append("1. API key may be invalid/expired (most common)")
+        analysis.append("2. API key may not be properly formatted")
+        analysis.append("3. Server-side validation issue")
+        analysis.append("4. Account permissions issue")
+        
+        analysis.append("\n📋 RECOMMENDED ACTIONS:")
+        analysis.append("1. Double-check your API key at https://starcitizentool.com/profile")
+        analysis.append("2. Copy and paste the API key carefully (no extra spaces)")
+        analysis.append("3. Try generating a new API key if available")
+        analysis.append("4. Verify your account is in good standing")
+        analysis.append("5. Contact support with your diagnostic information")
+        
+        return "\n".join(analysis)
+
+    def try_cloudflare_bypass_headers(self) -> dict:
+        """Generate headers that might help bypass Cloudflare challenges"""
+        return {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'X-API-Key': self.api_key,
+            'X-Client-ID': self.__client_id__,
+            'X-Client-Version': self.__version__
+        }
+
+    def ping_api_with_retry(self) -> bool:
+        """Try pinging the API with different approaches to work around Cloudflare"""
+        if self.ping_api():
+            return True
+            
+        logging.info("Normal API ping failed, trying with enhanced headers for Cloudflare...")
+        
+        try:
+            ping_url = self.api_endpoint.replace('/kills', '/ping')
+            headers = self.try_cloudflare_bypass_headers()
+            
+            response = requests.get(ping_url, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                logging.info("API ping successful with enhanced headers")
+                return True
+            else:
+                logging.error(f"API ping with enhanced headers also failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Enhanced API ping failed: {e}")
+            return False
+
+    def ping_api(self) -> bool:
+        """Test API connectivity by pinging the server"""
+        try:
+            ping_url = self.api_endpoint.replace('/kills', '/ping')
+            
+            headers = {
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'X-API-Key': self.api_key,
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+            
+            logging.info(f"Attempting API ping to: {ping_url}")
+            logging.info(f"API key prefix (first 12 chars): {self.api_key[:12] + '...' if len(self.api_key) > 12 else self.api_key}")
+            logging.debug(f"Ping headers: {headers}")
+            
+            logging.info("Making GET request to API ping endpoint...")
+            response = requests.get(ping_url, headers=headers, timeout=10)
+            
+            logging.info(f"API ping response status: {response.status_code}")
+            logging.info(f"Response headers: {dict(response.headers)}")
+            logging.info(f"Raw response content (first 1000 chars): {response.text[:1000]}")
+            logging.debug(f"Full response content: {response.text}")
+            
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if 'application/json' not in content_type:
+                    logging.warning(f"API ping returned non-JSON content type: {content_type}")
+                    logging.warning(f"Response body: {response.text}")
+                    return False
+                
+                try:
+                    data = response.json()
+                    logging.debug(f"Parsed JSON response: {data}")
+                    
+                    if 'registered_in_game_name' in data:
+                        registered_name = data['registered_in_game_name']
+                        if registered_name and not self.local_user_name:
+                            self.local_user_name = registered_name
+                            if hasattr(self, 'user_display'):
+                                self.user_display.setText(f"{self.local_user_name}")
+                            logging.info(f"Retrieved registered username from API: {registered_name}")
+                    
+                    logging.info("API ping successful")
+                    return True
+                    
+                except ValueError as json_error:
+                    logging.error(f"Failed to parse JSON from ping response: {json_error}")
+                    logging.error(f"Response content: {response.text}")
+                    return False
+                    
+            elif response.status_code == 400:
+                # Try to parse error message even on 400
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get('error', 'Unknown error')
+                    logging.warning(f"API ping returned 400: {error_msg}")
+                except ValueError:
+                    logging.warning(f"API ping failed with status 400, non-JSON response: {response.text}")
+                return False
+                
+            elif response.status_code == 401:
+                logging.error("API ping failed: Invalid API key (401 Unauthorized)")
+                logging.error("TROUBLESHOOTING: Your API key appears to be invalid or expired.")
+                logging.error("SOLUTION: Please check your API key at https://starcitizentool.com/profile")
+                return False
+                
+            elif response.status_code == 403:
+                logging.error("API ping failed: Access forbidden (403 Forbidden)")
+                
+                # Check if this is a Cloudflare challenge
+                if "just a moment" in response.text.lower() or "cloudflare" in response.text.lower():
+                    logging.error("CLOUDFLARE SECURITY CHALLENGE DETECTED")
+                    logging.error("This is not an API key issue - Cloudflare is blocking the request")
+                    logging.error("TROUBLESHOOTING: Cloudflare security is preventing access")
+                    logging.error("SOLUTIONS:")
+                    logging.error("  1. Try using a VPN from a different location")
+                    logging.error("  2. Contact support - this is a server-side security setting issue")
+                    logging.error("  3. Wait and try again later (temporary block)")
+                    logging.error("  4. Check if your IP is on any blocklists")
+                else:
+                    logging.error("TROUBLESHOOTING: Your API key may not have sufficient permissions.")
+                    logging.error("SOLUTION: Please verify your account status at https://starcitizentool.com/profile")
+                return False
+                
+            elif response.status_code == 404:
+                logging.error("API ping failed: Endpoint not found (404 Not Found)")
+                logging.error(f"TROUBLESHOOTING: The API endpoint {ping_url} was not found.")
+                logging.error("SOLUTION: This may indicate a server issue or outdated client version.")
+                return False
+                
+            elif response.status_code >= 500:
+                logging.error(f"API ping failed: Server error ({response.status_code})")
+                logging.error("TROUBLESHOOTING: The API server is experiencing issues.")
+                logging.error("SOLUTION: Please try again later or contact support if the issue persists.")
+                return False
+                
+            else:
+                logging.warning(f"API ping failed with status code: {response.status_code}")
+                logging.warning(f"Response content: {response.text}")
+                logging.error(f"TROUBLESHOOTING: Unexpected HTTP status code {response.status_code}")
+                logging.error("SOLUTION: Please share this diagnostic information with support.")
+                return False
+                
+        except requests.exceptions.ConnectionError as e:
+            logging.error(f"API ping failed - Connection Error: {e}")
+            logging.error("This usually indicates network connectivity issues or incorrect API endpoint URL")
+            logging.error(f"Attempted URL: {ping_url}")
+            return False
+        except requests.exceptions.Timeout as e:
+            logging.error(f"API ping failed - Timeout Error: {e}")
+            logging.error("The API server took too long to respond (>10 seconds)")
+            return False
+        except requests.exceptions.HTTPError as e:
+            logging.error(f"API ping failed - HTTP Error: {e}")
+            return False
+        except requests.exceptions.RequestException as e:
             logging.error(f"API ping failed with network error: {e}")
+            logging.error(f"Request error type: {type(e).__name__}")
+            return False
+        except ValueError as json_error:
+            logging.error(f"API ping failed with JSON parsing error: {json_error}")
+            logging.error("This usually means the server returned non-JSON content (HTML error page, etc.)")
             return False
         except Exception as e:
-            logging.error(f"API ping failed with error: {e}")
+            logging.error(f"API ping failed with unexpected error: {e}")
+            logging.error(f"Error type: {type(e).__name__}")
+            logging.error(f"Error args: {e.args}")
+            import traceback
+            logging.error(f"Full traceback: {traceback.format_exc()}")
             return False
+
+    def detect_cloudflare_challenge(self, response_text: str, status_code: int) -> bool:
+        """Detect if a response is a Cloudflare challenge page"""
+        cloudflare_indicators = [
+            "just a moment",
+            "cloudflare",
+            "checking your browser",
+            "please wait",
+            "security check",
+            "ray id"
+        ]
+        
+        if status_code == 403:
+            response_lower = response_text.lower()
+            return any(indicator in response_lower for indicator in cloudflare_indicators)
+        
+        return False
 
     def update_api_status(self) -> None:
         if self.send_to_api_checkbox.isChecked():
@@ -702,53 +1078,54 @@ class KillLoggerGUI(QMainWindow):
             if file_path:
                 try:
                     html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>SCTool Killfeed Export - {current_date}</title>
-    <style>
-        body {{
-            background-color: #0d0d0d;
-            color: #f0f0f0;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 20px;
-            padding: 0;
-        }}
-        .header {{
-            background-color: #151515;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }}
-        .header h1 {{
-            color: #f04747;
-            margin: 0;
-            font-size: 24px;
-        }}
-        .header p {{
-            margin: 5px 0 0 0;
-            color: #aaaaaa;
-        }}
-        a {{
-            color: #f04747;
-            text-decoration: none;
-        }}
-        a:hover {{
-            text-decoration: underline;
-        }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>SCTool Killfeed Export</h1>
-        <p>Date: {current_date}</p>
-        <p>User: {self.local_user_name or "Unknown"}</p>
-        <p>Session Stats: Kills: {self.kill_count} | Deaths: {self.death_count}</p>
-    </div>
-    {self.kill_display.toHtml()}
-</body>
-</html>"""
+                                        <html>
+                                        <head>
+                                            <meta charset="UTF-8">
+                                            <title>SCTool Killfeed Export - {current_date}</title>
+                                            <style>
+                                                body {{
+                                                    background-color: #0d0d0d;
+                                                    color: #f0f0f0;
+                                                    font-family: 'Segoe UI', Arial, sans-serif;
+                                                    margin: 20px;
+                                                    padding: 0;
+                                                }}
+                                                .header {{
+                                                    background-color: #151515;
+                                                    padding: 15px;
+                                                    margin-bottom: 20px;
+                                                    border-radius: 10px;
+                                                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+                                                }}
+                                                .header h1 {{
+                                                    color: #f04747;
+                                                    margin: 0;
+                                                    font-size: 24px;
+                                                }}
+                                                .header p {{
+                                                    margin: 5px 0 0 0;
+                                                    color: #aaaaaa;
+                                                }}
+                                                a {{
+                                                    color: #f04747;
+                                                    text-decoration: none;
+                                                }}
+                                                a:hover {{
+                                                    text-decoration: underline;
+                                                }}
+                                            </style>
+                                        </head>
+                                        <body>
+                                            <div class="header">
+                                                <h1>{t("SCTool Killfeed Export")}</h1>
+                                                <p>{t("Date")}: {current_date}</p>
+                                                <p>{t("User")}: {self.local_user_name or t("Unknown")}</p>
+                                                <p>{t("Session Stats")}: {t("Kills")}: {self.kill_count} | {t("Deaths")}: {self.death_count}</p>
+                                            </div>
+                                            {self.kill_display.toHtml()}
+                                        </body>
+                                        </html>
+                                    """
 
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(html_content)
@@ -764,7 +1141,74 @@ class KillLoggerGUI(QMainWindow):
                     logging.error(f"Error exporting logs: {e}")
                     self.showCustomMessageBox("Export Error", f"Failed to export logs: {str(e)}", QMessageBox.Critical)
         else:
-            self.showCustomMessageBox("Nothing to Export", "There are no logs to export.", QMessageBox.Information)
+            self.showCustomMessageBox(t("Nothing to Export"), t("There are no logs to export."), QMessageBox.Information)
+
+    def export_debug_logs(self) -> None:
+        """Export debug logs and diagnostic information for troubleshooting"""
+        try:
+            current_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            options = QFileDialog.Options()
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Export Debug Information", f"SCTool_Debug_{current_date}.txt",
+                "Text Files (*.txt);;All Files (*)", options=options
+            )
+            
+            if file_path:
+                debug_content = []
+                
+                debug_content.append(self.generate_api_diagnostic_report())
+                debug_content.append("\n" + "="*60 + "\n")
+                
+                debug_content.append("CURRENT CONFIGURATION:\n")
+                config_info = {
+                    "API Key Set": bool(getattr(self, 'api_key', None)),
+                    "API Endpoint": getattr(self, 'api_endpoint', 'Not set'),
+                    "Send to API": getattr(self, 'send_to_api_checkbox', None) and self.send_to_api_checkbox.isChecked() if hasattr(self, 'send_to_api_checkbox') else False,
+                    "Twitch Enabled": getattr(self, 'twitch_enabled', False),
+                    "Local Username": getattr(self, 'local_user_name', 'Not set'),
+                    "Kill Count": getattr(self, 'kill_count', 0),
+                    "Death Count": getattr(self, 'death_count', 0),
+                }
+                for key, value in config_info.items():
+                    debug_content.append(f"  {key}: {value}\n")
+                
+                debug_content.append("\n" + "="*60 + "\n")
+                
+                debug_content.append("RECENT LOG FILE CONTENT (last 50 lines):\n")
+                try:
+                    log_file_path = os.path.join(TRACKER_DIR, "kill_logger.log")
+                    if os.path.exists(log_file_path):
+                        with open(log_file_path, 'r', encoding='utf-8') as f:
+                            lines = f.readlines()
+                            recent_lines = lines[-50:] if len(lines) > 50 else lines
+                            debug_content.extend(recent_lines)
+                    else:
+                        debug_content.append("Log file not found\n")
+                except Exception as e:
+                    debug_content.append(f"Error reading log file: {e}\n")
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.writelines(debug_content)
+                
+                self.show_temporary_popup(f"Debug information exported to {file_path}")
+                
+                clipboard = QApplication.clipboard()
+                clipboard.setText(''.join(debug_content))
+                
+                info_box = QMessageBox(self)
+                info_box.setWindowTitle("Debug Export Complete")
+                info_box.setIcon(QMessageBox.Information)
+                info_box.setText(
+                    f"Debug information has been:\n\n"
+                    f"• Saved to: {file_path}\n"
+                    f"• Copied to clipboard\n\n"
+                    f"You can now share this information with support."
+                )
+                info_box.exec_()
+                
+        except Exception as e:
+            logging.error(f"Error exporting debug logs: {e}")
+            self.showCustomMessageBox("Export Error", f"Failed to export debug logs: {str(e)}", QMessageBox.Critical)
 
     def auto_update(self, latest_version: str, download_url: str) -> None:
         """Download and install the latest version of the application without requiring admin rights"""      
@@ -1110,7 +1554,7 @@ class KillLoggerGUI(QMainWindow):
         )
 
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Update Required")
+        msg_box.setWindowTitle(t("Update Required"))
         msg_box.setText(update_message)
         msg_box.setIcon(QMessageBox.Warning)
         msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -1146,7 +1590,7 @@ class KillLoggerGUI(QMainWindow):
         )
 
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Update Available")
+        msg_box.setWindowTitle(t("Update Available"))
         msg_box.setText(update_message)
         msg_box.setIcon(QMessageBox.Information)
         msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -1182,7 +1626,7 @@ class KillLoggerGUI(QMainWindow):
         )
 
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Update Required")
+        msg_box.setWindowTitle(t("Update Required"))
         msg_box.setText(update_message)
         msg_box.setIcon(QMessageBox.Critical)
         msg_box.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -1343,6 +1787,9 @@ class KillLoggerGUI(QMainWindow):
         if self.send_to_api_checkbox.isChecked():
             headers = {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
                 'X-API-Key': self.api_key,
                 'User-Agent': self.user_agent,
                 'X-Client-ID': self.__client_id__,
@@ -1515,12 +1962,12 @@ class KillLoggerGUI(QMainWindow):
             self.twitch_indicator.setStyleSheet(
                 "background-color: #9146FF; border-radius: 4px; padding: 4px;"
             )
-            self.twitch_indicator.setText("Twitch Connected")
+            self.twitch_indicator.setText(t("Twitch Connected"))
         else:
             self.twitch_indicator.setStyleSheet(
                 "background-color: #f04747; border-radius: 4px; padding: 4px;"
             )
-            self.twitch_indicator.setText("Twitch Not Connected")
+            self.twitch_indicator.setText(t("Twitch Not Connected"))
 
     def update_bottom_info(self, key: str, message: str) -> None:
         self.persistent_info[key] = message
@@ -1544,7 +1991,7 @@ class KillLoggerGUI(QMainWindow):
         elif key == "registered":
             if ": " in message:
                 username = message.split(": ", 1)[1]
-                self.user_display.setText(f"User: {username}")
+                self.user_display.setText(f"{username}")
         
         elif key == "game_mode":
             if ": " in message:
@@ -1627,8 +2074,8 @@ class KillLoggerGUI(QMainWindow):
     def closeEvent(self, event) -> None:
         if self.monitor_thread and self.monitor_thread.isRunning():
             reply = QMessageBox.question(
-                self, 'Confirm Exit',
-                "Monitoring is active. Stop and exit?",
+                self, t('Confirm Exit'),
+                t("Monitoring is active. Stop and exit?"),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
@@ -1636,7 +2083,7 @@ class KillLoggerGUI(QMainWindow):
                 self.monitor_thread.stop()
                 self.monitor_thread.wait(3000)
                 self.monitor_thread = None
-                self.start_button.setText("Start Monitoring")
+                self.start_button.setText(t("START MONITORING"))
             else:
                 event.ignore()
                 return
@@ -1934,7 +2381,7 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.stop()
             self.monitor_thread.wait(3000)
             self.monitor_thread = None
-            self.start_button.setText("Start Monitoring")
+            self.start_button.setText(t("START MONITORING"))
             self.start_button.setIcon(QIcon(resource_path("start_icon.png")))
             self.update_bottom_info("monitoring", "Monitoring stopped")
             self.update_bottom_info("api_connection", "")
@@ -1953,23 +2400,169 @@ class KillLoggerGUI(QMainWindow):
             self.api_key = new_api_key
             self.local_user_name = ""
             self.registration_attempts = 0
+            
+            logging.info("=" * 60)
+            logging.info("STARTING MONITORING SESSION")
+            logging.info(f"Timestamp: {datetime.now().isoformat()}")
+            logging.info(f"User attempting to start monitoring with API enabled: {self.send_to_api_checkbox.isChecked()}")
+            logging.info(f"API key provided: {bool(new_api_key)}")
+            logging.info(f"Log path provided: {bool(new_log_path) and os.path.isfile(new_log_path) if new_log_path else False}")
+            logging.info("=" * 60)
 
             if self.send_to_api_checkbox.isChecked():
                 if not new_api_key:
+                    logging.warning("API connection attempt failed: No API key provided")
                     QMessageBox.warning(self, "Input Error", "Please enter your API key.")
                     return
-                if not self.ping_api():
-                    QMessageBox.critical(
-                        self, "API Error",
-                        "Unable to connect to the API. Check your network and API key."
-                    )
+                
+                logging.info(f"Attempting API connection with endpoint: {getattr(self, 'api_endpoint', 'Not set')}")
+                logging.info(f"API key length: {len(new_api_key) if new_api_key else 0} characters")
+                logging.info(f"API key prefix: {new_api_key[:8] + '...' if new_api_key and len(new_api_key) > 8 else 'Too short'}")
+                
+                if not self.ping_api_with_retry():
+                    error_details = {
+                        "api_endpoint": getattr(self, 'api_endpoint', 'Not set'),
+                        "api_key_provided": bool(new_api_key),
+                        "api_key_length": len(new_api_key) if new_api_key else 0,
+                        "user_agent": getattr(self, 'user_agent', 'Not set'),
+                        "client_id": getattr(self, '__client_id__', 'Not set'),
+                        "client_version": getattr(self, '__version__', 'Not set'),
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    
+                    logging.error("API CONNECTION FAILURE - Please share this log with support:")
+                    logging.error(f"Error details: {json.dumps(error_details, indent=2)}")
+                    
+                    try:
+                        import socket
+                        import urllib.parse
+                        
+                        if hasattr(self, 'api_endpoint') and self.api_endpoint:
+                            parsed_url = urllib.parse.urlparse(self.api_endpoint)
+                            hostname = parsed_url.hostname
+                            port = parsed_url.port or (443 if parsed_url.scheme == 'https' else 80)
+                            
+                            logging.info(f"Testing network connectivity to {hostname}:{port}")
+                            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            sock.settimeout(5)
+                            result = sock.connect_ex((hostname, port))
+                            sock.close()
+                            
+                            if result == 0:
+                                logging.info("Network connectivity to API host: SUCCESS")
+                            else:
+                                logging.error(f"Network connectivity to API host: FAILED (error code: {result})")
+                        
+                    except Exception as network_error:
+                        logging.error(f"Network diagnostic failed: {network_error}")
+                    
+                    if hasattr(self, 'ping_api'):
+                        logging.info("ping_api method is available")
+                    else:
+                        logging.error("ping_api method is not implemented")
+                    
+                    logging.info("Running detailed API key diagnostics...")
+                    api_test_results = self.test_api_key_validity()
+                    
+                    logging.error("API KEY TEST RESULTS:")
+                    for key, value in api_test_results.items():
+                        logging.error(f"  {key}: {value}")
+                    
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle("API Connection Error")
+                    msg_box.setIcon(QMessageBox.Critical)
+                    
+                    error_text = "Unable to connect to the API."
+                    
+                    is_cloudflare_issue = (api_test_results.get("status_code") == 403 and 
+                                         any("cloudflare" in rec.lower() for rec in api_test_results.get("recommendations", [])))
+                    
+                    if is_cloudflare_issue:
+                        error_text = "🛡️ CLOUDFLARE SECURITY BLOCKING ACCESS\n\n"
+                        error_text += "This is NOT an API key problem!\n"
+                        error_text += "Cloudflare's security system is blocking your requests."
+                    elif api_test_results.get("status_code"):
+                        error_text += f"\n\nServer returned status code: {api_test_results['status_code']}"
+                        
+                    if api_test_results.get("error_message") and not is_cloudflare_issue:
+                        error_text += f"\nError: {api_test_results['error_message']}"
+                    
+                    msg_box.setText(error_text)
+                    
+                    if is_cloudflare_issue:
+                        detail_text = "🚨 CLOUDFLARE SECURITY CHALLENGE DETECTED\n\n"
+                        detail_text += "WHAT THIS MEANS:\n"
+                        detail_text += "• Your API key is probably fine\n"
+                        detail_text += "• Cloudflare thinks your requests look suspicious\n"
+                        detail_text += "• This affects some users but not others\n"
+                        detail_text += "• It's based on location, IP reputation, etc.\n\n"
+                        detail_text += "SOLUTIONS (try in order):\n"
+                        detail_text += "1. Try using a VPN from a different country\n"
+                        detail_text += "2. Wait 30 minutes and try again\n"
+                        detail_text += "3. Restart your router to get a new IP address\n"
+                        detail_text += "4. Contact support with this diagnostic report\n\n"
+                        detail_text += "NOTE: The developer needs to whitelist your IP or adjust Cloudflare settings.\n"
+                    else:
+                        detail_text = "TROUBLESHOOTING STEPS:\n\n"
+                        if api_test_results.get("recommendations"):
+                            for i, rec in enumerate(api_test_results["recommendations"], 1):
+                                detail_text += f"{i}. {rec}\n"
+                        else:
+                            detail_text += "1. Check your network connection\n"
+                            detail_text += "2. Verify your API key at https://starcitizentool.com/profile\n"
+                            detail_text += "3. Try again in a few minutes\n"
+                    
+                    detail_text += "\nDIAGNOSTIC INFORMATION:\n"
+                    detail_text += f"• Network connectivity to server: ✓ SUCCESS\n"
+                    detail_text += f"• API key format valid: {'✓' if api_test_results.get('api_key_format_valid') else '✗'}\n"
+                    detail_text += f"• API key length: {len(getattr(self, 'api_key', ''))}\n"
+                    if api_test_results.get("status_code"):
+                        detail_text += f"• Server response code: {api_test_results['status_code']}\n"
+                    
+                    detail_text += "\nUse the diagnostic buttons below to get more detailed information."
+                    
+                    msg_box.setDetailedText(detail_text)
+                    
+                    ok_btn = msg_box.addButton("OK", QMessageBox.AcceptRole)
+                    diagnostic_btn = msg_box.addButton("Copy Quick Diagnostic", QMessageBox.ActionRole)
+                    full_debug_btn = msg_box.addButton("Export Debug Info", QMessageBox.ActionRole)
+                    
+                    msg_box.setDefaultButton(ok_btn)
+                    msg_box.exec_()
+                    
+                    clicked_btn = msg_box.clickedButton()
+                    if clicked_btn == diagnostic_btn:
+                        try:
+                            diagnostic_report = self.generate_api_diagnostic_report()
+                            clipboard = QApplication.clipboard()
+                            clipboard.setText(diagnostic_report)
+                            
+                            info_box = QMessageBox(self)
+                            info_box.setWindowTitle("Quick Diagnostic Copied")
+                            info_box.setIcon(QMessageBox.Information)
+                            info_box.setText(
+                                "Quick diagnostic information has been copied to your clipboard.\n\n"
+                                "Paste this when reporting the issue for faster troubleshooting."
+                            )
+                            info_box.exec_()
+                            
+                        except Exception as e:
+                            logging.error(f"Failed to generate diagnostic report: {e}")
+                            self.showCustomMessageBox("Error", "Failed to generate diagnostic report.")
+                    
+                    elif clicked_btn == full_debug_btn:
+                        self.export_debug_logs()
+                    
                     return
+                
+                logging.info("API connection successful")
+                self.update_api_status()
 
             if self.twitch_enabled and self.clip_creation_enabled and not self.twitch_channel_input.text().strip():
-                QMessageBox.warning(self, "Twitch Integration", "Please enter a Twitch channel name in the Twitch settings to enable clip creation and chat messages.")
+                QMessageBox.warning(self, "Twitch Integration", t("Please enter a Twitch channel name in the Twitch settings to enable clip creation and chat messages."))
 
             if not new_log_path or not os.path.isfile(new_log_path):
-                QMessageBox.warning(self, "Input Error", "Please enter a valid path to your Game.log file.")
+                QMessageBox.warning(self, "Input Error", t("Please enter a valid path to your Game.log file."))
                 return
 
             killer_ship = "No Ship"
@@ -1993,7 +2586,7 @@ class KillLoggerGUI(QMainWindow):
             self.monitor_thread.game_mode_changed.connect(self.on_game_mode_changed)
             self.monitor_thread.start()
             self.on_ship_updated(killer_ship)
-            self.start_button.setText("Stop Monitoring")
+            self.start_button.setText(t("STOP MONITORING"))
             self.start_button.setIcon(QIcon(resource_path("stop_icon.png")))
             self.update_bottom_info("monitoring", "Monitoring started...")
             self.save_config()
@@ -2268,7 +2861,6 @@ class KillLoggerGUI(QMainWindow):
             return
             
         try:
-            # Use the same sound effect object and settings as the actual kill sound
             self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
             self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
             self.kill_sound_effect.play()
@@ -2332,6 +2924,8 @@ class KillLoggerGUI(QMainWindow):
         """Handle window state change events for minimizing to tray"""
         if event.type() == 105:
             if self.windowState() & Qt.WindowMinimized:
+                if self.minimize_to_tray:
+                    QTimer.singleShot(0, self.hide_to_tray)
                 if hasattr(self, 'game_overlay') and self.game_overlay and self.game_overlay.is_visible:
                     self.game_overlay.show()
                     self.game_overlay.raise_()
@@ -2434,24 +3028,114 @@ class KillLoggerGUI(QMainWindow):
             logging.warning("Auto-connect skipped: No Twitch channel name configured")
             return
             
-        if self.twitch.is_ready():
-            logging.info("Twitch integration already ready, skipping auto-connect")
-            self.update_bottom_info("twitch_connected", "Twitch Connected")
-            return
-            
-        logging.info(f"Auto-connecting to Twitch for channel: {channel_name}")
         self.twitch.set_broadcaster_name(channel_name)
         
-        def auto_auth_callback(success: bool) -> None:
-            if success:
-                self.update_bottom_info("twitch_connected", "Twitch Connected")
-                logging.info("Auto-connect to Twitch successful")
-                self.save_config()
-            else:
-                self.update_bottom_info("twitch_connected", "Twitch Not Connected")
-                logging.warning("Auto-connect to Twitch failed")                
-        self.twitch.authenticate(auto_auth_callback)
+        if self.twitch.is_ready():
+            logging.info("Twitch integration ready with existing credentials")
+            self.update_bottom_info("twitch_connected", "Twitch Connected")
+            return
+        
+        if hasattr(self.twitch, 'access_token') and self.twitch.access_token:
+            logging.info("Twitch credentials found but not ready - may need manual re-authentication")
+            self.update_bottom_info("twitch_connected", "Twitch Not Connected")
+            return
+        
+        logging.info("No Twitch credentials found on startup - manual authentication required")
+        self.update_bottom_info("twitch_connected", "Twitch Not Connected")
 
+    def setup_translation_system(self) -> None:
+        """Initialize the translation system and language selector"""
+        try:
+            if hasattr(self, 'config_file'):
+                language_manager.load_language_preference(self.config_file)
+            
+            self.language_selector = LanguageSelector(self)
+            
+            if hasattr(self, 'content_stack'):
+                self.add_language_selector_to_preferences()
+            
+            setup_auto_translation(self, self.language_selector)
+            
+            translate_application(self)
+            
+            logging.info("Translation system initialized with English text storage")
+            
+        except Exception as e:
+            logging.error(f"Error setting up translation system: {e}")
+    
+    def force_translation_refresh(self):
+        """Force a complete translation refresh - useful when translations get stuck"""
+        try:
+            logging.info(f"Forcing translation refresh for language: {language_manager.current_language}")
+            
+            from translation_utils import immediate_translate_application
+            immediate_translate_application(self)
+            
+            if hasattr(self, 'language_selector') and self.language_selector:
+                if hasattr(self.language_selector, 'force_refresh_translations'):
+                    self.language_selector.force_refresh_translations()
+            
+            logging.info("Force translation refresh completed")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error in force_translation_refresh: {e}")
+            return False
+    
+    def get_current_language_info(self):
+        """Get information about the current language state for debugging"""
+        try:
+            info = {
+                'current_language': language_manager.current_language,
+                'available_languages': list(language_manager.get_available_languages().keys()),
+                'translations_loaded': language_manager.current_language in language_manager.translations,
+                'has_language_selector': hasattr(self, 'language_selector') and self.language_selector is not None
+            }
+            
+            if info['translations_loaded'] and language_manager.current_language != 'en':
+                translation_count = len(language_manager.translations[language_manager.current_language])
+                info['translation_count'] = translation_count
+            
+            return info
+            
+        except Exception as e:
+            logging.error(f"Error getting language info: {e}")
+            return {'error': str(e)}
+        
+    def add_language_selector_to_preferences(self):
+        """Add the language selector to the preferences section"""
+        try:
+            if hasattr(self, 'language_selector_container') and hasattr(self, 'language_selector_layout'):
+                language_header = QLabel(t("Language:"))
+                language_header.setStyleSheet(
+                    "QLabel { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
+                )
+                self.language_selector_layout.addWidget(language_header)
+
+                selector_container = QWidget()
+                selector_container.setStyleSheet("background: transparent; border: none;")
+                selector_layout = QHBoxLayout(selector_container)
+                selector_layout.setContentsMargins(30, 0, 0, 0)
+                selector_layout.setSpacing(10)
+                
+                selector_layout.addWidget(self.language_selector)
+                selector_layout.addStretch()
+                
+                self.language_selector_layout.addWidget(selector_container)
+                
+                language_desc = QLabel(t("Choose your preferred language for the application interface"))
+                language_desc.setStyleSheet(
+                    "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+                )
+                language_desc.setWordWrap(True)
+                self.language_selector_layout.addWidget(language_desc)
+                
+                logging.info("Language selector added to preferences section")
+            else:
+                logging.error("Language selector container not found in preferences")
+                
+        except Exception as e:
+            logging.error(f"Error adding language selector to preferences: {e}")
 
 def style_form_label(label):
     label.setStyleSheet("QLabel { color: #cccccc; font-weight: 500; }")
@@ -2490,7 +3174,7 @@ def cleanup_log_file() -> None:
 
 atexit.register(cleanup_log_file)
 
-def main() -> None:
+def main(start_minimized=False) -> None:
     if is_already_running():
         logging.info("Another instance of SCTool Killfeed is already running.")
         find_existing_window()
@@ -2510,5 +3194,12 @@ def main() -> None:
     if hasattr(gui, 'update_ui_scaling'):
         gui.update_ui_scaling()
 
-    gui.show()
+    if start_minimized and gui.minimize_to_tray:
+        logging.info("Starting application minimized to tray")
+        global app_instance
+        app_instance = gui
+        gui.tray_icon.show()
+    else:
+        gui.show()
+    
     sys.exit(app.exec_())

@@ -1,5 +1,10 @@
 # compact_overlay.py
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from language_manager import t
+
 from PyQt5.QtWidgets import (
     QVBoxLayout, 
     QHBoxLayout, 
@@ -18,7 +23,7 @@ def create_compact_ui(self):
     header_layout = QHBoxLayout()
     header_layout.setSpacing(8)
     
-    title = QLabel("SCTool Killfeed")
+    title = QLabel(t("SCTool Killfeed"))
     title.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['accent'].name()};
@@ -56,7 +61,7 @@ def create_compact_ui(self):
     kills_section = QVBoxLayout()
     kills_section.setSpacing(2)
     
-    kills_label = QLabel("KILLS")
+    kills_label = QLabel(t("KILLS"))
     kills_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -86,7 +91,7 @@ def create_compact_ui(self):
     deaths_section = QVBoxLayout()
     deaths_section.setSpacing(2)
     
-    deaths_label = QLabel("DEATHS")
+    deaths_label = QLabel(t("DEATHS"))
     deaths_label.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -158,7 +163,7 @@ def create_compact_ui(self):
     info_layout = QVBoxLayout()
     info_layout.setSpacing(4)
 
-    self.session_label_c = QLabel("Session: 00:00")
+    self.session_label_c = QLabel(t("Session: 00:00"))
     self.session_label_c.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['info_color'].name()};
@@ -170,7 +175,7 @@ def create_compact_ui(self):
     """)
     self.session_label_c.setAlignment(Qt.AlignLeft)
 
-    self.game_mode_label_c = QLabel("Mode: Unknown")
+    self.game_mode_label_c = QLabel(t("Mode: Unknown"))
     self.game_mode_label_c.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
@@ -182,7 +187,7 @@ def create_compact_ui(self):
     self.game_mode_label_c.setAlignment(Qt.AlignLeft)
     self.game_mode_label_c.setWordWrap(True)
 
-    self.ship_label_c = QLabel("Ship: Unknown")
+    self.ship_label_c = QLabel(t("Ship: Unknown"))
     self.ship_label_c.setStyleSheet(f"""
         QLabel {{
             color: {self.colors['text_secondary'].name()};
