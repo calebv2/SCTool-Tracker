@@ -108,7 +108,9 @@ def create_minimal_ui(self):
     
     layout.addLayout(stats_layout)
     
-    self.game_mode_label_m = QLabel(t("Mode: Unknown"))
+    mode_text = t('Mode')
+    unknown_text = t('Unknown')
+    self.game_mode_label_m = QLabel(f"{mode_text}: {unknown_text}")
     self.game_mode_label_m.setAlignment(Qt.AlignCenter)
     self.game_mode_label_m.setStyleSheet(f"""
         QLabel {{

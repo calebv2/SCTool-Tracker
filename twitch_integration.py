@@ -14,6 +14,7 @@ import base64
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Callable, List
 from urllib.parse import urlparse, parse_qs
+from language_manager import t
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLineEdit, QPushButton, QTextBrowser,
@@ -773,7 +774,7 @@ class TwitchIntegration:
     def set_clip_delay(self, seconds: int) -> None:
         """Set the delay in seconds before creating a clip after a kill"""
         self.clip_delay_seconds = max(0, int(seconds))
-        logging.info(f"Clip delay set to {self.clip_delay_seconds} seconds")
+        logging.info(f"Clip delay set to {self.clip_delay_seconds} {t('seconds')}")
         self.save_config()
 
     def create_clip(self, kill_data: Dict[str, Any], callback: Callable[[str, Dict[str, Any]], None]) -> None:
@@ -788,7 +789,7 @@ class TwitchIntegration:
             
         try:
             if self.clip_delay_seconds > 0:
-                logging.info(f"Delaying clip creation by {self.clip_delay_seconds} seconds")
+                logging.info(f"Delaying clip creation by {self.clip_delay_seconds} {t('seconds')}")
                 
                 threading.Thread(
                     target=self._delayed_clip_worker,

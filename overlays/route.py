@@ -686,7 +686,8 @@ class GameOverlay(QWidget):
                 
         elif self.display_mode == 'minimal':
             if hasattr(self, 'game_mode_label_m'):
-                self.game_mode_label_m.setText(t("Mode") + f": {self.game_mode}")
+                mode_text = t("Mode")
+                self.game_mode_label_m.setText(f"{mode_text}: {self.game_mode}")
 
     def hide_overlay(self):
         """Hide the overlay"""
@@ -760,7 +761,8 @@ class GameOverlay(QWidget):
             if hasattr(self, 'deaths_count'):
                 self.deaths_count.setText(str(self.deaths))
             if hasattr(self, 'game_mode_label_m'):
-                self.game_mode_label_m.setText(f"Mode: {self.game_mode}")
+                mode_text = t('Mode')
+                self.game_mode_label_m.setText(f"{mode_text}: {self.game_mode}")
                 
         elif self.display_mode == 'compact':
             if hasattr(self, 'kills_value_c'):

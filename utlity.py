@@ -1123,7 +1123,7 @@ def init_ui(self) -> None:
         "stop:0 #a366ff, stop:1 #8a3bff); border: 1px solid #9146FF; }"
     )
     
-    self.clip_delay_value = QLabel(f"{self.twitch.clip_delay_seconds} seconds")
+    self.clip_delay_value = QLabel(f"{self.twitch.clip_delay_seconds} {t('seconds')}")
     self.clip_delay_value.setStyleSheet("QLabel { color: #ffffff; background: transparent; border: none; font-size: 14px; }")
     self.clip_delay_slider.valueChanged.connect(self.on_clip_delay_changed)
     
@@ -1605,7 +1605,7 @@ def load_config(self) -> None:
             clip_delay = config.get('clip_delay_seconds', 0)
             self.twitch.set_clip_delay(clip_delay)
             self.clip_delay_slider.setValue(clip_delay)
-            self.clip_delay_value.setText(f"{clip_delay} seconds")
+            self.clip_delay_value.setText(f"{clip_delay} {t('seconds')}")
             self.minimize_to_tray = config.get('minimize_to_tray', False)
             self.minimize_to_tray_checkbox.setChecked(self.minimize_to_tray)
             
@@ -2100,15 +2100,19 @@ class TranslationMixin:
         if hasattr(self, 'api_help_label'):
             print("[DEBUG] Found api_help_label - updating with current language text")
             
-            # Create the API help text with clickable HERE link
-            instructions_text = t('Instructions are also available HERE')
-            # Replace "HERE" with a clickable link
-            if 'HERE' in instructions_text:
-                base_text = instructions_text.replace('HERE', '')
-                here_link = f'{base_text}<a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
+            original_text = 'Instructions are also available HERE'
+            translated_text = t(original_text)
+            
+            youtube_link = t("https://www.youtube.com/watch?v=L62qvxopKak")
+            
+            if original_text != translated_text:
+                translated_here = t("HERE")
+                if translated_here in translated_text:
+                    here_link = translated_text.replace(translated_here, f'<a href="{youtube_link}" style="color: #f04747; text-decoration: underline;">{translated_here}</a>')
+                else:
+                    here_link = f'{translated_text} <a href="{youtube_link}" style="color: #f04747; text-decoration: underline;">{translated_here}</a>'
             else:
-                # Fallback if translation doesn't contain "HERE"
-                here_link = f'{instructions_text} <a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
+                here_link = f'{translated_text.replace("HERE", "")} <a href="{youtube_link}" style="color: #f04747; text-decoration: underline;">HERE</a>'
             
             api_help_text = (
                 f"<b>{t('How to get an API key:')}</b><br><br>"
@@ -2123,7 +2127,6 @@ class TranslationMixin:
             self.api_help_label.setText(api_help_text)
             print(f"[DEBUG] API help label updated with full instructions")
             
-            # Force immediate UI refresh for this widget
             self.api_help_label.update()
             self.api_help_label.repaint()
             print("[DEBUG] Forced immediate repaint of api_help_label")
@@ -2143,23 +2146,19 @@ class TranslationMixin:
             logging.info(f"API steps label updated with translations")
 
         try:
-            # Update common UI elements using JSON translations only
             for widget in self.findChildren(QLabel):
                 text = widget.text()
                 
-                # Main section headers
                 if text == "API CONNECTION":
                     widget.setText(t("API CONNECTION"))
                 elif text == "API Settings" or text == "API SETTINGS":
                     widget.setText(t("API Settings"))
                 
-                # Main descriptions - use exact matches from JSON
                 elif text.startswith("Connect to the SCTool online service"):
                     widget.setText(t("Connect to the SCTool online service to track your kill statistics across sessions and compare with other players."))
                 elif text.startswith("Your API key connects"):
                     widget.setText(t("Your API key connects your account to the SCTool Tracker service."))
                 
-                # HTML formatted content with all API setup steps
                 elif "<b>" in text and ("Important Steps:" in text or "Admin Setup:" in text or "Login:" in text or "Navigate:" in text or "Manage API:" in text):
                     api_steps_text = (
                         f"<b>{t('Important Steps:')}</b><br><br>"
@@ -2176,7 +2175,6 @@ class TranslationMixin:
             logging.debug(f"Error updating API label translations: {e}")
         
         try:
-            # Update buttons
             for button in self.findChildren(QPushButton):
                 if button.text() == "MANAGE API KEYS":
                     button.setText(t("MANAGE API KEYS"))
@@ -2184,7 +2182,6 @@ class TranslationMixin:
             logging.debug(f"Error updating API button translations: {e}")
         
         try:
-            # Update checkboxes
             if hasattr(self, 'send_to_api_checkbox'):
                 self.send_to_api_checkbox.setText(t("Send kills to API"))
             
@@ -2253,6 +2250,8 @@ class TranslationMixin:
                 self.twitch_disconnect_button.setText(t("Disconnect Twitch"))
             if hasattr(self, 'twitch_channel_input'):
                 self.twitch_channel_input.setPlaceholderText(t("Enter your Twitch channel name"))
+            if hasattr(self, 'clip_delay_value') and hasattr(self, 'twitch') and hasattr(self.twitch, 'clip_delay_seconds'):
+                self.clip_delay_value.setText(f"{self.twitch.clip_delay_seconds} {t('seconds')}")
             
             try:
                 for widget in self.findChildren(QLabel):

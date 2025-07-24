@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Update image label sizes",
+			"type": "shell",
+			"command": "powershell -Command \"((Get-Content -Path '.\\overlays\\faded_overlay.py' -Raw) -replace 'image_label.setFixedSize\\(120, 120\\)', 'image_label.setFixedSize(80, 80)') | Set-Content -Path '.\\overlays\\faded_overlay.py' -NoNewline; ((Get-Content -Path '.\\overlays\\faded_overlay.py' -Raw) -replace 'border-radius: 60px;', 'border-radius: 40px;') | Set-Content -Path '.\\overlays\\faded_overlay.py' -NoNewline; ((Get-Content -Path '.\\overlays\\faded_overlay.py' -Raw) -replace 'font-size: 12px;', 'font-size: 10px;') | Set-Content -Path '.\\overlays\\faded_overlay.py' -NoNewline\"",
+			"group": "build",
+			"isBackground": false
+		}
+	]
+}

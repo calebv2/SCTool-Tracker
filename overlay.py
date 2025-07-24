@@ -130,7 +130,7 @@ class OverlayControlPanel(QFrame):
         basic_layout.addWidget(self.lock_checkbox)
         
         mode_layout = QHBoxLayout()
-        self.mode_label_text = QLabel(t("Display Mode") + ":")
+        self.mode_label_text = QLabel(t("Display Mode:"))
         self.mode_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
         self.mode_combo = QComboBox()
         self.mode_combo.addItems([t("Minimal"), t("Compact"), t("Detailed"), t("Horizontal"), t("Faded")])
@@ -184,7 +184,7 @@ class OverlayControlPanel(QFrame):
         appearance_layout.setSpacing(10)
         
         opacity_layout = QHBoxLayout()
-        self.opacity_label_text = QLabel(t("Opacity") + ":")
+        self.opacity_label_text = QLabel(t("Opacity:"))
         self.opacity_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
         
         self.opacity_slider = QSlider(Qt.Horizontal)
@@ -316,7 +316,7 @@ class OverlayControlPanel(QFrame):
         hotkey_layout.addWidget(self.hotkey_checkbox)
         
         current_hotkey_layout = QHBoxLayout()
-        self.current_hotkey_label = QLabel(t("Current Hotkey") + ":")
+        self.current_hotkey_label = QLabel(t("Current Hotkey:"))
         self.current_hotkey_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
         
         self.current_hotkey_display = QLabel(self.overlay.hotkey_combination)
@@ -552,28 +552,28 @@ class OverlayControlPanel(QFrame):
             
             for label in self.findChildren(QLabel):
                 label_text = label.text()
-                if label_text == "Display Mode:":
-                    label.setText(t("Display Mode") + ":")
+                if label_text == "Display Mode:" or label_text == "Modo de Visualización:" or "Mode" in label_text and ":" in label_text:
+                    label.setText(t("Display Mode:"))
                 elif label_text == "Modo de Visualización:":
-                    label.setText(t("Display Mode") + ":")
+                    label.setText(t("Display Mode:"))
                 elif label_text == "Opacity:":
-                    label.setText(t("Opacity") + ":")
+                    label.setText(t("Opacity:"))
                 elif label_text == "Opacidad:":
-                    label.setText(t("Opacity") + ":")
+                    label.setText(t("Opacity:"))
                 elif label_text == "Theme:":
-                    label.setText(t("Theme") + ":")
+                    label.setText(t("Theme:"))
                 elif label_text == "Tema:":
-                    label.setText(t("Theme") + ":")
+                    label.setText(t("Theme:"))
                 elif label_text == "Global Hotkey:":
-                    label.setText(t("Global Hotkey") + ":")
+                    label.setText(t("Global Hotkey:"))
                 elif label_text == "Tecla Rápida Global:":
-                    label.setText(t("Global Hotkey") + ":")
+                    label.setText(t("Global Hotkey:"))
                 elif label_text == "Current Hotkey:":
-                    label.setText(t("Current Hotkey") + ":")
+                    label.setText(t("Current Hotkey:"))
                 elif label_text == "Tecla Rápida Actual:":
-                    label.setText(t("Current Hotkey") + ":")
+                    label.setText(t("Current Hotkey:"))
                 elif label_text == "Font Size:":
-                    label.setText(t("Font Size") + ":")
+                    label.setText(t("Font Size:"))
             
             if hasattr(self, 'mode_combo'):
                 current_mode = self.overlay.display_mode.lower()
@@ -615,13 +615,13 @@ class OverlayControlPanel(QFrame):
             if hasattr(self, 'helper_btn'):
                 self.helper_btn.setText(t("Show Faded Mode Helper"))
             if hasattr(self, 'mode_label_text'):
-                self.mode_label_text.setText(t("Display Mode") + ":")
+                self.mode_label_text.setText(t("Display Mode:"))
             if hasattr(self, 'opacity_label_text'):
-                self.opacity_label_text.setText(t("Opacity") + ":")
+                self.opacity_label_text.setText(t("Opacity:"))
             if hasattr(self, 'theme_label_text'):
                 self.theme_label_text.setText(t("Theme:"))
             if hasattr(self, 'current_hotkey_label'):
-                self.current_hotkey_label.setText(t("Current Hotkey") + ":")
+                self.current_hotkey_label.setText(t("Current Hotkey:"))
             if hasattr(self, 'hotkey_group'):
                 self.hotkey_group.setTitle(t("Global Hotkey"))
             if hasattr(self, 'basic_group'):

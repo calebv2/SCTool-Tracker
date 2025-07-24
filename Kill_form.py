@@ -2358,7 +2358,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def on_clip_delay_changed(self, value: int) -> None:
         """Handle clip delay slider value changes"""
         self.twitch.set_clip_delay(value)        
-        self.clip_delay_value.setText(f"{value} seconds")
+        self.clip_delay_value.setText(f"{value} {t('seconds')}")
         logging.info(f"Clip delay set to {value} seconds")
         self.save_config()
 
