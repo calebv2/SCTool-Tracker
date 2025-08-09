@@ -415,12 +415,13 @@ class RescanThread(QThread):
 class ApiSenderThread(QThread):
     apiResponse = pyqtSignal(str, object)
 
-    def __init__(self, api_endpoint: str, headers: Dict[str, str], payload: dict, local_key: str, parent: Optional[Any] = None) -> None:
+    def __init__(self, api_endpoint: str, headers: Dict[str, str], payload: dict, local_key: str, verify_ssl: bool = True, parent: Optional[Any] = None) -> None:
         super().__init__(parent)
         self.api_endpoint = api_endpoint
         self.headers = headers
         self.payload = payload
         self.local_key = local_key
+        self.verify_ssl = verify_ssl
         self.retry_count = 0
         self.max_retries = 5
         self.backoff = 1
@@ -428,7 +429,11 @@ class ApiSenderThread(QThread):
     def run(self) -> None:
         while self.retry_count < self.max_retries:
             try:
-                resp = requests.post(self.api_endpoint, headers=self.headers, json=self.payload, timeout=10)
+                if not self.verify_ssl:
+                    import urllib3
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                
+                resp = requests.post(self.api_endpoint, headers=self.headers, json=self.payload, timeout=10, verify=self.verify_ssl)
                 if resp.status_code == 201:
                     data_resp = resp.json()
                     if isinstance(data_resp, dict):

@@ -155,6 +155,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.death_sound_volume = 100
         
         self.api_key = ""
+        self.disable_ssl_verification = False
         self.registration_attempts = 0
         self.local_kills: Dict[str, Any] = {}
         self.kills_local_file = LOCAL_KILLS_FILE
@@ -351,6 +352,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'death_sound_volume': self.death_volume_slider.value(),
             'log_path': self.log_path_input.text().strip(),
             'api_key': self.api_key_input.text().strip(),
+            'disable_ssl_verification': self.disable_ssl_verification,
             'local_user_name': self.local_user_name,
             'send_to_api': self.send_to_api_checkbox.isChecked(),
             'killer_ship': ship_value,
@@ -475,7 +477,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'X-Client-ID': self.__client_id__,
             'X-Client-Version': self.__version__
         }
-        api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+        verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+        api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, verify_ssl, parent=self)
         api_thread.apiResponse.connect(lambda msg, response_data, key=local_key: self.handle_missing_api_response(msg, key, response_data))
         api_thread.start()
         
@@ -510,7 +513,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         
         self.display_missing_kill(kill)
 
-        api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+        verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+        api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, verify_ssl, parent=self)
         api_thread.apiResponse.connect(lambda msg, response_data, key=local_key: self.handle_missing_api_response(msg, key, response_data))
         api_thread.start()
 
@@ -639,6 +643,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 "api_key_length": len(getattr(self, 'api_key', '')) if getattr(self, 'api_key', None) else 0,
                 "send_to_api_enabled": getattr(self, 'send_to_api_checkbox', None) and self.send_to_api_checkbox.isChecked()
             },
+            "time_sync_check": self.check_system_time_sync(),
             "network_test": {}
         }
         
@@ -752,7 +757,12 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 'X-Client-Version': self.__version__
             }
             
-            response = requests.get(ping_url, headers=headers, timeout=10)
+            verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+            if not verify_ssl:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            response = requests.get(ping_url, headers=headers, timeout=10, verify=verify_ssl)
             test_results["status_code"] = response.status_code
             
             if response.status_code == 200:
@@ -782,6 +792,16 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 test_results["error_message"] = f"Unexpected status code: {response.status_code}"
                 test_results["recommendations"].append("Contact support with this diagnostic information")
                 
+        except requests.exceptions.SSLError as ssl_error:
+            test_results["error_message"] = f"SSL Certificate Error: {str(ssl_error)}"
+            test_results["recommendations"].extend([
+                "SSL certificate verification failed - this is usually a system configuration issue",
+                "Check your Windows date and time settings (most common cause)",
+                "Update Windows to get latest certificate store",
+                "Disable antivirus SSL scanning temporarily to test",
+                "Try connecting from a different network (mobile hotspot)",
+                "Contact IT support if on a corporate network"
+            ])
         except requests.exceptions.RequestException as e:
             test_results["error_message"] = str(e)
             test_results["recommendations"].append("Check your internet connection")
@@ -859,6 +879,119 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             logging.error(f"Enhanced API ping failed: {e}")
             return False
 
+    def show_ssl_bypass_option(self):
+        """Show the SSL verification bypass option when SSL errors are detected"""
+        if hasattr(self, 'ssl_warning_container'):
+            self.ssl_warning_container.setVisible(True)
+            logging.warning("SSL bypass option is now visible to user due to SSL errors")
+
+    def on_ssl_verification_changed(self, state: int) -> None:
+        """Handle SSL verification checkbox state change"""
+        self.disable_ssl_verification = (state == Qt.Checked)
+        self.save_config()
+        if self.disable_ssl_verification:
+            logging.warning("🚨 USER ENABLED SSL BYPASS - This reduces security!")
+        else:
+            logging.info("SSL verification re-enabled")
+
+    def check_system_time_sync(self) -> dict:
+        """Check if system time is properly synchronized"""
+        import time
+        import datetime
+        import requests
+        import platform
+        
+        time_info = {
+            "system_time": datetime.datetime.now().isoformat(),
+            "system_utc_time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time_sync_status": "unknown",
+            "time_difference": None,
+            "windows_activation_status": "unknown",
+            "recommendations": []
+        }
+        
+        windows_version = platform.platform()
+        if "Windows-10-10.0.26100" in windows_version or int(platform.release()) >= 11:
+            time_info["is_windows_11"] = True
+            time_info["recommendations"].append("Windows 11 detected - SSL issues are common on this OS")
+        
+        try:
+            import subprocess
+            result = subprocess.run(['slmgr', '/xpr'], capture_output=True, text=True, timeout=10)
+            if "notification" in result.stdout.lower() or "grace" in result.stdout.lower():
+                time_info["windows_activation_status"] = "unactivated_or_grace"
+                time_info["recommendations"].append("⚠️ Windows appears to be unactivated - this often causes SSL certificate issues")
+                time_info["recommendations"].append("Unactivated Windows may not receive certificate updates")
+        except Exception:
+            pass
+        
+        try:
+            response = requests.get("http://worldtimeapi.org/api/timezone/UTC", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                server_time = datetime.datetime.fromisoformat(data['datetime'].replace('Z', '+00:00'))
+                system_time = datetime.datetime.now(datetime.timezone.utc)
+                
+                time_diff = abs((system_time - server_time).total_seconds())
+                time_info["time_difference"] = time_diff
+                
+                if time_diff < 30:
+                    time_info["time_sync_status"] = "good"
+                elif time_diff < 300:
+                    time_info["time_sync_status"] = "warning"
+                    time_info["recommendations"].append("System time is slightly off - enable automatic time sync")
+                else:
+                    time_info["time_sync_status"] = "critical"
+                    time_info["recommendations"].append("🚨 System time is significantly wrong - this WILL cause SSL errors")
+                    time_info["recommendations"].append("FIX: Right-click taskbar clock → 'Adjust date/time' → Enable 'Set time automatically'")
+            else:
+                time_info["recommendations"].append("Could not verify time synchronization")
+        except Exception as e:
+            time_info["recommendations"].append(f"Time check failed: {str(e)}")
+            
+        return time_info
+
+    def ping_api_insecure(self) -> bool:
+        """
+        Emergency fallback API ping with SSL verification disabled.
+        ONLY use this as a last resort when SSL verification fails.
+        """
+        try:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            ping_url = self.api_endpoint.replace('/kills', '/ping')
+            
+            headers = {
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'X-API-Key': self.api_key,
+                'User-Agent': self.user_agent,
+                'X-Client-ID': self.__client_id__,
+                'X-Client-Version': self.__version__
+            }
+            
+            logging.warning("🚨 ATTEMPTING INSECURE API CONNECTION (SSL VERIFICATION DISABLED)")
+            logging.warning("This is NOT recommended and should only be used as a temporary workaround")
+            
+            response = requests.get(ping_url, headers=headers, timeout=10, verify=False)
+            
+            if response.status_code == 200:
+                logging.warning("✅ Insecure API ping successful - SSL verification is the problem")
+                logging.warning("PLEASE FIX YOUR SYSTEM CONFIGURATION:")
+                logging.warning("1. Check Windows date/time settings")
+                logging.warning("2. Update Windows and certificates")
+                logging.warning("3. This workaround is temporary and insecure")
+                return True
+            else:
+                logging.error(f"Even insecure API ping failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Insecure API ping failed: {e}")
+            return False
+
     def ping_api(self) -> bool:
         """Test API connectivity by pinging the server"""
         try:
@@ -879,7 +1012,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             logging.debug(f"Ping headers: {headers}")
             
             logging.info("Making GET request to API ping endpoint...")
-            response = requests.get(ping_url, headers=headers, timeout=10)
+            verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+            if not verify_ssl:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                logging.warning("🚨 SSL verification is DISABLED - this is insecure!")
+            
+            response = requests.get(ping_url, headers=headers, timeout=10, verify=verify_ssl)
             
             logging.info(f"API ping response status: {response.status_code}")
             logging.info(f"Response headers: {dict(response.headers)}")
@@ -914,7 +1053,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     return False
                     
             elif response.status_code == 400:
-                # Try to parse error message even on 400
                 try:
                     error_data = response.json()
                     error_msg = error_data.get('error', 'Unknown error')
@@ -932,7 +1070,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             elif response.status_code == 403:
                 logging.error("API ping failed: Access forbidden (403 Forbidden)")
                 
-                # Check if this is a Cloudflare challenge
                 if "just a moment" in response.text.lower() or "cloudflare" in response.text.lower():
                     logging.error("CLOUDFLARE SECURITY CHALLENGE DETECTED")
                     logging.error("This is not an API key issue - Cloudflare is blocking the request")
@@ -978,6 +1115,44 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         except requests.exceptions.HTTPError as e:
             logging.error(f"API ping failed - HTTP Error: {e}")
             return False
+        except requests.exceptions.SSLError as ssl_error:
+            logging.error(f"API ping failed with SSL/TLS error: {ssl_error}")
+            logging.error("🔒 SSL CERTIFICATE VERIFICATION FAILED")
+            
+            error_str = str(ssl_error).lower()
+            if "certificate is not yet valid" in error_str:
+                logging.error("🚨 SPECIFIC ERROR: Certificate 'not yet valid' - This is a SYSTEM CLOCK issue!")
+                logging.error("MOST LIKELY CAUSES:")
+                logging.error("  1. System clock is incorrect (MOST COMMON)")
+                logging.error("  2. Unactivated Windows (cannot update certificates)")
+                logging.error("  3. Time zone is wrong")
+                logging.error("IMMEDIATE SOLUTIONS:")
+                logging.error("  1. Right-click taskbar clock → 'Adjust date/time'")
+                logging.error("  2. Enable 'Set time automatically' and 'Set time zone automatically'")
+                logging.error("  3. Click 'Sync now' to force time synchronization")
+                logging.error("  4. If Windows is unactivated, activate it to get certificate updates")
+            else:
+                logging.error("COMMON CAUSES:")
+                logging.error("  1. System clock is incorrect (most common on Windows 11)")
+                logging.error("  2. Outdated Windows certificate store")
+                logging.error("  3. Corporate firewall/proxy interference")
+                logging.error("  4. Antivirus SSL scanning interference")
+                logging.error("SOLUTIONS:")
+                logging.error("  1. Check Windows date/time settings (right-click taskbar clock)")
+                logging.error("  2. Update Windows and run Windows Update")
+                logging.error("  3. Disable antivirus SSL scanning temporarily")
+                logging.error("  4. Try from a different network (mobile hotspot)")
+                logging.error("  5. Contact your IT administrator if on corporate network")
+            
+            logging.warning("Attempting emergency insecure connection as fallback...")
+            if self.ping_api_insecure():
+                logging.warning("✅ Connection works without SSL verification - this confirms SSL configuration issue")
+                if hasattr(self, 'show_ssl_bypass_option'):
+                    QTimer.singleShot(100, self.show_ssl_bypass_option)
+                return True
+            else:
+                logging.error("❌ Even insecure connection failed - this is not just an SSL issue")
+                return False
         except requests.exceptions.RequestException as e:
             logging.error(f"API ping failed with network error: {e}")
             logging.error(f"Request error type: {type(e).__name__}")
@@ -1798,7 +1973,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
             deaths_endpoint = f"{self.api_endpoint.replace('/kills', '/deaths')}"
             
-            api_thread = ApiSenderThread(deaths_endpoint, headers, payload, local_key, parent=self)
+            verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+            api_thread = ApiSenderThread(deaths_endpoint, headers, payload, local_key, verify_ssl, parent=self)
             api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
             api_thread.start()
         else:
@@ -2477,19 +2653,57 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     is_cloudflare_issue = (api_test_results.get("status_code") == 403 and 
                                          any("cloudflare" in rec.lower() for rec in api_test_results.get("recommendations", [])))
                     
-                    if is_cloudflare_issue:
+                    is_ssl_issue = any("ssl" in rec.lower() or "certificate" in rec.lower() for rec in api_test_results.get("recommendations", []))
+                    
+                    if is_ssl_issue:
+                        error_text = "🔒 SSL CERTIFICATE VERIFICATION FAILED\n\n"
+                        error_text += "This is a Windows/system configuration issue!\n"
+                        error_text += "Most commonly caused by incorrect system clock."
+                    elif is_cloudflare_issue:
                         error_text = "🛡️ CLOUDFLARE SECURITY BLOCKING ACCESS\n\n"
                         error_text += "This is NOT an API key problem!\n"
                         error_text += "Cloudflare's security system is blocking your requests."
                     elif api_test_results.get("status_code"):
                         error_text += f"\n\nServer returned status code: {api_test_results['status_code']}"
                         
-                    if api_test_results.get("error_message") and not is_cloudflare_issue:
+                    if api_test_results.get("error_message") and not is_cloudflare_issue and not is_ssl_issue:
                         error_text += f"\nError: {api_test_results['error_message']}"
                     
                     msg_box.setText(error_text)
                     
-                    if is_cloudflare_issue:
+                    if is_ssl_issue:
+                        # Check if this is the specific "not yet valid" error
+                        error_msg = api_test_results.get("error_message", "").lower()
+                        if "not yet valid" in error_msg:
+                            detail_text = "🔒 SSL CERTIFICATE ERROR: 'Not Yet Valid'\n\n"
+                            detail_text += "🚨 THIS IS ALMOST ALWAYS A SYSTEM CLOCK ISSUE!\n\n"
+                            detail_text += "COMMON ON:\n"
+                            detail_text += "• Unactivated Windows (cannot update certificates)\n"
+                            detail_text += "• Windows 11 systems\n"
+                            detail_text += "• Systems with incorrect time zones\n\n"
+                            detail_text += "IMMEDIATE FIXES (try in order):\n"
+                            detail_text += "1. Right-click taskbar clock → 'Adjust date/time'\n"
+                            detail_text += "2. Enable 'Set time automatically'\n"
+                            detail_text += "3. Enable 'Set time zone automatically'\n"
+                            detail_text += "4. Click 'Sync now' to force synchronization\n"
+                            detail_text += "5. If Windows is unactivated: Activate Windows\n"
+                            detail_text += "6. Restart computer after fixing time\n\n"
+                        else:
+                            detail_text = "🔒 SSL CERTIFICATE VERIFICATION ERROR\n\n"
+                            detail_text += "MOST COMMON CAUSE:\n"
+                            detail_text += "• System clock is incorrect (check Windows date/time)\n\n"
+                            detail_text += "OTHER POSSIBLE CAUSES:\n"
+                            detail_text += "• Outdated Windows certificate store\n"
+                            detail_text += "• Corporate firewall interference\n"
+                            detail_text += "• Antivirus SSL scanning\n\n"
+                            detail_text += "SOLUTIONS (try in order):\n"
+                            detail_text += "1. Right-click taskbar clock → 'Adjust date/time'\n"
+                            detail_text += "2. Enable 'Set time automatically' in Windows Settings\n"
+                            detail_text += "3. Run Windows Update to update certificates\n"
+                            detail_text += "4. Temporarily disable antivirus SSL scanning\n"
+                            detail_text += "5. Try from mobile hotspot to test network\n"
+                            detail_text += "6. Contact IT if on corporate network\n\n"
+                    elif is_cloudflare_issue:
                         detail_text = "🚨 CLOUDFLARE SECURITY CHALLENGE DETECTED\n\n"
                         detail_text += "WHAT THIS MEANS:\n"
                         detail_text += "• Your API key is probably fine\n"
@@ -2700,7 +2914,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 'X-Client-ID': self.__client_id__,
                 'X-Client-Version': self.__version__
             }
-            api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, parent=self)
+            verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+            api_thread = ApiSenderThread(self.api_endpoint, headers, payload, local_key, verify_ssl, parent=self)
             api_thread.apiResponse.connect(lambda msg: self.handle_api_response(msg, local_key, timestamp))
             api_thread.start()
         else:

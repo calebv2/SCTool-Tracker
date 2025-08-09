@@ -675,6 +675,41 @@ def init_ui(self) -> None:
     self.api_key_input.setMinimumWidth(300)
     api_card_layout.addRow(api_key_label, self.api_key_input)
     
+    self.disable_ssl_verification_checkbox = QCheckBox(t("⚠️ Disable SSL Certificate Verification (NOT RECOMMENDED)"))
+    self.disable_ssl_verification_checkbox.setChecked(False)
+    self.disable_ssl_verification_checkbox.setVisible(False)
+    self.disable_ssl_verification_checkbox.stateChanged.connect(self.on_ssl_verification_changed)
+    self.disable_ssl_verification_checkbox.setStyleSheet(
+        "QCheckBox { color: #ff9800; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: bold; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #ff9800; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #ff6b6b; background-color: #ff6b6b; border-radius: 3px; }"
+    )
+    
+    ssl_warning_label = QLabel(
+        "<span style='color: #ff6b6b; font-weight: bold;'>⚠️ WARNING:</span> "
+        "Only use this if you have SSL certificate verification issues and have tried all other solutions. "
+        "This reduces security and should be temporary. "
+        "<b>Always fix your system configuration instead of using this option.</b>"
+    )
+    ssl_warning_label.setStyleSheet(
+        "QLabel { color: #ff9800; background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; "
+        "border-radius: 4px; padding: 8px; font-size: 12px; }"
+    )
+    ssl_warning_label.setWordWrap(True)
+    ssl_warning_label.setVisible(False)
+    
+    self.ssl_warning_container = QWidget()
+    self.ssl_warning_container.setStyleSheet("background: transparent; border: none;")
+    ssl_warning_layout = QVBoxLayout(self.ssl_warning_container)
+    ssl_warning_layout.setContentsMargins(0, 0, 0, 0)
+    ssl_warning_layout.setSpacing(5)
+    ssl_warning_layout.addWidget(self.disable_ssl_verification_checkbox)
+    ssl_warning_layout.addWidget(ssl_warning_label)
+    self.ssl_warning_container.setVisible(False)
+    
+    api_card_layout.addRow("", self.ssl_warning_container)
+    
     api_help = QLabel()
     api_help.setStyleSheet(
         "QLabel { color: #aaaaaa; background: transparent; border: none; }"
@@ -685,14 +720,11 @@ def init_ui(self) -> None:
     api_help.setOpenExternalLinks(True)
     api_help.setWordWrap(True)
     
-    # Set initial API help text with proper instructions
     instructions_text = t('Instructions are also available HERE')
-    # Replace "HERE" with a clickable link
     if 'HERE' in instructions_text:
         base_text = instructions_text.replace('HERE', '')
         here_link = f'{base_text}<a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
     else:
-        # Fallback if translation doesn't contain "HERE"
         here_link = f'{instructions_text} <a href="{t("https://www.youtube.com/watch?v=L62qvxopKak")}" style="color: #f04747; text-decoration: underline;">HERE</a>'
     
     initial_api_help_text = (
@@ -1551,6 +1583,9 @@ def load_config(self) -> None:
             self.api_key = config.get('api_key', '')
             self.api_key_input.setText(self.api_key)
             self.send_to_api_checkbox.setChecked(config.get('send_to_api', True))
+            
+            self.disable_ssl_verification = config.get('disable_ssl_verification', False)
+            self.disable_ssl_verification_checkbox.setChecked(self.disable_ssl_verification)
             
             log_path = config.get('log_path', '')
             if log_path:
