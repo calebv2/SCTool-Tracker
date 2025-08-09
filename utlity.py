@@ -1705,7 +1705,7 @@ def styled_message_box(parent, title, text, icon=QMessageBox.Information, button
             font-size: 14px;
         }
         QLabel a {
-            color: #4CAF50;
+            color: #ffffff;
             text-decoration: none;
         }
         QLabel a:hover {
