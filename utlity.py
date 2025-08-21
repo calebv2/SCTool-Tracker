@@ -1653,6 +1653,10 @@ def load_config(self) -> None:
                 self.update_user_profile_image(self.local_user_name)
                 self.rescan_button.setEnabled(True)
             
+            self.twitch_chat_message_template = config.get('twitch_chat_message_template', "🔫 {username} just killed {victim}! 🚀 {profile_url}")
+            if hasattr(self, 'twitch_message_input'):
+                self.twitch_message_input.setText(self.twitch_chat_message_template)
+            
             language_code = config.get('language', 'en')
             from language_manager import language_manager
             language_manager.set_language(language_code)
