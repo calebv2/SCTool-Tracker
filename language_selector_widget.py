@@ -27,6 +27,8 @@ class LanguageSelector(QWidget):
         )
         self.language_label.setMinimumWidth(80)
         
+        layout.addWidget(self.language_label)
+        
         self.language_combo = QComboBox()
         self.language_combo.setStyleSheet("""
             QComboBox {
@@ -98,9 +100,11 @@ class LanguageSelector(QWidget):
         self.language_combo.setMaxVisibleItems(10)
         self.language_combo.view().setMinimumWidth(250)
         
-        self.language_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.language_combo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.language_combo.setFixedWidth(250)
         
-        layout.addWidget(self.language_combo, 1)
+        layout.addWidget(self.language_combo, 0)
+        layout.addStretch(1)
         
         self.setMinimumHeight(50)
         self.setMinimumWidth(250)

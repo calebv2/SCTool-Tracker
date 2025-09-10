@@ -19,7 +19,7 @@ GAME_MODE_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> Loading GameModeRecord='(?P<game_mode>[^']+)' with EGameModeId='[^']+'"
 )
 
-VERSION = "5.6.7"
+VERSION = "5.7"
 
 GAME_MODE_MAPPING = {
     'EA_TeamElimination': 'Team Elimination',
@@ -132,6 +132,9 @@ class KillParser:
         name_lower = name.lower()
 
         if "kopion" in name_lower or "quasigrazer" in name_lower:
+            return True
+
+        if name.startswith("Vlk_"):
             return True
 
         npc_patterns = ["pu_", "npc", "enemy", "criminal", "soldier", "engineer",

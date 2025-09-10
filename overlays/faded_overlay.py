@@ -238,7 +238,7 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
             image_label.setStyleSheet(f"""
                 QLabel {{
                     color: {self.colors['text_secondary'].name()};
-                    font-size: 12px;
+                    font-size: 10px;
                     background-color: {self.colors['background'].name()};
                     border: 2px solid {self.colors['death_color'].name()};
                     border-radius: 40px;
@@ -463,7 +463,7 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
             image_label.setStyleSheet(f"""
                 QLabel {{
                     color: {self.colors['text_secondary'].name()};
-                    font-size: 12px;
+                    font-size: 10px;
                     background-color: {self.colors['background'].name()};
                     border: 2px solid {self.colors['kill_color'].name()};
                     border-radius: 40px;

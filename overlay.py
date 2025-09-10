@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, 
     QCheckBox, QPushButton, QSlider, QComboBox, QSpinBox,
     QColorDialog, QGroupBox, QGridLayout, QTextEdit, QScrollArea,
-    QApplication
+    QApplication, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QTimer, QPoint, QSize, QPropertyAnimation, QEasingCurve, pyqtSignal, QThread, pyqtSlot
 from PyQt5.QtGui import (
@@ -129,9 +129,17 @@ class OverlayControlPanel(QFrame):
         self.lock_checkbox.toggled.connect(self.overlay.set_locked)
         basic_layout.addWidget(self.lock_checkbox)
         
-        mode_layout = QHBoxLayout()
+        mode_container = QWidget()
+        mode_container.setStyleSheet("background: transparent; border: none;")
+        mode_layout = QHBoxLayout(mode_container)
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.setSpacing(15)
+        
         self.mode_label_text = QLabel(t("Display Mode:"))
-        self.mode_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
+        self.mode_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: 500; background: transparent; border: none; font-size: 14px; }")
+        self.mode_label_text.setMinimumWidth(80)
+        mode_layout.addWidget(self.mode_label_text)
+        
         self.mode_combo = QComboBox()
         self.mode_combo.addItems([t("Minimal"), t("Compact"), t("Detailed"), t("Horizontal"), t("Faded")])
         
@@ -151,89 +159,210 @@ class OverlayControlPanel(QFrame):
             QComboBox {
                 background-color: #1e1e1e;
                 color: #f0f0f0;
-                padding: 8px;
+                padding: 12px 16px;
                 border: 1px solid #2a2a2a;
                 border-radius: 4px;
-                min-width: 100px;
+                font-size: 14px;
+                min-width: 200px;
+                max-width: 300px;
+                min-height: 20px;
             }
-            QComboBox:hover { border-color: #00ff41; }
-            QComboBox::drop-down { border: none; }
+            QComboBox:hover, QComboBox:focus {
+                border-color: #f04747;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+                border-left: 1px solid #2a2a2a;
+                border-top-right-radius: 4px;
+                border-bottom-right-radius: 4px;
+                background-color: #2a2a2a;
+            }
+            QComboBox::drop-down:hover {
+                background-color: #f04747;
+            }
             QComboBox::down-arrow {
                 image: none;
+                border: none;
+                width: 0px;
+                height: 0px;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
                 border-top: 5px solid #f0f0f0;
+                margin: 0px;
             }
             QComboBox QAbstractItemView {
                 background-color: #1e1e1e;
                 color: #f0f0f0;
-                selection-background-color: #00ff41;
+                border: 2px solid #f04747;
+                border-radius: 4px;
+                selection-background-color: #f04747;
+                selection-color: white;
+                padding: 4px;
+                min-width: 250px;
+                max-height: 300px;
+                outline: 0px;
+                show-decoration-selected: 1;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 12px;
+                border: none;
+                background-color: transparent;
+                min-height: 20px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #2a2a2a;
+                color: #ffffff;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #f04747;
+                color: white;
             }
         """)
         
-        mode_layout.addWidget(self.mode_label_text)
-        mode_layout.addWidget(self.mode_combo)
-        mode_layout.addStretch()
-        basic_layout.addLayout(mode_layout)
+        self.mode_combo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.mode_combo.setFixedWidth(250)
+        
+        mode_layout.addWidget(self.mode_combo, 0)
+        mode_layout.addStretch(1)
+        basic_layout.addWidget(mode_container)
         
         content_layout.addWidget(self.basic_group)
         
         self.appearance_group = QGroupBox(t("Appearance"))
-        self.appearance_group.setStyleSheet("QGroupBox { color: #f0f0f0; }")
+        self.appearance_group.setStyleSheet("QGroupBox { color: #f0f0f0; border: none; background: transparent; }")
         appearance_layout = QVBoxLayout(self.appearance_group)
         appearance_layout.setSpacing(10)
         
         opacity_layout = QHBoxLayout()
+        opacity_layout.setContentsMargins(0, 0, 0, 0)
         self.opacity_label_text = QLabel(t("Opacity:"))
-        self.opacity_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
+        self.opacity_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
         
         self.opacity_slider = QSlider(Qt.Horizontal)
         self.opacity_slider.setRange(30, 100)
         self.opacity_slider.setValue(int(self.overlay.opacity_level * 100))
         self.opacity_slider.setStyleSheet("""
+            QSlider {
+                background: transparent;
+                border: none;
+            }
             QSlider::groove:horizontal {
                 border: 1px solid #2a2a2a;
-                height: 8px;
-                background: #1a1a1a;
-                border-radius: 4px;
+                height: 10px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a1a1a, stop:1 #2a2a2a);
+                margin: 2px 0;
+                border-radius: 5px;
             }
             QSlider::handle:horizontal {
-                background: #00ff41;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #00ff41, stop:1 #00cc33);
                 border: 1px solid #2a2a2a;
-                width: 16px;
-                height: 16px;
-                margin: -4px 0;
-                border-radius: 8px;
+                width: 20px;
+                height: 20px;
+                margin: -6px 0;
+                border-radius: 10px;
             }
             QSlider::sub-page:horizontal {
-                background: #00ff41;
-                border-radius: 4px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00cc33, stop:1 #00ff41);
+                border-radius: 5px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #33ff66, stop:1 #00ff41);
+                border: 1px solid #00ff41;
             }
         """)
         self.opacity_slider.valueChanged.connect(self.update_opacity)
         
-        self.opacity_label = QLabel(f"{int(self.overlay.opacity_level * 100)}%")
-        self.opacity_label.setStyleSheet("QLabel { color: #ffffff; min-width: 40px; }")
-        
         opacity_layout.addWidget(self.opacity_label_text)
         opacity_layout.addWidget(self.opacity_slider)
-        opacity_layout.addWidget(self.opacity_label)
         appearance_layout.addLayout(opacity_layout)
         
-        theme_layout = QHBoxLayout()
+        theme_container = QWidget()
+        theme_container.setStyleSheet("background: transparent; border: none;")
+        theme_layout = QHBoxLayout(theme_container)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+        theme_layout.setSpacing(15)
+        
         self.theme_label_text = QLabel(t("Theme:"))
-        self.theme_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
+        self.theme_label_text.setStyleSheet("QLabel { color: #ffffff; font-weight: 500; background: transparent; border: none; font-size: 14px; }")
+        self.theme_label_text.setMinimumWidth(80)
+        theme_layout.addWidget(self.theme_label_text)
         
         self.theme_combo = QComboBox()
         self.theme_combo.addItems([t("Default"), t("Dark"), t("Neon")])
         self.theme_combo.setCurrentText(self.overlay.theme.title())
         self.theme_combo.currentTextChanged.connect(self.change_theme)
-        self.theme_combo.setStyleSheet(self.mode_combo.styleSheet())
+        self.theme_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e1e;
+                color: #f0f0f0;
+                padding: 12px 16px;
+                border: 1px solid #2a2a2a;
+                border-radius: 4px;
+                font-size: 14px;
+                min-width: 200px;
+                max-width: 300px;
+                min-height: 20px;
+            }
+            QComboBox:hover, QComboBox:focus {
+                border-color: #f04747;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+                border-left: 1px solid #2a2a2a;
+                border-top-right-radius: 4px;
+                border-bottom-right-radius: 4px;
+                background-color: #2a2a2a;
+            }
+            QComboBox::drop-down:hover {
+                background-color: #f04747;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: none;
+                width: 0px;
+                height: 0px;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #f0f0f0;
+                margin: 0px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1e1e1e;
+                color: #f0f0f0;
+                border: 2px solid #f04747;
+                border-radius: 4px;
+                selection-background-color: #f04747;
+                selection-color: white;
+                padding: 4px;
+                min-width: 250px;
+                max-height: 300px;
+                outline: 0px;
+                show-decoration-selected: 1;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 12px;
+                border: none;
+                background-color: transparent;
+                min-height: 20px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #2a2a2a;
+                color: #ffffff;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #f04747;
+                color: white;
+            }
+        """)
         
-        theme_layout.addWidget(self.theme_label_text)
-        theme_layout.addWidget(self.theme_combo)
-        theme_layout.addStretch()
-        appearance_layout.addLayout(theme_layout)
+        self.theme_combo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.theme_combo.setFixedWidth(250)
+        
+        theme_layout.addWidget(self.theme_combo, 0)
+        theme_layout.addStretch(1)
+        appearance_layout.addWidget(theme_container)
         
         self.animations_checkbox = QCheckBox(t("Enable Animations"))
         self.animations_checkbox.setChecked(self.overlay.show_animations)
@@ -317,7 +446,7 @@ class OverlayControlPanel(QFrame):
         
         current_hotkey_layout = QHBoxLayout()
         self.current_hotkey_label = QLabel(t("Current Hotkey:"))
-        self.current_hotkey_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; }")
+        self.current_hotkey_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
         
         self.current_hotkey_display = QLabel(self.overlay.hotkey_combination)
         self.current_hotkey_display.setStyleSheet("""
@@ -326,7 +455,7 @@ class OverlayControlPanel(QFrame):
                 font-size: 14px;
                 font-family: 'Consolas', monospace;
                 background-color: #2a2a2a;
-                border: 1px solid #333333;
+                border: none;
                 border-radius: 4px;
                 padding: 8px;
                 min-width: 100px;
@@ -348,6 +477,8 @@ class OverlayControlPanel(QFrame):
                 color: #aaaaaa;
                 font-size: 12px;
                 font-style: italic;
+                border: none;
+                border-radius: 4px;
             }
         """)
         self.hotkey_info.setWordWrap(True)
@@ -458,7 +589,6 @@ class OverlayControlPanel(QFrame):
         """Update overlay opacity"""
         opacity = value / 100.0
         self.overlay.set_opacity(opacity)
-        self.opacity_label.setText(f"{value}%")
     
     def change_display_mode(self, mode_text: str):
         """Change overlay display mode"""

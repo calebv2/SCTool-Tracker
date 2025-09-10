@@ -131,7 +131,10 @@ class HotkeyCapture(QWidget):
                 color: #aaaaaa;
                 font-size: 12px;
                 font-style: italic;
-            }        """)
+                background: transparent;
+                border: none;
+            }
+        """)
         
         layout.addWidget(self.capture_button)
         layout.addWidget(self.status_label)

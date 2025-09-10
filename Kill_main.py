@@ -22,8 +22,8 @@ def cleanup_hotkeys():
             if hasattr(app_instance.game_overlay, 'hotkey_thread') and app_instance.game_overlay.hotkey_thread:
                 app_instance.game_overlay.hotkey_thread.stop()
                 app_instance.game_overlay.hotkey_thread.wait(1000)
-    except:
-        pass
+    except Exception as e:
+        logging.debug(f"Error cleaning up overlay hotkeys: {e}")
 
 atexit.register(cleanup_hotkeys)
 

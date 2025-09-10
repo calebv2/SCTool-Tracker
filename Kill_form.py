@@ -217,8 +217,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         button.setStyleSheet(
             "QPushButton { text-align: left; padding: 12px 15px; font-weight: bold; color: #bbbbbb; "
             "background-color: transparent; border: none; border-left: 3px solid transparent; }"
-            "QPushButton:hover { color: #ffffff; background-color: #222222; border-left: 3px solid #f04747; }"
-            "QPushButton:checked { color: #ffffff; background-color: #252525; border-left: 3px solid #f04747; }"
+            "QPushButton:hover { color: #ffffff; background-color: transparent; border-left: 3px solid #f04747; }"
+            "QPushButton:checked { color: #ffffff; background-color: transparent; border-left: 3px solid #f04747; }"
         )
         if obj_name:
             button.setObjectName(obj_name)
@@ -227,7 +227,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def create_stat_card(self, label_text, value_text, value_color):
         """Create a styled stat card widget"""
         card = QWidget()
-        card.setStyleSheet("border: none; background: #1a1a1a; border-radius: 8px;")
+        card.setStyleSheet("border: none; background: #1a1a1a;")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(5)
@@ -1887,14 +1887,23 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def update_current_ship_display(self, ship_name: str) -> None:
         """Update the current ship display in the UI"""
         if hasattr(self, 'current_ship_display'):
-            display_text = ship_name if ship_name and ship_name != "No Ship" else "No Ship"
-            self.current_ship_display.setText(display_text)
-            
             if ship_name and ship_name != "No Ship":
+                display_text = f"Ship Type: {ship_name}"
+                self.current_ship_display.setText(display_text)
                 self.current_ship_display.setStyleSheet(
-                    "QLabel { color: #00ff41; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
+                    "QLabel { color: #00ff41; font-size: 10px; font-weight: 600; "
+                    "background: transparent; border: none; text-align: left; }"
                 )
-                if hasattr(self, 'ship_indicator'):
+            else:
+                display_text = "Ship Type: No Ship"
+                self.current_ship_display.setText(display_text)
+                self.current_ship_display.setStyleSheet(
+                    "QLabel { color: #999999; font-size: 10px; "
+                    "background: transparent; border: none; text-align: left; }"
+                )
+                
+            if hasattr(self, 'ship_indicator'):
+                if ship_name and ship_name != "No Ship":
                     self.ship_indicator.setStyleSheet(
                         "QLabel { background-color: #00ff41; border-radius: 6px; border: 1px solid #00cc33; }"
                     )
@@ -2116,34 +2125,32 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def update_monitor_indicator(self, is_monitoring: bool):
         if is_monitoring:
             self.monitoring_indicator.setStyleSheet(
-                "QLabel { background-color: #4CAF50; border-radius: 8px; border: 1px solid #388E3C; }"
+                "QLabel { background-color: #4CAF50; border-radius: 4px; }"
             )
         else:
             self.monitoring_indicator.setStyleSheet(
-                "QLabel { background-color: #F44336; border-radius: 8px; border: 1px solid #D32F2F; }"
+                "QLabel { background-color: #F44336; border-radius: 4px; }"
             )
 
     def update_api_indicator(self, is_connected: bool):
         if is_connected:
             self.api_indicator.setStyleSheet(
-                "QLabel { background-color: #4CAF50; border-radius: 8px; border: 1px solid #388E3C; }"
+                "QLabel { background-color: #4CAF50; border-radius: 4px; }"
             )
         else:
             self.api_indicator.setStyleSheet(
-                "QLabel { background-color: #F44336; border-radius: 8px; border: 1px solid #D32F2F; }"
+                "QLabel { background-color: #F44336; border-radius: 4px; }"
             )
 
     def update_twitch_indicator(self, is_connected: bool):
         if is_connected:
             self.twitch_indicator.setStyleSheet(
-                "background-color: #9146FF; border-radius: 4px; padding: 4px;"
+                "QLabel { background-color: #9146FF; border-radius: 4px; }"
             )
-            self.twitch_indicator.setText(t("Twitch Connected"))
         else:
             self.twitch_indicator.setStyleSheet(
-                "background-color: #f04747; border-radius: 4px; padding: 4px;"
+                "QLabel { background-color: #F44336; border-radius: 4px; }"
             )
-            self.twitch_indicator.setText(t("Twitch Not Connected"))
 
     def update_bottom_info(self, key: str, message: str) -> None:
         self.persistent_info[key] = message
@@ -2557,8 +2564,19 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.monitor_thread.stop()
             self.monitor_thread.wait(3000)
             self.monitor_thread = None
-            self.start_button.setText(t("START MONITORING"))
-            self.start_button.setIcon(QIcon(resource_path("start_icon.png")))
+            self.start_button.setText("START MONITORING")
+            self.start_button.setIcon(QIcon(resource_path("play.png")))
+            # Update sidebar button styling for stopped state
+            self.start_button.setStyleSheet(
+                "QPushButton { "
+                "background: rgba(76, 175, 80, 0.15); color: #4CAF50; border: 1px solid #4CAF50; "
+                "border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: bold; "
+                "text-align: center; margin: 0px 8px; }"
+                "QPushButton:hover { "
+                "background: rgba(76, 175, 80, 0.25); border-color: #66BB6A; }"
+                "QPushButton:pressed { "
+                "background: #4CAF50; color: white; }"
+            )
             self.update_bottom_info("monitoring", "Monitoring stopped")
             self.update_bottom_info("api_connection", "")
             self.save_config()
@@ -2800,8 +2818,19 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.monitor_thread.game_mode_changed.connect(self.on_game_mode_changed)
             self.monitor_thread.start()
             self.on_ship_updated(killer_ship)
-            self.start_button.setText(t("STOP MONITORING"))
-            self.start_button.setIcon(QIcon(resource_path("stop_icon.png")))
+            self.start_button.setText("STOP MONITORING")
+            self.start_button.setIcon(QIcon(resource_path("stop.png")))
+            # Update sidebar button styling for active state  
+            self.start_button.setStyleSheet(
+                "QPushButton { "
+                "background: rgba(244, 67, 54, 0.15); color: #F44336; border: 1px solid #F44336; "
+                "border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: bold; "
+                "text-align: center; margin: 0px 8px; }"
+                "QPushButton:hover { "
+                "background: rgba(244, 67, 54, 0.25); border-color: #EF5350; }"
+                "QPushButton:pressed { "
+                "background: #F44336; color: white; }"
+            )
             self.update_bottom_info("monitoring", "Monitoring started...")
             self.save_config()
             self.rescan_button.setEnabled(True)
@@ -3321,26 +3350,19 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         """Add the language selector to the preferences section"""
         try:
             if hasattr(self, 'language_selector_container') and hasattr(self, 'language_selector_layout'):
-                language_header = QLabel(t("Language:"))
-                language_header.setStyleSheet(
-                    "QLabel { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
-                )
-                self.language_selector_layout.addWidget(language_header)
-
                 selector_container = QWidget()
                 selector_container.setStyleSheet("background: transparent; border: none;")
                 selector_layout = QHBoxLayout(selector_container)
-                selector_layout.setContentsMargins(30, 0, 0, 0)
+                selector_layout.setContentsMargins(0, 0, 0, 0)
                 selector_layout.setSpacing(10)
                 
                 selector_layout.addWidget(self.language_selector)
-                selector_layout.addStretch()
                 
                 self.language_selector_layout.addWidget(selector_container)
                 
                 language_desc = QLabel(t("Choose your preferred language for the application interface"))
                 language_desc.setStyleSheet(
-                    "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+                    "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 80px; }"
                 )
                 language_desc.setWordWrap(True)
                 self.language_selector_layout.addWidget(language_desc)

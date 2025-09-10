@@ -21,7 +21,8 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QLineEdit, QFormLayout, QComboBox, QCheckBox,
     QSlider, QFileDialog, QTextBrowser, QScrollArea, QFrame,
-    QSizePolicy, QApplication, QStackedWidget, QMessageBox, QGroupBox
+    QSizePolicy, QApplication, QStackedWidget, QMessageBox, QGroupBox,
+    QGridLayout
 )
 
 from PyQt5.QtCore import (
@@ -75,8 +76,7 @@ def init_ui(self) -> None:
     main_widget = QWidget()
     main_widget.setStyleSheet(
         "QWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
-        "stop:0 #1a1a1a, stop:1 #0d0d0d); "
-        "border: 1px solid #2a2a2a; border-radius: 10px; }"
+        "stop:0 #1a1a1a, stop:1 #0d0d0d); }"
     )
     main_layout = QHBoxLayout()
     main_layout.setContentsMargins(0, 0, 0, 0)
@@ -84,9 +84,7 @@ def init_ui(self) -> None:
     sidebar = QWidget()
     sidebar.setFixedWidth(220)
     sidebar.setStyleSheet(
-        "QWidget { background-color: #151515; border-right: 1px solid #2a2a2a; "
-        "border-top-left-radius: 10px; border-bottom-left-radius: 10px; "
-        "border-top-right-radius: 0px; border-bottom-right-radius: 0px; }"
+        "QWidget { background-color: #151515; border-right: 1px solid #2a2a2a; }"
     )
     sidebar_layout = QVBoxLayout(sidebar)
     sidebar_layout.setContentsMargins(0, 15, 0, 15)
@@ -120,126 +118,55 @@ def init_ui(self) -> None:
     logo_layout.addWidget(self.user_display)
     
     sidebar_layout.addWidget(logo_container)
-    status_container = QWidget()
-    status_container.setStyleSheet("border: none; background: transparent;")
-    status_layout = QVBoxLayout(status_container)
-    status_layout.setContentsMargins(15, 0, 15, 15)
-    status_layout.setSpacing(10)
     
-    monitoring_status = QHBoxLayout()
-    self.monitoring_indicator = QLabel()
-    self.monitoring_indicator.setFixedSize(12, 12)
-    self.update_monitor_indicator(False)
-    monitoring_label = QLabel("MONITORING")
-    monitoring_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
-    monitoring_status.addWidget(self.monitoring_indicator)
-    monitoring_status.addWidget(monitoring_label)
-    monitoring_status.addStretch()
-    
-    api_status = QHBoxLayout()
-    self.api_indicator = QLabel()
-    self.api_indicator.setFixedSize(12, 12)
-    self.update_api_indicator(False)
-    api_label = QLabel("API CONNECTED")
-    api_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
-    api_status.addWidget(self.api_indicator)
-    api_status.addWidget(api_label)
-    api_status.addStretch()
-    
-    twitch_status = QHBoxLayout()
-    self.twitch_indicator = QLabel()
-    self.twitch_indicator.setFixedSize(12, 12)
-    self.update_twitch_indicator(False)
-    twitch_label = QLabel("TWITCH CONNECTED")
-    twitch_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
-    twitch_status.addWidget(self.twitch_indicator)
-    twitch_status.addWidget(twitch_label)
-    twitch_status.addStretch()
-    
-    game_mode_status = QHBoxLayout()
-    self.game_mode_indicator = QLabel()
-    self.game_mode_indicator.setFixedSize(12, 12)
-    self.game_mode_indicator.setStyleSheet(
-        "QLabel { background-color: #00ccff; border-radius: 6px; border: 1px solid #0099cc; }"
-    )
-    game_mode_label = QLabel("GAME MODE")
-    game_mode_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
-    game_mode_status.addWidget(self.game_mode_indicator)
-    game_mode_status.addWidget(game_mode_label)
-    game_mode_status.addStretch()
-    
-    self.game_mode_display = QLabel(t("Mode: Unknown"))
-    self.game_mode_display.setStyleSheet(
-        "QLabel { color: #00ccff; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
-    )
-    
-    ship_status = QHBoxLayout()
-    self.ship_indicator = QLabel()
-    self.ship_indicator.setFixedSize(12, 12)
-    self.ship_indicator.setStyleSheet(
-        "QLabel { background-color: #666666; border-radius: 6px; border: 1px solid #444444; }"
-    )
-    ship_label = QLabel("CURRENT SHIP")
-    ship_label.setStyleSheet("QLabel { color: #999999; font-size: 11px; background: transparent; border: none; }")
-    ship_status.addWidget(self.ship_indicator)
-    ship_status.addWidget(ship_label)
-    ship_status.addStretch()
-    
-    self.current_ship_display = QLabel("No Ship")
-    self.current_ship_display.setStyleSheet(
-        "QLabel { color: #666666; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
-    )
-    
-    status_layout.addLayout(monitoring_status)
-    status_layout.addLayout(api_status)
-    status_layout.addLayout(twitch_status)
-    status_layout.addLayout(game_mode_status)
-    status_layout.addWidget(self.game_mode_display)
-    status_layout.addLayout(ship_status)
-    status_layout.addWidget(self.current_ship_display)
-    
-    sidebar_layout.addWidget(status_container)
     self.start_button = QPushButton("START MONITORING")
-    self.start_button.setIcon(QIcon(resource_path("start_icon.png")))
+    self.start_button.setIcon(QIcon(resource_path("play.png")))
     self.start_button.clicked.connect(self.toggle_monitoring)
+    self.start_button.setToolTip("Start monitoring your Game.log file for kills and deaths")
     self.start_button.setStyleSheet(
-        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-        "border-radius: 4px; padding: 10px; font-weight: bold; font-size: 12px; "
-        "margin: 5px 10px; }"
-        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "stop:0 #4a4a4a, stop:1 #303030); }"
-        "QPushButton:pressed { background: #202020; }"
+        "QPushButton { "
+        "background: rgba(76, 175, 80, 0.15); color: #4CAF50; border: 1px solid #4CAF50; "
+        "border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: bold; "
+        "text-align: center; margin: 0px 8px; }"
+        "QPushButton:hover { "
+        "background: rgba(76, 175, 80, 0.25); border-color: #66BB6A; }"
+        "QPushButton:pressed { "
+        "background: #4CAF50; color: white; }"
     )
     sidebar_layout.addWidget(self.start_button)
+    
     self.rescan_button = QPushButton("FIND MISSED KILLS")
-    self.rescan_button.setIcon(QIcon(resource_path("search_icon.png")))
+    self.rescan_button.setIcon(QIcon(resource_path("missed.png")))
     self.rescan_button.clicked.connect(self.on_rescan_button_clicked)
     self.rescan_button.setEnabled(False)
     self.rescan_button.setToolTip("You must start monitoring first before searching for missed kills")
     self.rescan_button.setStyleSheet(
-        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-        "border-radius: 4px; padding: 10px; font-weight: bold; font-size: 12px; "
-        "margin: 5px 10px; }"
-        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "stop:0 #4a4a4a, stop:1 #303030); }"
-        "QPushButton:pressed { background: #202020; }"        "QPushButton:disabled { background: #222222; color: #666666; }"
+        "QPushButton { "
+        "background: rgba(255, 152, 0, 0.15); color: #FF9800; border: 1px solid #FF9800; "
+        "border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: bold; "
+        "text-align: center; margin: 0px 8px; }"
+        "QPushButton:hover { "
+        "background: rgba(255, 152, 0, 0.25); border-color: #FFB74D; }"
+        "QPushButton:pressed { "
+        "background: #FF9800; color: white; }"
+        "QPushButton:disabled { "
+        "background: rgba(102, 102, 102, 0.1); color: #666666; border-color: #666666; }"
     )
     sidebar_layout.addWidget(self.rescan_button)
     
     self.update_button = QPushButton("CHECK FOR UPDATES")
-    self.update_button.setIcon(QIcon(resource_path("update_icon.png")))
+    self.update_button.setIcon(QIcon(resource_path("download.png")))
     self.update_button.clicked.connect(lambda: check_for_updates_ui(self))
     self.update_button.setToolTip("Check for the latest version of SCTool Tracker")
     self.update_button.setStyleSheet(
-        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
-        "border-radius: 4px; padding: 10px; font-weight: bold; font-size: 12px; "
-        "margin: 5px 10px; }"
-        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-        "stop:0 #4a4a4a, stop:1 #303030); }"
-        "QPushButton:pressed { background: #202020; }"
+        "QPushButton { "
+        "background: rgba(33, 150, 243, 0.15); color: #2196F3; border: 1px solid #2196F3; "
+        "border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: bold; "
+        "text-align: center; margin: 0px 8px; }"
+        "QPushButton:hover { "
+        "background: rgba(33, 150, 243, 0.25); border-color: #64B5F6; }"
+        "QPushButton:pressed { "
+        "background: #2196F3; color: white; }"
     )
     sidebar_layout.addWidget(self.update_button)
     
@@ -296,9 +223,7 @@ def init_ui(self) -> None:
     content_area = QWidget()
     content_area.setStyleSheet(
         "QWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
-        "stop:0 #1a1a1a, stop:1 #0d0d0d); "
-        "border-top-left-radius: 0px; border-bottom-left-radius: 0px; "
-        "border-top-right-radius: 10px; border-bottom-right-radius: 10px; }"
+        "stop:0 #1a1a1a, stop:1 #0d0d0d); }"
     )
     content_layout = QVBoxLayout(content_area)
     content_layout.setContentsMargins(15, 15, 15, 15)
@@ -306,7 +231,7 @@ def init_ui(self) -> None:
 
     self.stats_panel = QWidget()
     self.stats_panel.setStyleSheet(
-        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); "
         "border: 1px solid #333333; }"
     )
     stats_layout = QHBoxLayout(self.stats_panel)
@@ -329,26 +254,61 @@ def init_ui(self) -> None:
     stats_layout.addWidget(session_stats)
     
     content_layout.addWidget(self.stats_panel)
+    
+    self.status_bar = QWidget()
+    self.status_bar.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); "
+        "border: 1px solid #333333; border-radius: 8px; }"
+    )
+    status_bar_layout = QHBoxLayout(self.status_bar)
+    status_bar_layout.setContentsMargins(15, 10, 15, 10)
+    status_bar_layout.setSpacing(20)
+    
+    def create_horizontal_status_item(label_text, indicator_widget):
+        item_container = QWidget()
+        item_container.setStyleSheet("background: transparent; border: none;")
+        item_layout = QHBoxLayout(item_container)
+        item_layout.setContentsMargins(0, 0, 0, 0)
+        item_layout.setSpacing(8)
+        
+        indicator_widget.setFixedSize(10, 10)
+        indicator_widget.setStyleSheet("QLabel { border-radius: 5px; }")
+        
+        label = QLabel(label_text)
+        label.setStyleSheet(
+            "QLabel { color: #cccccc; font-size: 11px; font-weight: 500; "
+            "background: transparent; border: none; }"
+        )
+        
+        item_layout.addWidget(indicator_widget)
+        item_layout.addWidget(label)
+        
+        return item_container
+    
+    self.monitoring_indicator = QLabel()
+    monitoring_status = create_horizontal_status_item("Monitoring", self.monitoring_indicator)
+    status_bar_layout.addWidget(monitoring_status)
+    self.update_monitor_indicator(False)
+    
+    self.api_indicator = QLabel()
+    api_status = create_horizontal_status_item("API Connected", self.api_indicator)
+    status_bar_layout.addWidget(api_status)
+    self.update_api_indicator(False)
+    
+    self.twitch_indicator = QLabel()
+    twitch_status = create_horizontal_status_item("Twitch Connected", self.twitch_indicator)
+    status_bar_layout.addWidget(twitch_status)
+    self.update_twitch_indicator(False)
+    
+    status_bar_layout.addStretch()
+    
+    content_layout.addWidget(self.status_bar)
+    
     self.content_stack = QStackedWidget()
     killfeed_page = QWidget()
     killfeed_layout = QVBoxLayout(killfeed_page)
     killfeed_layout.setContentsMargins(0, 0, 0, 0)
-    killfeed_layout.setSpacing(15)    
-    kill_feed_container = QWidget()
-    kill_feed_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    kill_feed_container.setStyleSheet(
-        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
-        "border: 1px solid #333333; }"
-    )
-    kill_feed_layout = QVBoxLayout(kill_feed_container)
-    kill_feed_layout.setContentsMargins(15, 15, 15, 15)
-    kill_feed_layout.setSpacing(10)
-    kill_feed_header = QLabel("KILL FEED")
-    kill_feed_header.setStyleSheet(
-        "QLabel { color: #f0f0f0; font-size: 14px; font-weight: bold; "
-        "background: transparent; border: none; }"
-    )
-    kill_feed_layout.addWidget(kill_feed_header)
+    killfeed_layout.setSpacing(15)
     
     self.kill_display = QTextBrowser()
     self.kill_display.setReadOnly(True)
@@ -356,16 +316,44 @@ def init_ui(self) -> None:
     self.kill_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     self.kill_display.setMinimumHeight(200)
     self.kill_display.setStyleSheet(
-        "QTextBrowser { background-color: #121212; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px; }"
+        "QTextBrowser { background-color: rgba(20, 20, 20, 0.8); border: 1px solid #333333; border-radius: 8px; padding: 15px; }"
         "QTextBrowser QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
         "QTextBrowser QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
         "QTextBrowser QScrollBar::handle:vertical:hover { background: #f04747; }"
         "QTextBrowser QScrollBar::add-line:vertical, QTextBrowser QScrollBar::sub-line:vertical { height: 0px; }"
         "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
     )
-    kill_feed_layout.addWidget(self.kill_display, 1)
+    killfeed_layout.addWidget(self.kill_display, 1)
     
-    killfeed_layout.addWidget(kill_feed_container, 1)
+    game_info_container = QWidget()
+    game_info_container.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); border: 1px solid #333333; border-radius: 8px; }"
+    )
+    game_info_layout = QHBoxLayout(game_info_container)
+    game_info_layout.setContentsMargins(15, 10, 15, 10)
+    game_info_layout.setSpacing(20)
+    
+    self.game_mode_display = QLabel("Mode: Unknown")
+    self.game_mode_display.setStyleSheet(
+        "QLabel { color: #00ccff; font-size: 11px; font-weight: 600; "
+        "background: transparent; border: none; }"
+    )
+    self.game_mode_display.setAlignment(Qt.AlignLeft)
+    self.game_mode_display.setWordWrap(True)
+    self.game_mode_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    game_info_layout.addWidget(self.game_mode_display)
+    
+    self.current_ship_display = QLabel("Ship Type: No Ship")
+    self.current_ship_display.setStyleSheet(
+        "QLabel { color: #999999; font-size: 11px; "
+        "background: transparent; border: none; }"
+    )
+    self.current_ship_display.setAlignment(Qt.AlignLeft)
+    self.current_ship_display.setWordWrap(True)
+    self.current_ship_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    game_info_layout.addWidget(self.current_ship_display)
+    
+    killfeed_layout.addWidget(game_info_container)
 
     killfeed_settings_page = QWidget()
     killfeed_settings_layout = QVBoxLayout(killfeed_settings_page)
@@ -437,8 +425,16 @@ def init_ui(self) -> None:
     log_help.setWordWrap(True)
     tracking_layout.addRow("", log_help)
     
+    ship_container = QWidget()
+    ship_container.setStyleSheet("background: transparent; border: none;")
+    ship_layout = QHBoxLayout(ship_container)
+    ship_layout.setContentsMargins(0, 0, 0, 0)
+    ship_layout.setSpacing(15)
+    
     ship_label = QLabel(t("Current Ship:"))
-    ship_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    ship_label.setStyleSheet("QLabel { color: #ffffff; font-weight: 500; background: transparent; border: none; font-size: 14px; }")
+    ship_label.setMinimumWidth(80)
+    ship_layout.addWidget(ship_label)
     
     self.ship_combo = QComboBox()
     self.ship_combo.setEditable(True)
@@ -450,19 +446,78 @@ def init_ui(self) -> None:
         current_ship = self.ship_combo.currentText() or "No Ship"
         self.update_current_ship_display(current_ship)
 
-    self.ship_combo.setStyleSheet(
-        "QComboBox { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
-        "border: 1px solid #2a2a2a; border-radius: 4px; padding-right: 20px; font-size: 14px; }"
-        "QComboBox:hover { border-color: #f04747; }"
-        "QComboBox::drop-down { border: none; width: 20px; }"
-        "QComboBox::down-arrow { width: 0; height: 0; border-left: 5px solid transparent; "
-        "   border-right: 5px solid transparent; border-top: 5px solid #f04747; margin-right: 8px; }"
-        "QComboBox QAbstractItemView { background-color: #1e1e1e; color: #f0f0f0; "
-        "selection-background-color: #f04747; selection-color: white; border: 1px solid #2a2a2a; }"
-    )
-    self.ship_combo.setMinimumWidth(300)
+    self.ship_combo.setStyleSheet("""
+        QComboBox {
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            padding: 12px 16px;
+            border: 1px solid #2a2a2a;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+            max-width: 300px;
+            min-height: 20px;
+        }
+        QComboBox:hover, QComboBox:focus {
+            border-color: #f04747;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 30px;
+            border-left: 1px solid #2a2a2a;
+            border-top-right-radius: 4px;
+            border-bottom-right-radius: 4px;
+            background-color: #2a2a2a;
+        }
+        QComboBox::drop-down:hover {
+            background-color: #f04747;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            border: none;
+            width: 0px;
+            height: 0px;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #f0f0f0;
+            margin: 0px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            border: 2px solid #f04747;
+            border-radius: 4px;
+            selection-background-color: #f04747;
+            selection-color: white;
+            padding: 4px;
+            min-width: 250px;
+            max-height: 300px;
+            outline: 0px;
+            show-decoration-selected: 1;
+        }
+        QComboBox QAbstractItemView::item {
+            padding: 8px 12px;
+            border: none;
+            background-color: transparent;
+            min-height: 20px;
+        }
+        QComboBox QAbstractItemView::item:hover {
+            background-color: #2a2a2a;
+            color: #ffffff;
+        }
+        QComboBox QAbstractItemView::item:selected {
+            background-color: #f04747;
+            color: white;
+        }
+    """)
     
-    tracking_layout.addRow(ship_label, self.ship_combo)
+    self.ship_combo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    self.ship_combo.setFixedWidth(250)
+    
+    ship_layout.addWidget(self.ship_combo, 0)
+    ship_layout.addStretch(1)
+    
+    tracking_layout.addRow("", ship_container)
 
     ship_help = QLabel(t("Select the ship you're currently flying (included with kill data)"))
     ship_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
@@ -1512,9 +1567,8 @@ def create_nav_button(self, text, obj_name=None):
     button = QPushButton(text)
     button.setStyleSheet(
         "QPushButton { text-align: left; padding: 12px 15px; font-weight: bold; color: #bbbbbb; "
-        "background-color: transparent; border: none; border-left: 3px solid transparent; }"
-        "QPushButton:hover { color: #ffffff; background-color: #222222; border-left: 3px solid #f04747; }"
-        "QPushButton:checked { color: #ffffff; background-color: #252525; border-left: 3px solid #f04747; }"
+        "QPushButton:hover {border-left: 3px solid #f04747; }"
+        "QPushButton:checked {border-left: 3px solid #f04747; }"
     )
     if obj_name:
         button.setObjectName(obj_name)
@@ -2617,8 +2671,8 @@ class TranslationMixin:
             
             if hasattr(self, 'current_ship_display'):
                 current_text = self.current_ship_display.text()
-                if current_text == "No Ship" or current_text == t("No Ship"):
-                    self.current_ship_display.setText(t("No Ship"))
+                if current_text in ["No Ship", t("No Ship"), "Ship Type: No Ship", t("Ship Type: No Ship")]:
+                    self.current_ship_display.setText(t("Ship Type: No Ship"))
             
             try:
                 for widget in self.findChildren(QLabel):
@@ -2633,8 +2687,8 @@ class TranslationMixin:
                         widget.setText(t("GAME MODE"))
                     elif text == "CURRENT SHIP":
                         widget.setText(t("CURRENT SHIP"))
-                    elif text == "KILL FEED":
-                        widget.setText(t("KILL FEED"))
+                    elif text == "KILLFEED":
+                        widget.setText(t("KILLFEED"))
                     elif text == "TRACKING CONFIGURATION":
                         widget.setText(t("TRACKING CONFIGURATION"))
                     elif text == "DATA MANAGEMENT":
