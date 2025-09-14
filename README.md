@@ -557,76 +557,142 @@ The tracker offers Twitch integration with advanced configuration options:
 
 If you want to build your own tracker that integrates with the SCTool API, follow these guidelines:
 
-### API Integration
+## API Client Specifications
 
-1. **Obtain an API Key**: Contact starcitizentool.com to get an API key
-2. **API Endpoints**: 
-   - Kills: `https://starcitizentool.com/api/v1/kills`
-   - Deaths: `https://starcitizentool.com/api/v1/deaths`
-   - Clip Updates: `https://starcitizentool.com/api/v1/kills/update-clip`
+This section defines the **exact** specifications that client applications must follow to successfully send data to the Dashboard API. Any deviation from these specifications will result in request rejection.
 
-### Required Headers
+### Base Requirements
 
-The application sends the following headers with all API requests:
+#### Authentication
+- **API Key**: Required in `X-API-Key` header
+- **Client Identification**: Must identify as `kill_logger_client`
+- **Version**: Must be exactly `5.7`
+
+#### HTTP Method
+- **Method**: `POST` only
+- **Protocol**: HTTP/HTTPS
+
+### Required Headers (Exact Match)
 
 ```json
 {
     "Content-Type": "application/json",
-    "Accept": "application/json",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Cache-Control": "no-cache",
-    "X-API-Key": "YOUR_API_KEY",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "application/json", 
+    "X-API-Key": "[Your API Key]",
     "X-Client-ID": "kill_logger_client",
     "X-Client-Version": "5.7"
 }
 ```
 
-### Payload Structure
-
-**Kill Event Payload:**
-
-When a kill is detected and sent to the kills endpoint, the JSON payload structure is:
-
+#### Optional Headers (Allowed)
 ```json
 {
-    "log_line": "Full game log line with timestamp and kill details",
-    "game_mode": "Mapped game mode (PU, Team Elimination, Elimination, Gun Rush, etc.)",
-    "killer_ship": "Ship name if vehicle destruction, empty string if player destruction",
-    "method": "Vehicle destruction or Player destruction"
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
 ```
 
-**Death Event Payload:**
+### API Endpoints
 
-When a death is detected and sent to the deaths endpoint, the JSON payload structure is:
+#### 1. Kill Data Endpoint
+**URL**: `https://starcitizentool.com/api/v1/kills`
 
+**Payload Structure (Required Fields)**
 ```json
 {
-    "log_line": "Full game log line with timestamp and death details",
-    "game_mode": "Mapped game mode (PU, Team Elimination, Elimination, etc.)",
-    "victim_name": "Player who died",
-    "attacker_name": "Player who killed",
-    "weapon": "Weapon used from log",
-    "damage_type": "Damage type from log",
-    "location": "Zone/location from log",
-    "timestamp": "Full timestamp in YYYY-MM-DD HH:MM:SS format",
-    "event_type": "death"
+    "log_line": "string - Full Star Citizen game log line with timestamp",
+    "game_mode": "string - One of: PU, Team Elimination, Gun Rush, Tonk Royale, Free Flight, Squadron Battle, Vehicle Kill Confirmed, FPS Kill Confirmed, Control, Duel, Unknown",
+    "killer_ship": "string - Ship name or empty string",
+    "method": "string - Either 'Vehicle destruction' or 'Player destruction'"
 }
 ```
 
-**Clip URL Update Payload:**
-
-For updating existing kills with Twitch clip URLs via the update-clip endpoint:
-
+**Optional Fields**
 ```json
 {
-    "clip_url": "Twitch clip URL",
-    "timestamp": "Kill timestamp", 
-    "victim_name": "Victim name",
-    "kill_id": "API kill ID if available"
+    "clip_url": "string|null - Valid URL or null",
+    "handle": "string|null - Player handle or null"
 }
 ```
+
+**Field Validation Rules**
+- **log_line**: Must match Star Citizen log format with timestamp pattern `<YYYY-MM-DDTHH:MM:SS.sssZ>`
+- **game_mode**: Must be exactly one of the valid game modes listed above
+- **killer_ship**: Can be empty string or alphanumeric with spaces/hyphens/underscores
+- **method**: Must be exactly "Vehicle destruction" or "Player destruction"
+- **clip_url**: Must be valid URL format if provided
+- **handle**: No special validation if provided
+
+#### 2. Death Data Endpoint  
+**URL**: `https://starcitizentool.com/api/v1/deaths`
+
+**Payload Structure (All Fields Required)**
+```json
+{
+    "log_line": "string - Full Star Citizen game log line with timestamp", 
+    "game_mode": "string - One of the valid game modes",
+    "victim_name": "string - Name of player who died",
+    "attacker_name": "string - Name of player who killed",
+    "weapon": "string - Weapon used",
+    "damage_type": "string - Type of damage",
+    "location": "string - Zone/location where death occurred",
+    "timestamp": "string - ISO timestamp format YYYY-MM-DDTHH:MM:SS.sssZ",
+    "event_type": "string - Must be exactly 'death'"
+}
+```
+
+**Field Validation Rules**
+- **log_line**: Must match Star Citizen log format
+- **game_mode**: Must be valid game mode
+- **victim_name/attacker_name**: Alphanumeric with spaces/underscores/hyphens/dots allowed
+- **weapon/damage_type/location**: Cannot be empty strings
+- **timestamp**: Must be valid ISO timestamp format
+- **event_type**: Must be exactly "death"
+
+#### 3. Clip Update Endpoint
+**URL**: `https://starcitizentool.com/api/v1/kills/update-clip`
+
+**Payload Structure**
+```json
+{
+    "clip_url": "string - Required valid URL",
+    "kill_id": "string - Optional UUID of kill to update",
+    "timestamp": "string - Optional ISO timestamp",
+    "victim_name": "string - Optional victim name"
+}
+```
+
+**Field Validation Rules**
+- **clip_url**: Required, must be valid URL
+- **Identifiers**: Must provide at least one of: kill_id, timestamp, or victim_name
+- **kill_id**: Must be valid UUID format if provided
+- **timestamp**: Must be valid ISO format if provided
+- **victim_name**: Standard player name validation if provided
+
+### Validation Behavior
+
+#### Request Acceptance
+- ✅ All required headers present with exact values
+- ✅ Payload structure exactly matches specification
+- ✅ All field validations pass
+- ✅ Client ID is `kill_logger_client`
+- ✅ Client version is exactly `5.7`
+- ✅ Valid API key
+
+#### Request Rejection (HTTP 400)
+- ❌ Missing or incorrect headers
+- ❌ Invalid payload structure  
+- ❌ Field validation failures
+- ❌ Unexpected fields in payload
+- ❌ Wrong client ID or version
+
+#### Authentication Failures (HTTP 401)
+- ❌ Missing API key
+- ❌ Invalid API key
+
+#### Version Errors (HTTP 426)
+- ❌ Unsupported client version (if using legacy validation)
 
 ### API Request Configuration
 
@@ -643,6 +709,32 @@ For updating existing kills with Twitch clip URLs via the update-clip endpoint:
 - **400-499**: Client error, no retry attempted
 - **500+**: Server error, triggers retry logic
 - **Duplicate Detection**: Server responds with "duplicate" message for already logged events
+
+### Error Response Format
+
+When validation fails, you'll receive:
+```json
+{
+    "error": "Request validation failed",
+    "message": "Detailed error description",
+    "code": "VALIDATION_ERROR"
+}
+```
+
+### Rate Limits
+
+- **5000 requests per 60 seconds** (throttling)
+- **1000 requests per minute** (rate limiting)
+
+### Security Notes
+
+- Only requests matching this exact specification will be processed
+- Any deviation results in immediate rejection
+- All requests are logged for security monitoring
+- Unexpected headers or fields are rejected
+- Client version enforcement is strict
+
+**Important**: This specification ensures absolute data consistency. Client applications must implement these requirements exactly to maintain API access.
 
 ### Development Setup
 
