@@ -6,7 +6,7 @@
 
 ## Overview
 
-SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This comprehensive tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.4.
+SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.4.
 
 ### Key Features at a Glance
 
@@ -106,7 +106,7 @@ SCTool Tracker includes a powerful **Game Overlay System** that provides real-ti
 - **Real-time Statistics**: Live kill/death counts, K/D ratio, session time, ship info, and game mode
 - **Kill/Death Notifications**: Rich notifications in faded mode with player organization info and profile images
 - **Customization Options**: 3 themes (Default, Dark, Neon), opacity control, positioning, and animations
-- **Advanced Control Panel**: Comprehensive configuration interface with all overlay settings
+- **Advanced Control Panel**: Configuration interface with all overlay settings
 - **Integration Features**: Seamless integration with main application for live data updates
 - **Visual Effects**: Animations, glow effects, drag-and-drop positioning, and visual feedback
 
@@ -123,7 +123,7 @@ SCTool Tracker includes a powerful **Game Overlay System** that provides real-ti
 - **Layout**: Organized grid layout with clear sections and mode cycling button
 
 #### 3. Detailed Mode
-- **Purpose**: Comprehensive statistics display for detailed performance tracking
+- **Purpose**: Statistics display for detailed performance tracking
 - **Features**: Full statistics, latest kill/death information, session details
 - **Layout**: Expanded view with additional information panels and enhanced styling
 
@@ -386,7 +386,7 @@ Button sequences use a simple, intuitive format:
 
 ## Sound Notification System
 
-SCTool Tracker includes a comprehensive dual sound notification system that plays audio alerts for both kills and deaths in Star Citizen.
+SCTool Tracker includes a dual sound notification system that plays audio alerts for both kills and deaths in Star Citizen.
 
 ### Sound Features
 
@@ -521,7 +521,7 @@ The tracker retrieves player profile images from the RSI website using the follo
 
 ### Twitch Integration
 
-The tracker offers comprehensive Twitch integration with advanced configuration options:
+The tracker offers Twitch integration with advanced configuration options:
 
 #### Authentication and Connection
 1. **OAuth Authentication**: Secure OAuth authentication flow for connecting to Twitch
@@ -563,45 +563,86 @@ If you want to build your own tracker that integrates with the SCTool API, follo
 2. **API Endpoints**: 
    - Kills: `https://starcitizentool.com/api/v1/kills`
    - Deaths: `https://starcitizentool.com/api/v1/deaths`
+   - Clip Updates: `https://starcitizentool.com/api/v1/kills/update-clip`
 
 ### Required Headers
 
-```
-Content-Type: application/json
-X-API-Key: YOUR_API_KEY
-User-Agent: YOUR_APPLICATION_NAME
-X-Client-ID: YOUR_CLIENT_ID
-X-Client-Version: YOUR_VERSION
+The application sends the following headers with all API requests:
+
+```json
+{
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "X-API-Key": "YOUR_API_KEY",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "X-Client-ID": "kill_logger_client",
+    "X-Client-Version": "5.7"
+}
 ```
 
 ### Payload Structure
 
-When sending a kill event to the API, your JSON payload should include:
+**Kill Event Payload:**
+
+When a kill is detected and sent to the kills endpoint, the JSON payload structure is:
 
 ```json
 {
-  "log_line": "Raw log line from the game",
-  "game_mode": "Game mode (PU, Elimination, etc.)",
-  "killer_ship": "Ship used by the attacker (optional)",
-  "method": "Vehicle destruction or Player destruction"
+    "log_line": "Full game log line with timestamp and kill details",
+    "game_mode": "Mapped game mode (PU, Team Elimination, Elimination, Gun Rush, etc.)",
+    "killer_ship": "Ship name if vehicle destruction, empty string if player destruction",
+    "method": "Vehicle destruction or Player destruction"
 }
 ```
 
-When sending a death event to the API, your JSON payload should include:
+**Death Event Payload:**
+
+When a death is detected and sent to the deaths endpoint, the JSON payload structure is:
 
 ```json
 {
-  "log_line": "Raw log line from the game",
-  "game_mode": "Game mode (PU, Elimination, etc.)",
-  "victim_name": "Name of the victim",
-  "attacker_name": "Name of the attacker",
-  "weapon": "Weapon used",
-  "damage_type": "Type of damage",
-  "location": "Location of death",
-  "timestamp": "Timestamp of the death",
-  "event_type": "death"
+    "log_line": "Full game log line with timestamp and death details",
+    "game_mode": "Mapped game mode (PU, Team Elimination, Elimination, etc.)",
+    "victim_name": "Player who died",
+    "attacker_name": "Player who killed",
+    "weapon": "Weapon used from log",
+    "damage_type": "Damage type from log",
+    "location": "Zone/location from log",
+    "timestamp": "Full timestamp in YYYY-MM-DD HH:MM:SS format",
+    "event_type": "death"
 }
 ```
+
+**Clip URL Update Payload:**
+
+For updating existing kills with Twitch clip URLs via the update-clip endpoint:
+
+```json
+{
+    "clip_url": "Twitch clip URL",
+    "timestamp": "Kill timestamp", 
+    "victim_name": "Victim name",
+    "kill_id": "API kill ID if available"
+}
+```
+
+### API Request Configuration
+
+- **HTTP Method**: POST for all endpoints
+- **Timeout**: 10 seconds
+- **SSL Verification**: Enabled by default (configurable)
+- **Retry Logic**: Up to 5 retries with exponential backoff (1s, 2s, 4s, 8s, 16s)
+- **Threading**: Asynchronous requests using QThread to prevent UI blocking
+
+### API Response Handling
+
+- **201 Created**: Kill/death logged successfully
+- **200 OK**: Alternative success response
+- **400-499**: Client error, no retry attempted
+- **500+**: Server error, triggers retry logic
+- **Duplicate Detection**: Server responds with "duplicate" message for already logged events
 
 ### Development Setup
 
