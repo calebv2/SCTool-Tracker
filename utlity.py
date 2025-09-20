@@ -25,6 +25,13 @@ from PyQt5.QtWidgets import (
     QGridLayout
 )
 
+try:
+    from PyQt5.QtWebEngineWidgets import QWebEngineView
+    WEB_ENGINE_AVAILABLE = True
+except ImportError:
+    WEB_ENGINE_AVAILABLE = False
+    print("QWebEngineView not available, falling back to QTextBrowser")
+
 from PyQt5.QtCore import (
     Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect
 )
@@ -310,19 +317,86 @@ def init_ui(self) -> None:
     killfeed_layout.setContentsMargins(0, 0, 0, 0)
     killfeed_layout.setSpacing(15)
     
-    self.kill_display = QTextBrowser()
-    self.kill_display.setReadOnly(True)
-    self.kill_display.setOpenExternalLinks(True)
-    self.kill_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    self.kill_display.setMinimumHeight(200)
-    self.kill_display.setStyleSheet(
-        "QTextBrowser { background-color: rgba(20, 20, 20, 0.8); border: 1px solid #333333; border-radius: 8px; padding: 15px; }"
-        "QTextBrowser QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
-        "QTextBrowser QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
-        "QTextBrowser QScrollBar::handle:vertical:hover { background: #f04747; }"
-        "QTextBrowser QScrollBar::add-line:vertical, QTextBrowser QScrollBar::sub-line:vertical { height: 0px; }"
-        "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
-    )
+    # Use QWebEngineView if available for better CSS support, otherwise fallback to QTextBrowser
+    if WEB_ENGINE_AVAILABLE:
+        self.kill_display = QWebEngineView()
+        self.kill_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.kill_display.setMinimumHeight(200)
+        
+        # Create initial HTML document for QWebEngineView
+        initial_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {
+                    background-color: rgba(20, 20, 20, 0.95);
+                    color: white;
+                    font-family: 'Consolas', monospace;
+                    margin: 15px;
+                    overflow-x: hidden;
+                    border: 1px solid #333333;
+                    border-radius: 8px;
+                    min-height: calc(100vh - 50px);
+                }
+                ::-webkit-scrollbar {
+                    width: 12px;
+                }
+                ::-webkit-scrollbar-track {
+                    background: #1a1a1a;
+                }
+                ::-webkit-scrollbar-thumb {
+                    background: #2a2a2a;
+                    border-radius: 6px;
+                }
+                ::-webkit-scrollbar-thumb:hover {
+                    background: #f04747;
+                }
+            </style>
+        </head>
+        <body>
+            <div id="content"></div>
+            <script>
+                function appendHTML(html) {
+                    document.getElementById('content').innerHTML += html;
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+                function setHTML(html) {
+                    document.getElementById('content').innerHTML = html;
+                }
+                function clearContent() {
+                    document.getElementById('content').innerHTML = '';
+                }
+            </script>
+        </body>
+        </html>
+        """
+        self.kill_display.setHtml(initial_html)
+        
+        # Apply styling to match the dark theme
+        self.kill_display.setStyleSheet("""
+            QWebEngineView {
+                background-color: rgba(20, 20, 20, 0.8);
+                border: 1px solid #333333;
+                border-radius: 8px;
+            }
+        """)
+        
+    else:
+        # Fallback to QTextBrowser
+        self.kill_display = QTextBrowser()
+        self.kill_display.setReadOnly(True)
+        self.kill_display.setOpenExternalLinks(True)
+        self.kill_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.kill_display.setMinimumHeight(200)
+        self.kill_display.setStyleSheet(
+            "QTextBrowser { background-color: rgba(20, 20, 20, 0.8); border: 1px solid #333333; border-radius: 8px; padding: 15px; }"
+            "QTextBrowser QScrollBar:vertical { background: #1a1a1a; width: 12px; margin: 0px; }"
+            "QTextBrowser QScrollBar::handle:vertical { background: #2a2a2a; min-height: 20px; border-radius: 6px; }"
+            "QTextBrowser QScrollBar::handle:vertical:hover { background: #f04747; }"
+            "QTextBrowser QScrollBar::add-line:vertical, QTextBrowser QScrollBar::sub-line:vertical { height: 0px; }"
+            "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
+        )
     killfeed_layout.addWidget(self.kill_display, 1)
     
     game_info_container = QWidget()

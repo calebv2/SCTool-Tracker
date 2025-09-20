@@ -1,11 +1,11 @@
-# Kill_thread.py
+﻿# Kill_thread.py
 
 import os
 import re
-import json
 import base64
 import requests
 import logging
+import json
 import time
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -38,8 +38,13 @@ class MissingKillsDialog(QDialog):
     def initUI(self):
         layout = QVBoxLayout(self)
 
-        info_label = QLabel("Select which kills you’d like to send:")
+        info_label = QLabel("Select which kills you'd like to send:")
         layout.addWidget(info_label)
+
+        self.toggle_checkbox = QCheckBox("Deselect All")
+        self.toggle_checkbox.setChecked(True)
+        self.toggle_checkbox.stateChanged.connect(self.on_toggle_changed)
+        layout.addWidget(self.toggle_checkbox)
 
         for kill in self.missing_kills:
             local_key = kill.get("local_key", "Unknown")
@@ -50,6 +55,7 @@ class MissingKillsDialog(QDialog):
                 label_text = local_key
             checkbox = QCheckBox(label_text)
             checkbox.setChecked(True)
+            checkbox.stateChanged.connect(self.on_individual_checkbox_changed)
             layout.addWidget(checkbox)
             self.checkbox_list.append((checkbox, kill))
 
@@ -65,12 +71,76 @@ class MissingKillsDialog(QDialog):
         self.setLayout(layout)
         self.initStyles()
 
+    def on_toggle_changed(self, state):
+        """Handle toggle checkbox state change - toggles all checkboxes and updates text"""
+        if state == Qt.Checked:
+            self.toggle_checkbox.setText("Deselect All")
+            for checkbox, _ in self.checkbox_list:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(True)
+                checkbox.blockSignals(False)
+        else:
+            self.toggle_checkbox.setText("Select All")
+            for checkbox, _ in self.checkbox_list:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(False)
+                checkbox.blockSignals(False)
+
     def getSelectedKills(self):
         selected = []
         for checkbox, kill_data in self.checkbox_list:
             if checkbox.isChecked():
                 selected.append(kill_data)
         return selected
+
+    def on_select_all_changed(self, state):
+        """Handle Select All checkbox state change"""
+        if state == Qt.Checked:
+            self.deselect_all_checkbox.blockSignals(True)
+            self.deselect_all_checkbox.setChecked(False)
+            self.deselect_all_checkbox.blockSignals(False)
+            
+            for checkbox, _ in self.checkbox_list:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(True)
+                checkbox.blockSignals(False)
+
+    def on_deselect_all_changed(self, state):
+        """Handle Deselect All checkbox state change"""
+        if state == Qt.Checked:
+            self.select_all_checkbox.blockSignals(True)
+            self.select_all_checkbox.setChecked(False)
+            self.select_all_checkbox.blockSignals(False)
+            
+            for checkbox, _ in self.checkbox_list:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(False)
+                checkbox.blockSignals(False)
+
+    def on_individual_checkbox_changed(self, state):
+        """Handle individual checkbox state changes to update toggle checkbox state and text"""
+        all_checked = True
+        all_unchecked = True
+        
+        for checkbox, _ in self.checkbox_list:
+            if checkbox.isChecked():
+                all_unchecked = False
+            else:
+                all_checked = False
+        
+        self.toggle_checkbox.blockSignals(True)
+        
+        if all_checked:
+            self.toggle_checkbox.setChecked(True)
+            self.toggle_checkbox.setText("Deselect All")
+        elif all_unchecked:
+            self.toggle_checkbox.setChecked(False)
+            self.toggle_checkbox.setText("Select All")
+        else:
+            self.toggle_checkbox.setChecked(False)
+            self.toggle_checkbox.setText("Select All")
+        
+        self.toggle_checkbox.blockSignals(False)
 
     def initStyles(self):
         self.setStyleSheet(
@@ -334,7 +404,6 @@ class TailThread(QThread):
 
         captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
         if data.get("damage_type", "").lower() == "vehicledestruction":
-            # Check if we have a current ship, otherwise it's unknown vehicle destruction
             if self.current_attacker_ship and self.current_attacker_ship.strip() and self.current_attacker_ship != "Player destruction" and self.current_attacker_ship != "No Ship":
                 chosen_ship = self.current_attacker_ship.strip()
             else:
@@ -514,6 +583,9 @@ class ApiSenderThread(QThread):
                 self.retry_count += 1
                 error_text = f"API request failed (Attempt {self.retry_count}/{self.max_retries}): {e}"
                 self.apiResponse.emit(error_text, {})
+                if self.retry_count >= self.max_retries:
+                    break
                 time.sleep(self.backoff)
                 self.backoff *= 2
+        
         self.apiResponse.emit("API request failed after maximum retries.", {})

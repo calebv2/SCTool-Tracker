@@ -211,6 +211,39 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         
         self.update_ui_scaling()
 
+    def _append_to_display(self, html_content: str) -> None:
+        """Wrapper method to append HTML content to display widget (works with both QWebEngineView and QTextBrowser)"""
+        if hasattr(self, 'kill_display'):
+            if hasattr(self.kill_display, 'page'):
+                escaped_content = html_content.replace('`', '\\`')
+                js_code = f"appendHTML(`{escaped_content}`);"
+                self.kill_display.page().runJavaScript(js_code)
+            else:
+                self.kill_display.append(html_content)
+
+    def _set_display_html(self, html_content: str) -> None:
+        """Wrapper method to set HTML content in display widget (works with both QWebEngineView and QTextBrowser)"""
+        if hasattr(self, 'kill_display'):
+            if hasattr(self.kill_display, 'page'):
+                escaped_content = html_content.replace('`', '\\`')
+                js_code = f"setHTML(`{escaped_content}`);"
+                self.kill_display.page().runJavaScript(js_code)
+            else:
+                self.kill_display.setHtml(html_content)
+
+    def _get_display_html(self, callback=None) -> str:
+        """Wrapper method to get HTML content from display widget (works with both QWebEngineView and QTextBrowser)"""
+        if hasattr(self, 'kill_display'):
+            if hasattr(self.kill_display, 'page'):
+                if callback:
+                    self.kill_display.page().toHtml(callback)
+                    return ""
+                else:
+                    return "" 
+            else:
+                return self.kill_display.toHtml()
+        return ""
+
     def create_nav_button(self, text, obj_name=None):
         """Create a styled navigation button for the sidebar"""
         button = QPushButton(text)
@@ -410,12 +443,12 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 if selected_kills:
                     self.send_missing_kills(selected_kills)
                 else:
-                    self.append_kill_readout(f"<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ {t('No kills selected to send.')}</div>")
+                    self.append_kill_readout(f"<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>{t('No kills selected to send.')}</div>")
             else:
-                self.append_kill_readout(f"<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>⚠️ {t('Missing kills were not sent.')}</div>")
+                self.append_kill_readout(f"<div style='color: #FF9800; font-weight: bold; margin: 10px 0;'>{t('Missing kills were not sent.')}</div>")
         else:
-            self.append_kill_readout(f"<div style='color: #2196F3; font-weight: bold; margin: 10px 0;'>ℹ️ {t('No missing kills found.')}</div>")
-    
+            self.append_kill_readout(f"<div style='color: #2196F3; font-weight: bold; margin: 10px 0;'>{t('No missing kills found.')}</div>")
+
     def display_missing_kill(self, kill: dict) -> None:
         """Display a missing kill in the kill feed"""
         try:
@@ -721,7 +754,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         for key, value in diagnostic_info["network_test"].items():
             report += f"  {key}: {value}\n"
         
-        # Add API ping test results if available
         if "api_ping_test" in diagnostic_info:
             report += "\nAPI PING TEST:\n"
             for key, value in diagnostic_info["api_ping_test"].items():
@@ -1297,7 +1329,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                                                 <p>{t("User")}: {self.local_user_name or t("Unknown")}</p>
                                                 <p>{t("Session Stats")}: {t("Kills")}: {self.kill_count} | {t("Deaths")}: {self.death_count}</p>
                                             </div>
-                                            {self.kill_display.toHtml()}
+                                            {self._get_display_html() if hasattr(self.kill_display, 'toHtml') else '<p>Export not available for this display type</p>'}
                                         </body>
                                         </html>
                                     """
@@ -1507,17 +1539,24 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
             if local_key in self.local_kills and "readout" in self.local_kills[local_key]:
                 readout_to_remove = self.local_kills[local_key]["readout"]
-                
-                html_content = self.kill_display.toHtml()
-                
-                if readout_to_remove in html_content:
-                    new_html = html_content.replace(readout_to_remove, "")
-                    self.kill_display.setHtml(new_html)
+            
+                if hasattr(self.kill_display, 'toHtml'):
+                    html_content = self.kill_display.toHtml()
+                    
+                    if readout_to_remove in html_content:
+                        new_html = html_content.replace(readout_to_remove, "")
+                        self._set_display_html(new_html)
+                        self.kill_count -= 1
+                        if self.kill_count < 0:
+                            self.kill_count = 0
+                        self.update_kill_death_stats()
+                        logging.info(f"Removed NPC kill from display and adjusted kill count to {self.kill_count}")
+                else:
+                    logging.info(f"NPC kill detected but cannot remove from QWebEngineView: {local_key}")
                     self.kill_count -= 1
                     if self.kill_count < 0:
                         self.kill_count = 0
                     self.update_kill_death_stats()
-                    logging.info(f"Removed NPC kill from display and adjusted kill count to {self.kill_count}")
 
                 del self.local_kills[local_key]
                 self.save_local_kills()
@@ -1544,12 +1583,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.death_count += 1
         
         self.update_kill_death_stats()
-        
-        cursor = self.kill_display.textCursor()
-        cursor.movePosition(cursor.End)
-        self.kill_display.setTextCursor(cursor)
 
-        self.kill_display.append(text)
+        if hasattr(self.kill_display, 'textCursor'):
+            cursor = self.kill_display.textCursor()
+            cursor.movePosition(cursor.End)
+            self.kill_display.setTextCursor(cursor)
+
+        self._append_to_display(text)
         
         if self.last_animation_timer:
             self.last_animation_timer.stop()
@@ -1566,17 +1606,19 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             </style>
         """
 
-        self.kill_display.verticalScrollBar().setValue(
-            self.kill_display.verticalScrollBar().maximum()
-        )
+        if hasattr(self.kill_display, 'verticalScrollBar'):
+            self.kill_display.verticalScrollBar().setValue(
+                self.kill_display.verticalScrollBar().maximum()
+            )
 
     def append_kill_readout_no_count(self, text: str) -> None:
         """Append kill readout to display without incrementing kill/death counts"""
-        cursor = self.kill_display.textCursor()
-        cursor.movePosition(cursor.End)
-        self.kill_display.setTextCursor(cursor)
+        if hasattr(self.kill_display, 'textCursor'):
+            cursor = self.kill_display.textCursor()
+            cursor.movePosition(cursor.End)
+            self.kill_display.setTextCursor(cursor)
 
-        self.kill_display.append(text)
+        self._append_to_display(text)
         
         if self.last_animation_timer:
             self.last_animation_timer.stop()
@@ -1592,21 +1634,22 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 }
             </style>
         """
-
-        self.kill_display.verticalScrollBar().setValue(
-            self.kill_display.verticalScrollBar().maximum()
-        )
+        if hasattr(self.kill_display, 'verticalScrollBar'):
+            self.kill_display.verticalScrollBar().setValue(
+                self.kill_display.verticalScrollBar().maximum()
+            )
 
     def append_death_readout(self, text: str) -> None:
         """Append death readout to display and increment death count"""
         self.death_count += 1
         self.update_kill_death_stats()
         
-        cursor = self.kill_display.textCursor()
-        cursor.movePosition(cursor.End)
-        self.kill_display.setTextCursor(cursor)
+        if hasattr(self.kill_display, 'textCursor'):
+            cursor = self.kill_display.textCursor()
+            cursor.movePosition(cursor.End)
+            self.kill_display.setTextCursor(cursor)
 
-        self.kill_display.append(text)
+        self._append_to_display(text)
         
         if self.last_animation_timer:
             self.last_animation_timer.stop()
@@ -1623,9 +1666,10 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             </style>
         """
 
-        self.kill_display.verticalScrollBar().setValue(
-            self.kill_display.verticalScrollBar().maximum()
-        )
+        if hasattr(self.kill_display, 'verticalScrollBar'):
+            self.kill_display.verticalScrollBar().setValue(
+                self.kill_display.verticalScrollBar().maximum()
+            )
 
     def fetch_user_image(self, username: str) -> None:
         try:
@@ -2389,9 +2433,12 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 f'border:1px solid #6441A4;" target="_blank">'
                 f'Watch Kill Clip</a></div></body>')
             
-            text = self.kill_display.toHtml()
-            text = text.replace(readout, readout_with_clip)
-            self.kill_display.setHtml(text)
+            if hasattr(self.kill_display, 'toHtml'):
+                text = self.kill_display.toHtml()
+                text = text.replace(readout, readout_with_clip)
+                self._set_display_html(text)
+            else:
+                logging.info("Cannot update clip URL in QWebEngineView display")
            
             logging.info(f"Added clip URL to kill display: {clip_url}")
 
@@ -2566,7 +2613,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.monitor_thread = None
             self.start_button.setText("START MONITORING")
             self.start_button.setIcon(QIcon(resource_path("play.png")))
-            # Update sidebar button styling for stopped state
             self.start_button.setStyleSheet(
                 "QPushButton { "
                 "background: rgba(76, 175, 80, 0.15); color: #4CAF50; border: 1px solid #4CAF50; "
@@ -2690,7 +2736,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     msg_box.setText(error_text)
                     
                     if is_ssl_issue:
-                        # Check if this is the specific "not yet valid" error
                         error_msg = api_test_results.get("error_message", "").lower()
                         if "not yet valid" in error_msg:
                             detail_text = "🔒 SSL CERTIFICATE ERROR: 'Not Yet Valid'\n\n"
