@@ -142,6 +142,49 @@ class TailThread(QThread):
             except Exception as e:
                 logging.error(f"Error saving config while clearing killer_ship: {e}")
 
+    def reconstruct_ship_history(self, f) -> None:
+        """Reconstruct ship history from the beginning of the log file to get current ship state"""
+        logging.info("Reconstructing ship history from log file...")
+        current_pos = f.tell()
+        f.seek(0)
+        
+        jump_drive_pattern = re.compile(r'\(adam:\s+(?P<ship>(?:[A-Za-z0-9_]+?)(?=_\d+\s+in zone)|[A-Za-z0-9_]+)\s+in zone')
+        last_ship = None
+        ship_count = 0
+        
+        try:
+            for line in f:
+                if self._stop_event:
+                    break
+                    
+                stripped = line.strip()
+                j_match = jump_drive_pattern.search(stripped)
+                if j_match:
+                    raw_ship = j_match.group('ship')
+                    
+                    if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                        continue
+                    
+                    cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
+                    cleaned_ship = cleaned_ship.replace('_', ' ')
+                    cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
+                    
+                    last_ship = cleaned_ship
+                    ship_count += 1
+                    
+        except Exception as e:
+            logging.error(f"Error reconstructing ship history: {e}")
+        finally:
+            f.seek(current_pos)
+            
+        if last_ship:
+            self.current_attacker_ship = last_ship
+            self.update_config_killer_ship(last_ship)
+            self.ship_updated.emit(last_ship)
+            logging.info(f"Ship history reconstruction: Found {ship_count} ship changes, current ship: {last_ship}")
+        else:
+            logging.info("Ship history reconstruction: No ships found in log history")
+
     def run(self) -> None:
         logging.info("TailThread started.")
         timeout_seconds = 10
@@ -149,6 +192,7 @@ class TailThread(QThread):
             try:
                 with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
                     self.process_existing_player_registrations(f)
+                    self.reconstruct_ship_history(f)
                     f.seek(0, os.SEEK_END)
                     last_activity = time.time()
                     logging.info(f"Started tailing {self.file_path} for new entries...")
@@ -290,7 +334,12 @@ class TailThread(QThread):
 
         captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
         if data.get("damage_type", "").lower() == "vehicledestruction":
-            chosen_ship = self.current_attacker_ship.strip() or "Unknown Ship"
+            # Check if we have a current ship, otherwise it's unknown vehicle destruction
+            if self.current_attacker_ship and self.current_attacker_ship.strip() and self.current_attacker_ship != "Player destruction" and self.current_attacker_ship != "No Ship":
+                chosen_ship = self.current_attacker_ship.strip()
+            else:
+                chosen_ship = "Unknown Ship"
+                logging.warning(f"Vehicle destruction kill detected but no ship information available. Using 'Unknown Ship'.")
             data["killer_ship"] = chosen_ship
         else:
             data["killer_ship"] = "Player destruction"
