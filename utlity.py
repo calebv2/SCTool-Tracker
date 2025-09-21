@@ -28,6 +28,10 @@ from PyQt5.QtWidgets import (
 try:
     from PyQt5.QtWebEngineWidgets import QWebEngineView
     WEB_ENGINE_AVAILABLE = True
+    try:
+        from PyQt5.QtWebEngineWidgets import QWebEnginePage
+    except Exception:
+        QWebEnginePage = None
 except ImportError:
     WEB_ENGINE_AVAILABLE = False
     print("QWebEngineView not available, falling back to QTextBrowser")
@@ -317,13 +321,32 @@ def init_ui(self) -> None:
     killfeed_layout.setContentsMargins(0, 0, 0, 0)
     killfeed_layout.setSpacing(15)
     
-    # Use QWebEngineView if available for better CSS support, otherwise fallback to QTextBrowser
     if WEB_ENGINE_AVAILABLE:
         self.kill_display = QWebEngineView()
+        if QWebEnginePage is not None:
+            class ExternalOpenWebPage(QWebEnginePage):
+                def acceptNavigationRequest(self, url, _type, isMainFrame):
+                    try:
+                        if _type == QWebEnginePage.NavigationTypeLinkClicked:
+                            QDesktopServices.openUrl(url)
+                            return False
+                    except Exception:
+                        QDesktopServices.openUrl(url)
+                        return False
+                    return super().acceptNavigationRequest(url, _type, isMainFrame)
+
+                def createWindow(self, _type):
+                    from PyQt5.QtGui import QDesktopServices
+                    def open_url_callback(url):
+                        QDesktopServices.openUrl(url)
+                    page = QWebEnginePage(self)
+                    page.urlChanged.connect(open_url_callback)
+                    return page
+
+            self.kill_display.setPage(ExternalOpenWebPage(self.kill_display))
         self.kill_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.kill_display.setMinimumHeight(200)
         
-        # Create initial HTML document for QWebEngineView
         initial_html = """
         <!DOCTYPE html>
         <html>
@@ -372,8 +395,6 @@ def init_ui(self) -> None:
         </html>
         """
         self.kill_display.setHtml(initial_html)
-        
-        # Apply styling to match the dark theme
         self.kill_display.setStyleSheet("""
             QWebEngineView {
                 background-color: rgba(20, 20, 20, 0.8);
@@ -383,7 +404,6 @@ def init_ui(self) -> None:
         """)
         
     else:
-        # Fallback to QTextBrowser
         self.kill_display = QTextBrowser()
         self.kill_display.setReadOnly(True)
         self.kill_display.setOpenExternalLinks(True)
@@ -398,37 +418,7 @@ def init_ui(self) -> None:
             "QTextBrowser QScrollBar::add-page:vertical, QTextBrowser QScrollBar::sub-page:vertical { background: none; }"
         )
     killfeed_layout.addWidget(self.kill_display, 1)
-    
-    game_info_container = QWidget()
-    game_info_container.setStyleSheet(
-        "QWidget { background-color: rgba(20, 20, 20, 0.8); border: 1px solid #333333; border-radius: 8px; }"
-    )
-    game_info_layout = QHBoxLayout(game_info_container)
-    game_info_layout.setContentsMargins(15, 10, 15, 10)
-    game_info_layout.setSpacing(20)
-    
-    self.game_mode_display = QLabel("Mode: Unknown")
-    self.game_mode_display.setStyleSheet(
-        "QLabel { color: #00ccff; font-size: 11px; font-weight: 600; "
-        "background: transparent; border: none; }"
-    )
-    self.game_mode_display.setAlignment(Qt.AlignLeft)
-    self.game_mode_display.setWordWrap(True)
-    self.game_mode_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    game_info_layout.addWidget(self.game_mode_display)
-    
-    self.current_ship_display = QLabel("Ship Type: No Ship")
-    self.current_ship_display.setStyleSheet(
-        "QLabel { color: #999999; font-size: 11px; "
-        "background: transparent; border: none; }"
-    )
-    self.current_ship_display.setAlignment(Qt.AlignLeft)
-    self.current_ship_display.setWordWrap(True)
-    self.current_ship_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    game_info_layout.addWidget(self.current_ship_display)
-    
-    killfeed_layout.addWidget(game_info_container)
-
+    killfeed_layout.addStretch(0)
     killfeed_settings_page = QWidget()
     killfeed_settings_layout = QVBoxLayout(killfeed_settings_page)
     killfeed_settings_layout.setContentsMargins(0, 0, 0, 0)
@@ -1545,11 +1535,48 @@ def init_ui(self) -> None:
     button_automation_scroll.setFrameShape(QScrollArea.NoFrame)
     button_automation_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
     
+    killfeed_container = QWidget()
+    killfeed_container_layout = QVBoxLayout(killfeed_container)
+    killfeed_container_layout.setContentsMargins(0, 0, 0, 0)
+    killfeed_container_layout.setSpacing(15)
+    
     killfeed_scroll = QScrollArea()
     killfeed_scroll.setWidget(killfeed_page)
     killfeed_scroll.setWidgetResizable(True)
     killfeed_scroll.setFrameShape(QScrollArea.NoFrame)
     killfeed_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+    
+    self.game_info_container = QWidget()
+    self.game_info_container.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); border: 1px solid #333333; border-radius: 8px; }"
+    )
+    self.game_info_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+    game_info_layout = QHBoxLayout(self.game_info_container)
+    game_info_layout.setContentsMargins(15, 10, 15, 10)
+    game_info_layout.setSpacing(8)
+    
+    self.game_mode_display = QLabel("Mode: Unknown")
+    self.game_mode_display.setStyleSheet(
+        "QLabel { color: #00ccff; font-size: 11px; font-weight: 600; "
+        "background: transparent; border: none; }"
+    )
+    self.game_mode_display.setAlignment(Qt.AlignLeft)
+    self.game_mode_display.setWordWrap(True)
+    self.game_mode_display.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
+    game_info_layout.addWidget(self.game_mode_display)
+    
+    self.current_ship_display = QLabel("Ship Type: No Ship")
+    self.current_ship_display.setStyleSheet(
+        "QLabel { color: #999999; font-size: 11px; "
+        "background: transparent; border: none; }"
+    )
+    self.current_ship_display.setAlignment(Qt.AlignLeft)
+    self.current_ship_display.setWordWrap(True)
+    self.current_ship_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    game_info_layout.addWidget(self.current_ship_display)
+    
+    killfeed_container_layout.addWidget(killfeed_scroll, 1)
+    killfeed_container_layout.addWidget(self.game_info_container, 0)
 
     killfeed_settings_scroll = QScrollArea()
     killfeed_settings_scroll.setWidget(killfeed_settings_page)
@@ -1585,7 +1612,7 @@ def init_ui(self) -> None:
     support_scroll.setFrameShape(QScrollArea.NoFrame)    
     support_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
-    self.content_stack.addWidget(killfeed_scroll)
+    self.content_stack.addWidget(killfeed_container)
     self.content_stack.addWidget(killfeed_settings_scroll)
     
     self.content_stack.addWidget(api_scroll)

@@ -1,6 +1,7 @@
 # html_templates.py
 
 from typing import Dict, Any
+from urllib.parse import quote
 from language_manager import t
 
 class KillEventTemplate:
@@ -123,11 +124,11 @@ class KillEventTemplate:
         """Format organization information consistently"""
         org_name = details.get('org_name', t('None'))
         org_tag = details.get('org_tag', t('None'))
-        org_url = f"https://robertsspaceindustries.com/en/orgs/{org_tag}"
+        org_url = f"https://robertsspaceindustries.com/en/orgs/{quote(org_tag)}"
         
         return f"""{org_name} 
             <span style="color: #888888;">({t("Tag")}:</span>
-            <a href="{org_url}" style="color: inherit; text-decoration: none;">
+            <a href="{org_url}" style="color: inherit; text-decoration: none; border-bottom: 1px solid transparent;" onmouseover="this.style.borderBottom='1px solid inherit'; this.style.textShadow='0 0 3px currentColor';" onmouseout="this.style.borderBottom='1px solid transparent'; this.style.textShadow='none';" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">
                 {org_tag}
             </a><span style="color: #888888;">)</span>"""
 
@@ -144,12 +145,12 @@ class RegisteredKillTemplate(KillEventTemplate):
         org_section = ""
         if org_name != 'None' and org_name != 'Unknown':
             if org_tag != 'None' and org_tag != 'Unknown':
-                org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: <a href="https://robertsspaceindustries.com/en/orgs/{org_tag}" style="color: {colors['text_secondary']}; text-decoration: none;" target="_blank">{org_name}</a></div>"""
-                org_section += f"""<div style="color: {colors['accent']}; font-size: 14px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Tag')}: <a href="https://robertsspaceindustries.com/en/orgs/{org_tag}" style="color: {colors['accent']}; text-decoration: none;" target="_blank">[{org_tag}]</a></div>"""
+                org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: <a href="https://robertsspaceindustries.com/en/orgs/{quote(org_tag)}" style="color: {colors['text_secondary']}; text-decoration: none; border-bottom: 1px solid transparent;" onmouseover="this.style.borderBottom='1px solid {colors['text_secondary']}'; this.style.textShadow='0 0 3px {colors['text_secondary']}';" onmouseout="this.style.borderBottom='1px solid transparent'; this.style.textShadow='none';" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">{org_name}</a></div>"""
+                org_section += f"""<div style="color: {colors['accent']}; font-size: 14px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Tag')}: <a href="https://robertsspaceindustries.com/en/orgs/{quote(org_tag)}" style="color: {colors['accent']}; text-decoration: none; border-bottom: 1px solid transparent;" onmouseover="this.style.borderBottom='1px solid {colors['accent']}'; this.style.textShadow='0 0 3px {colors['accent']}';" onmouseout="this.style.borderBottom='1px solid transparent'; this.style.textShadow='none';" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">[{org_tag}]</a></div>"""
             else:
                 org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: {org_name}</div>"""
         else:
-            org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: {t('Independent')}</div>"""
+            org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: NO ORG</div>"""
         
         return f"""
 <div style="
@@ -167,7 +168,11 @@ class RegisteredKillTemplate(KillEventTemplate):
                 </div>
                 
                 <div style="color: {colors['text_primary']}; font-size: 20px; font-weight: bold; font-family: 'Consolas', monospace; margin-top: 10px;">
-                    <a href="https://robertsspaceindustries.com/en/citizens/{data['victim']}" style="color: {colors['text_primary']}; text-decoration: none;" target="_blank">
+                          <a href="https://robertsspaceindustries.com/en/citizens/{quote(data['victim'])}" 
+                              style="color: {colors['text_primary']}; text-decoration: none; border-bottom: 2px solid transparent;" 
+                              onmouseover="this.style.borderBottom='2px solid {colors['text_primary']}'; this.style.textShadow='0 0 5px {colors['text_primary']}';" 
+                              onmouseout="this.style.borderBottom='2px solid transparent'; this.style.textShadow='none';"
+                              target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">
                         {data['victim'].upper()}
                     </a>
                 </div>
@@ -188,12 +193,12 @@ class RegisteredKillTemplate(KillEventTemplate):
                     </div>
                 </div>
             </td>
-            <td style="width: 200px; text-align: right; vertical-align: middle;">
+            <td style="width: 150px; text-align: right; vertical-align: middle;">
                 <img src="{data['victim_image_data_uri']}" style="
-                    width: 150%; 
-                    height: 150%; 
-                    max-width: 200px; 
-                    max-height: 200px; 
+                    width: 100%; 
+                    height: 100%; 
+                    max-width: 150px; 
+                    max-height: 150px; 
                     object-fit: cover;
                     display: block;
                 ">
@@ -217,12 +222,12 @@ class DeathEventTemplate(KillEventTemplate):
         org_section = ""
         if org_name != 'None' and org_name != 'Unknown':
             if org_tag != 'None' and org_tag != 'Unknown':
-                org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: <a href="https://robertsspaceindustries.com/en/orgs/{org_tag}" style="color: {colors['text_secondary']}; text-decoration: none;" target="_blank">{org_name}</a></div>"""
-                org_section += f"""<div style="color: {colors['accent']}; font-size: 14px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Tag')}: <a href="https://robertsspaceindustries.com/en/orgs/{org_tag}" style="color: {colors['accent']}; text-decoration: none;" target="_blank">[{org_tag}]</a></div>"""
+                org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: <a href="https://robertsspaceindustries.com/en/orgs/{quote(org_tag)}" style="color: {colors['text_secondary']}; text-decoration: none; border-bottom: 1px solid transparent;" onmouseover="this.style.borderBottom='1px solid {colors['text_secondary']}'; this.style.textShadow='0 0 3px {colors['text_secondary']}';" onmouseout="this.style.borderBottom='1px solid transparent'; this.style.textShadow='none';" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">{org_name}</a></div>"""
+                org_section += f"""<div style="color: {colors['accent']}; font-size: 14px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Tag')}: <a href="https://robertsspaceindustries.com/en/orgs/{quote(org_tag)}" style="color: {colors['accent']}; text-decoration: none; border-bottom: 1px solid transparent;" onmouseover="this.style.borderBottom='1px solid {colors['accent']}'; this.style.textShadow='0 0 3px {colors['accent']}';" onmouseout="this.style.borderBottom='1px solid transparent'; this.style.textShadow='none';" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">[{org_tag}]</a></div>"""
             else:
                 org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: {org_name}</div>"""
         else:
-            org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: {t('Independent')}</div>"""
+            org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: NO ORG</div>"""
         
         return f"""
 <div style="
@@ -240,7 +245,11 @@ class DeathEventTemplate(KillEventTemplate):
                 </div>
                 
                 <div style="color: {colors['text_primary']}; font-size: 20px; font-weight: bold; font-family: 'Consolas', monospace; margin-top: 10px;">
-                    {t('KILLED BY')}: <a href="https://robertsspaceindustries.com/en/citizens/{data['attacker']}" style="color: {colors['text_primary']}; text-decoration: none;" target="_blank">{data['attacker'].upper()}</a>
+                    {t('KILLED BY')}: <a href="https://robertsspaceindustries.com/en/citizens/{quote(data['attacker'])}" 
+                                        style="color: {colors['text_primary']}; text-decoration: none; border-bottom: 2px solid transparent;" 
+                                        onmouseover="this.style.borderBottom='2px solid {colors['text_primary']}'; this.style.textShadow='0 0 5px {colors['text_primary']}';" 
+                                        onmouseout="this.style.borderBottom='2px solid transparent'; this.style.textShadow='none';"
+                                        target="_blank" rel="noopener noreferrer" onclick="window.open(this.href); return false;">{data['attacker'].upper()}</a>
                 </div>
                 
                 <div style="margin-top: 8px;">
@@ -259,16 +268,13 @@ class DeathEventTemplate(KillEventTemplate):
                     </div>
                 </div>
             </td>
-            <td style="width: 200px; text-align: right; vertical-align: middle;">
+            <td style="width: 150px; text-align: right; vertical-align: middle;">
                 <img src="{data['attacker_image_data_uri']}" style="
-                    width: 150%; 
-                    height: 150%; 
-                    max-width: 200px; 
-                    max-height: 200px; 
+                    width: 100%; 
+                    height: 100%; 
+                    max-width: 150px; 
+                    max-height: 150px; 
                     object-fit: cover;
-                    display: block;
-                ">
-            </td>
                     display: block;
                 ">
             </td>

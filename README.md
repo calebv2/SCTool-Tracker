@@ -566,7 +566,7 @@ This section defines the **exact** specifications that client applications must 
 #### Authentication
 - **API Key**: Required in `X-API-Key` header
 - **Client Identification**: Must identify as `kill_logger_client`
-- **Version**: Must be exactly `5.7`
+- **Version**: Must be exactly `5.8`
 
 #### HTTP Method
 - **Method**: `POST` only
@@ -580,7 +580,7 @@ This section defines the **exact** specifications that client applications must 
     "Accept": "application/json", 
     "X-API-Key": "[Your API Key]",
     "X-Client-ID": "kill_logger_client",
-    "X-Client-Version": "5.7"
+    "X-Client-Version": "5.8"
 }
 ```
 
@@ -677,7 +677,7 @@ This section defines the **exact** specifications that client applications must 
 - ✅ Payload structure exactly matches specification
 - ✅ All field validations pass
 - ✅ Client ID is `kill_logger_client`
-- ✅ Client version is exactly `5.7`
+- ✅ Client version is exactly `5.8`
 - ✅ Valid API key
 
 #### Request Rejection (HTTP 400)
