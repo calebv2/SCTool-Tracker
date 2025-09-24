@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QFormLayout, QComboBox, QCheckBox,
     QSlider, QFileDialog, QTextBrowser, QScrollArea, QFrame,
     QSizePolicy, QApplication, QStackedWidget, QMessageBox, QGroupBox,
-    QGridLayout
+    QGridLayout, QRadioButton, QButtonGroup
 )
 
 try:
@@ -930,6 +930,43 @@ def init_ui(self) -> None:
     )
     sound_card_layout.addRow("", self.kill_sound_checkbox)
     
+    kill_mode_label = QLabel(t("Kill Sound Mode:"))
+    kill_mode_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    
+    kill_mode_container = QWidget()
+    kill_mode_container.setStyleSheet("background: transparent; border: none;")
+    kill_mode_layout = QVBoxLayout(kill_mode_container)
+    kill_mode_layout.setContentsMargins(0, 0, 0, 0)
+    kill_mode_layout.setSpacing(5)
+    
+    self.kill_sound_mode_group = QButtonGroup()
+    
+    self.kill_single_file_radio = QRadioButton(t("Single Sound File"))
+    self.kill_single_file_radio.setChecked(True)
+    self.kill_single_file_radio.setStyleSheet(
+        "QRadioButton { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 13px; }"
+        "QRadioButton::indicator { width: 16px; height: 16px; }"
+        "QRadioButton::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 8px; }"
+        "QRadioButton::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 8px; }"
+    )
+    
+    self.kill_random_folder_radio = QRadioButton(t("Random from Folder"))
+    self.kill_random_folder_radio.setStyleSheet(
+        "QRadioButton { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 13px; }"
+        "QRadioButton::indicator { width: 16px; height: 16px; }"
+        "QRadioButton::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 8px; }"
+        "QRadioButton::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 8px; }"
+    )
+    
+    self.kill_sound_mode_group.addButton(self.kill_single_file_radio, 0)
+    self.kill_sound_mode_group.addButton(self.kill_random_folder_radio, 1)
+    self.kill_sound_mode_group.buttonClicked.connect(self.on_kill_sound_mode_changed)
+    
+    kill_mode_layout.addWidget(self.kill_single_file_radio)
+    kill_mode_layout.addWidget(self.kill_random_folder_radio)
+    
+    sound_card_layout.addRow(kill_mode_label, kill_mode_container)
+    
     sound_path_label = QLabel(t("Kill Sound File:"))
     sound_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
@@ -971,6 +1008,56 @@ def init_ui(self) -> None:
     sound_path_layout.addWidget(test_sound_btn)
     
     sound_card_layout.addRow(sound_path_label, sound_path_container)
+    
+    kill_folder_label = QLabel(t("Kill Sound Folder:"))
+    kill_folder_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    
+    kill_folder_container = QWidget()
+    kill_folder_container.setStyleSheet("background: transparent; border: none;")
+    kill_folder_layout = QHBoxLayout(kill_folder_container)
+    kill_folder_layout.setContentsMargins(0, 0, 0, 0)
+    kill_folder_layout.setSpacing(10)
+    
+    self.kill_sound_folder_input = QLineEdit()
+    self.kill_sound_folder_input.setText(self.kill_sound_folder)
+    self.kill_sound_folder_input.setStyleSheet(
+        "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
+        "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
+    )
+    self.kill_sound_folder_input.setEnabled(False)
+    
+    kill_folder_browse_btn = QPushButton(t("Browse Folder"))
+    kill_folder_browse_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
+    )
+    kill_folder_browse_btn.setFixedWidth(140)
+    kill_folder_browse_btn.clicked.connect(self.on_kill_sound_folder_browse)
+    kill_folder_browse_btn.setEnabled(False)
+    
+    test_folder_sound_btn = QPushButton(t("Test Random"))
+    test_folder_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
+    test_folder_sound_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
+    )
+    test_folder_sound_btn.setFixedWidth(140)
+    test_folder_sound_btn.clicked.connect(self.test_kill_folder_sound)
+    test_folder_sound_btn.setEnabled(False)
+    
+    self.kill_folder_browse_btn = kill_folder_browse_btn
+    self.test_folder_sound_btn = test_folder_sound_btn
+    
+    kill_folder_layout.addWidget(self.kill_sound_folder_input)
+    kill_folder_layout.addWidget(kill_folder_browse_btn)
+    kill_folder_layout.addWidget(test_folder_sound_btn)
+    
+    sound_card_layout.addRow(kill_folder_label, kill_folder_container)
     
     volume_label = QLabel(t("Volume:"))
     volume_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
@@ -1023,6 +1110,43 @@ def init_ui(self) -> None:
     )
     sound_card_layout.addRow("", self.death_sound_checkbox)
     
+    death_mode_label = QLabel(t("Death Sound Mode:"))
+    death_mode_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    
+    death_mode_container = QWidget()
+    death_mode_container.setStyleSheet("background: transparent; border: none;")
+    death_mode_layout = QVBoxLayout(death_mode_container)
+    death_mode_layout.setContentsMargins(0, 0, 0, 0)
+    death_mode_layout.setSpacing(5)
+    
+    self.death_sound_mode_group = QButtonGroup()
+    
+    self.death_single_file_radio = QRadioButton(t("Single Sound File"))
+    self.death_single_file_radio.setChecked(True)
+    self.death_single_file_radio.setStyleSheet(
+        "QRadioButton { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 13px; }"
+        "QRadioButton::indicator { width: 16px; height: 16px; }"
+        "QRadioButton::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 8px; }"
+        "QRadioButton::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 8px; }"
+    )
+    
+    self.death_random_folder_radio = QRadioButton(t("Random from Folder"))
+    self.death_random_folder_radio.setStyleSheet(
+        "QRadioButton { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 13px; }"
+        "QRadioButton::indicator { width: 16px; height: 16px; }"
+        "QRadioButton::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 8px; }"
+        "QRadioButton::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 8px; }"
+    )
+    
+    self.death_sound_mode_group.addButton(self.death_single_file_radio, 0)
+    self.death_sound_mode_group.addButton(self.death_random_folder_radio, 1)
+    self.death_sound_mode_group.buttonClicked.connect(self.on_death_sound_mode_changed)
+    
+    death_mode_layout.addWidget(self.death_single_file_radio)
+    death_mode_layout.addWidget(self.death_random_folder_radio)
+    
+    sound_card_layout.addRow(death_mode_label, death_mode_container)
+    
     death_sound_path_label = QLabel(t("Death Sound File:"))
     death_sound_path_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
@@ -1064,6 +1188,56 @@ def init_ui(self) -> None:
     death_sound_path_layout.addWidget(test_death_sound_btn)
     
     sound_card_layout.addRow(death_sound_path_label, death_sound_path_container)
+    
+    death_folder_label = QLabel(t("Death Sound Folder:"))
+    death_folder_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+    
+    death_folder_container = QWidget()
+    death_folder_container.setStyleSheet("background: transparent; border: none;")
+    death_folder_layout = QHBoxLayout(death_folder_container)
+    death_folder_layout.setContentsMargins(0, 0, 0, 0)
+    death_folder_layout.setSpacing(10)
+    
+    self.death_sound_folder_input = QLineEdit()
+    self.death_sound_folder_input.setText(self.death_sound_folder)
+    self.death_sound_folder_input.setStyleSheet(
+        "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
+        "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
+    )
+    self.death_sound_folder_input.setEnabled(False)
+    
+    death_folder_browse_btn = QPushButton(t("Browse Folder"))
+    death_folder_browse_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
+    )
+    death_folder_browse_btn.setFixedWidth(140)
+    death_folder_browse_btn.clicked.connect(self.on_death_sound_folder_browse)
+    death_folder_browse_btn.setEnabled(False)
+    
+    test_death_folder_sound_btn = QPushButton(t("Test Random"))
+    test_death_folder_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
+    test_death_folder_sound_btn.setStyleSheet(
+        "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
+        "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
+    )
+    test_death_folder_sound_btn.setFixedWidth(140)
+    test_death_folder_sound_btn.clicked.connect(self.test_death_folder_sound)
+    test_death_folder_sound_btn.setEnabled(False)
+    
+    self.death_folder_browse_btn = death_folder_browse_btn
+    self.test_death_folder_sound_btn = test_death_folder_sound_btn
+    
+    death_folder_layout.addWidget(self.death_sound_folder_input)
+    death_folder_layout.addWidget(death_folder_browse_btn)
+    death_folder_layout.addWidget(test_death_folder_sound_btn)
+    
+    sound_card_layout.addRow(death_folder_label, death_folder_container)
     
     death_volume_label = QLabel(t("Death Sound Volume:"))
     death_volume_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
@@ -1228,7 +1402,7 @@ def init_ui(self) -> None:
     )
     twitch_card_layout.addRow("", self.chat_posting_checkbox)
     
-    chat_message_label = QLabel("Customize Twitch chat message:")
+    chat_message_label = QLabel("Twitch kill message:")
     chat_message_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
 
     self.twitch_message_input = QLineEdit()
@@ -1248,6 +1422,27 @@ def init_ui(self) -> None:
 
     twitch_card_layout.addRow(chat_message_label, self.twitch_message_input)
     twitch_card_layout.addRow("", message_help)
+
+    death_message_label = QLabel("Twitch death message:")
+    death_message_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
+
+    self.twitch_death_message_input = QLineEdit()
+    self.twitch_death_message_input.setPlaceholderText("E.g.: 💀 {username} was killed by {attacker}! 😵 {profile_url}")
+    self.twitch_death_message_input.setText(self.twitch_death_message_template)
+    self.twitch_death_message_input.setStyleSheet(
+        "QLineEdit { background-color: #1e1e1e; color: #f0f0f0; padding: 12px; "
+        "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
+        "QLineEdit:hover, QLineEdit:focus { border-color: #9146FF; }"
+    )
+    self.twitch_death_message_input.setMinimumWidth(300)
+    self.twitch_death_message_input.editingFinished.connect(self.on_twitch_death_message_changed)
+
+    death_message_help = QLabel("Available placeholders: {username}, {attacker}, {profile_url}")
+    death_message_help.setStyleSheet("QLabel { color: #aaaaaa; font-style: italic; background: transparent; border: none; }")
+    death_message_help.setWordWrap(True)
+
+    twitch_card_layout.addRow(death_message_label, self.twitch_death_message_input)
+    twitch_card_layout.addRow("", death_message_help)
 
     clip_delay_label = QLabel("Delay after kill:")
     clip_delay_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
@@ -1764,6 +1959,19 @@ def load_config(self) -> None:
             self.kill_sound_volume = config.get('kill_sound_volume', 100)
             self.volume_slider.setValue(self.kill_sound_volume)
             
+            self.kill_sound_mode = config.get('kill_sound_mode', 'single')
+            if self.kill_sound_mode == 'random_folder':
+                self.kill_random_folder_radio.setChecked(True)
+                self.on_kill_sound_mode_changed()
+            else:
+                self.kill_single_file_radio.setChecked(True)
+                self.on_kill_sound_mode_changed()
+            
+            kill_sound_folder = config.get('kill_sound_folder', '')
+            if kill_sound_folder:
+                self.kill_sound_folder = kill_sound_folder
+                self.kill_sound_folder_input.setText(kill_sound_folder)
+            
             self.death_sound_enabled = config.get('death_sound', False)
             self.death_sound_checkbox.setChecked(self.death_sound_enabled)
             death_sound_path = config.get('death_sound_path', '')
@@ -1773,6 +1981,19 @@ def load_config(self) -> None:
             
             self.death_sound_volume = config.get('death_sound_volume', 100)
             self.death_volume_slider.setValue(self.death_sound_volume)
+            
+            self.death_sound_mode = config.get('death_sound_mode', 'single')
+            if self.death_sound_mode == 'random_folder':
+                self.death_random_folder_radio.setChecked(True)
+                self.on_death_sound_mode_changed()
+            else:
+                self.death_single_file_radio.setChecked(True)
+                self.on_death_sound_mode_changed()
+
+            death_sound_folder = config.get('death_sound_folder', '')
+            if death_sound_folder:
+                self.death_sound_folder = death_sound_folder
+                self.death_sound_folder_input.setText(death_sound_folder)
             
             self.twitch_enabled = config.get('twitch_enabled', False)
             self.twitch_enabled_checkbox.setChecked(self.twitch_enabled)
@@ -1811,6 +2032,10 @@ def load_config(self) -> None:
             self.twitch_chat_message_template = config.get('twitch_chat_message_template', "🔫 {username} just killed {victim}! 🚀 {profile_url}")
             if hasattr(self, 'twitch_message_input'):
                 self.twitch_message_input.setText(self.twitch_chat_message_template)
+            
+            self.twitch_death_message_template = config.get('twitch_death_message_template', "💀 {username} was killed by {attacker}! 😵 {profile_url}")
+            if hasattr(self, 'twitch_death_message_input'):
+                self.twitch_death_message_input.setText(self.twitch_death_message_template)
             
             language_code = config.get('language', 'en')
             from language_manager import language_manager
@@ -2468,10 +2693,14 @@ class TranslationMixin:
                         widget.setText(t("Create Twitch clips on kill"))
                     elif text == "Post kills to Twitch chat":
                         widget.setText(t("Post kills to Twitch chat"))
-                    elif text == "Customize Twitch chat message:":
-                        widget.setText(t("Customize Twitch chat message:"))
-                    elif text.startswith("Available placeholders:"):
+                    elif text == "Twitch kill message:":
+                        widget.setText(t("Twitch kill message:"))
+                    elif text == "Twitch death message:":
+                        widget.setText(t("Twitch death message:"))
+                    elif text.startswith("Available placeholders:") and "{username}, {victim}, {profile_url}" in text:
                         widget.setText(t("Available placeholders: {username}, {victim}, {profile_url}"))
+                    elif text.startswith("Available placeholders:") and "{username}, {attacker}, {profile_url}" in text:
+                        widget.setText(t("Available placeholders: {username}, {attacker}, {profile_url}"))
                     elif text == "Delay after kill:":
                         widget.setText(t("Delay after kill:"))
             except Exception as e:
@@ -2481,6 +2710,11 @@ class TranslationMixin:
                 placeholder = self.twitch_message_input.placeholderText()
                 if placeholder and not placeholder.startswith("🔫"):
                     self.twitch_message_input.setPlaceholderText("🔫 {username} just killed {victim}! 🚀 {profile_url}")
+
+            if hasattr(self, 'twitch_death_message_input'):
+                placeholder = self.twitch_death_message_input.placeholderText()
+                if placeholder and not placeholder.startswith("💀"):
+                    self.twitch_death_message_input.setPlaceholderText("💀 {username} was killed by {attacker}! 😵 {profile_url}")
             
             logging.info("Twitch settings translations updated")
             

@@ -1080,6 +1080,23 @@ class TwitchIntegration:
             logging.error(f"Error posting kill to Twitch chat: {e}")
             raise e
 
+    def post_death_to_chat(self, message: str) -> None:
+        """Post a death notification to Twitch chat"""
+        if not self.is_ready():
+            logging.warning("Tried to post death to chat but Twitch integration is not ready")
+            return
+            
+        try:
+            result = self.send_chat_message(message)
+            if result:
+                logging.info("Successfully sent death message to Twitch chat")
+            else:
+                logging.error("Failed to send death message to Twitch chat")
+                raise Exception("Failed to send chat message")
+        except Exception as e:
+            logging.error(f"Error posting death to Twitch chat: {e}")
+            raise e
+
 def process_twitch_callbacks(self) -> None:
     """Process any pending Twitch callbacks (auth or clip results) in the main thread"""
     auth_result = self.twitch.process_auth_callback()

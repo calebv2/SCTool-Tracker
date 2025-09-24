@@ -13,6 +13,8 @@ import requests
 import ctypes
 import webbrowser
 import shutil
+import random
+import glob
 from kill_parser import VERSION
 from datetime import datetime
 from packaging import version
@@ -129,6 +131,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def __init__(self) -> None:
         super().__init__()
         self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
+        self.twitch_death_message_template = "💀 {username} was killed by {attacker}! 😵 {profile_url}"
         self.setWindowTitle(t(f"SCTool Killfeed {VERSION}"))
         self.setWindowIcon(QIcon(resource_path("chris2.ico")))
         self.kill_count = 0
@@ -148,11 +151,17 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.kill_sound_effect = QSoundEffect()
         self.kill_sound_path = resource_path("kill.wav")
         self.kill_sound_volume = 100
+        # Random sound folder support for kills
+        self.kill_sound_mode = "single"  # "single" or "random_folder"
+        self.kill_sound_folder = ""
         
         self.death_sound_enabled = False
         self.death_sound_effect = QSoundEffect()
         self.death_sound_path = resource_path("death.wav")
         self.death_sound_volume = 100
+        # Random sound folder support for deaths
+        self.death_sound_mode = "single"  # "single" or "random_folder"
+        self.death_sound_folder = ""
         
         self.api_key = ""
         self.disable_ssl_verification = False
@@ -380,9 +389,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'kill_sound': self.kill_sound_enabled,
             'kill_sound_path': self.kill_sound_path_input.text().strip(),
             'kill_sound_volume': self.volume_slider.value(),
+            'kill_sound_mode': self.kill_sound_mode,
+            'kill_sound_folder': self.kill_sound_folder_input.text().strip(),
             'death_sound': self.death_sound_enabled,
             'death_sound_path': self.death_sound_path_input.text().strip(),
             'death_sound_volume': self.death_volume_slider.value(),
+            'death_sound_mode': self.death_sound_mode,
+            'death_sound_folder': self.death_sound_folder_input.text().strip(),
             'log_path': self.log_path_input.text().strip(),
             'api_key': self.api_key_input.text().strip(),
             'disable_ssl_verification': self.disable_ssl_verification,
@@ -399,6 +412,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'minimize_to_tray': self.minimize_to_tray,
             'start_with_system': self.start_with_system,
             'twitch_chat_message_template': self.twitch_chat_message_template,
+            'twitch_death_message_template': self.twitch_death_message_template,
             'language': language_manager.current_language
         }
         try:
@@ -1258,19 +1272,47 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     "QLabel { color: #666666; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
                 )
 
+    def get_random_sound_from_folder(self, folder_path: str) -> str:
+        """Get a random sound file from the specified folder."""
+        if not folder_path or not os.path.exists(folder_path):
+            return ""
+        
+        audio_extensions = ['*.wav', '*.mp3', '*.ogg']
+        audio_files = []
+        
+        for extension in audio_extensions:
+            audio_files.extend(glob.glob(os.path.join(folder_path, extension)))
+            audio_files.extend(glob.glob(os.path.join(folder_path, extension.upper())))
+        
+        if not audio_files:
+            return ""
+        
+        return random.choice(audio_files)
+    
+    def get_sound_file_for_event(self, sound_mode: str, single_file_path: str, folder_path: str) -> str:
+        """Get the appropriate sound file based on the sound mode."""
+        if sound_mode == "random_folder":
+            return self.get_random_sound_from_folder(folder_path)
+        else:
+            return single_file_path
+
     def on_kill_detected(self, readout: str, attacker: str) -> None:
         self.append_kill_readout(readout)
         if self.kill_sound_enabled:
-            self.kill_sound_effect.setSource(QUrl.fromLocalFile(self.kill_sound_path))
-            self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
-            self.kill_sound_effect.play()
+            sound_file = self.get_sound_file_for_event(self.kill_sound_mode, self.kill_sound_path, self.kill_sound_folder)
+            if sound_file and os.path.exists(sound_file):
+                self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_file))
+                self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
+                self.kill_sound_effect.play()
 
     def on_death_detected(self, readout: str, attacker: str) -> None:
         self.append_death_readout(readout)
         if self.death_sound_enabled:
-            self.death_sound_effect.setSource(QUrl.fromLocalFile(self.death_sound_path))
-            self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
-            self.death_sound_effect.play()
+            sound_file = self.get_sound_file_for_event(self.death_sound_mode, self.death_sound_path, self.death_sound_folder)
+            if sound_file and os.path.exists(sound_file):
+                self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_file))
+                self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
+                self.death_sound_effect.play()
 
     def export_logs(self) -> None:
         """Export the kill/death log entries to an HTML file."""
@@ -2010,6 +2052,19 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     zone=payload.get('location', 'Unknown'),
                     game_mode=current_game_mode
                 )
+
+        if self.twitch_enabled and self.twitch.is_ready():
+            if self.chat_posting_enabled:
+                attacker_rsi_url = f"https://robertsspaceindustries.com/en/citizens/{attacker}"
+                death_message = self.twitch_death_message_template.format(
+                    username=self.local_user_name,
+                    attacker=attacker,
+                    profile_url=attacker_rsi_url
+                )
+                try:
+                    self.twitch.post_death_to_chat(death_message)
+                except Exception as e:
+                    logging.error(f"Error sending Twitch death message: {e}")
         
         self.save_local_kills()
         if self.send_to_api_checkbox.isChecked():
@@ -3139,22 +3194,25 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
     def test_kill_sound(self) -> None:
         """Test the selected kill sound with current volume settings."""
-        sound_path = self.kill_sound_path_input.text().strip()
-        
-        if not sound_path:
-            QMessageBox.warning(self, "No Sound File", "Please select a sound file first.")
-            return
+        if self.kill_sound_mode == "random_folder":
+            self.test_kill_folder_sound()
+        else:
+            sound_path = self.kill_sound_path_input.text().strip()
             
-        if not os.path.exists(sound_path):
-            QMessageBox.warning(self, "File Not Found", f"The sound file '{sound_path}' was not found.")
-            return
-            
-        try:
-            self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
-            self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
-            self.kill_sound_effect.play()
-        except Exception as e:
-            QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
+            if not sound_path:
+                QMessageBox.warning(self, "No Sound File", "Please select a sound file first.")
+                return
+                
+            if not os.path.exists(sound_path):
+                QMessageBox.warning(self, "File Not Found", f"The sound file '{sound_path}' was not found.")
+                return
+                
+            try:
+                self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
+                self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
+                self.kill_sound_effect.play()
+            except Exception as e:
+                QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
 
     def on_death_sound_toggled(self, state: int) -> None:
         self.death_sound_enabled = (state == Qt.Checked)
@@ -3179,20 +3237,131 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
     def test_death_sound(self) -> None:
         """Test the selected death sound with current volume settings."""
-        sound_path = self.death_sound_path_input.text().strip()
+        if self.death_sound_mode == "random_folder":
+            self.test_death_folder_sound()
+        else:
+            sound_path = self.death_sound_path_input.text().strip()
+            
+            if not sound_path:
+                QMessageBox.warning(self, "No Sound File", "Please select a sound file first.")
+                return
+                
+            if not os.path.exists(sound_path):
+                QMessageBox.warning(self, "File Not Found", f"The sound file '{sound_path}' was not found.")
+                return
+                
+            try:
+                self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
+                self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
+                self.death_sound_effect.play()
+            except Exception as e:
+                QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
+
+    def on_kill_sound_mode_changed(self) -> None:
+        """Handle kill sound mode radio button changes."""
+        if self.kill_single_file_radio.isChecked():
+            self.kill_sound_mode = "single"
+            self.kill_sound_path_input.setEnabled(True)
+            self.kill_sound_folder_input.setEnabled(False)
+            self.kill_folder_browse_btn.setEnabled(False)
+            self.test_folder_sound_btn.setEnabled(False)
+        else:
+            self.kill_sound_mode = "random_folder"
+            self.kill_sound_path_input.setEnabled(False)
+            self.kill_sound_folder_input.setEnabled(True)
+            self.kill_folder_browse_btn.setEnabled(True)
+            self.test_folder_sound_btn.setEnabled(True)
+        self.save_config()
+
+    def on_kill_sound_folder_browse(self) -> None:
+        """Browse for kill sound folder."""
+        folder_path = QFileDialog.getExistingDirectory(
+            self, "Select Kill Sound Folder", "",
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        if folder_path:
+            self.kill_sound_folder = folder_path
+            self.kill_sound_folder_input.setText(folder_path)
+            self.save_config()
+
+    def test_kill_folder_sound(self) -> None:
+        """Test a random sound from the kill sound folder."""
+        folder_path = self.kill_sound_folder_input.text().strip()
         
-        if not sound_path:
-            QMessageBox.warning(self, "No Sound File", "Please select a sound file first.")
+        if not folder_path:
+            QMessageBox.warning(self, "No Folder Selected", "Please select a sound folder first.")
             return
             
-        if not os.path.exists(sound_path):
-            QMessageBox.warning(self, "File Not Found", f"The sound file '{sound_path}' was not found.")
+        if not os.path.exists(folder_path):
+            QMessageBox.warning(self, "Folder Not Found", f"The sound folder '{folder_path}' was not found.")
+            return
+        
+        random_sound = self.get_random_sound_from_folder(folder_path)
+        if not random_sound:
+            QMessageBox.warning(self, "No Audio Files", "No supported audio files (.wav, .mp3, .ogg) found in the selected folder.")
             return
             
         try:
-            self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
+            self.kill_sound_effect.setSource(QUrl.fromLocalFile(random_sound))
+            self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
+            self.kill_sound_effect.play()
+            
+            filename = os.path.basename(random_sound)
+            self.show_temporary_popup(f"Playing: {filename}", 2000)
+        except Exception as e:
+            QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
+
+    def on_death_sound_mode_changed(self) -> None:
+        """Handle death sound mode radio button changes."""
+        if self.death_single_file_radio.isChecked():
+            self.death_sound_mode = "single"
+            self.death_sound_path_input.setEnabled(True)
+            self.death_sound_folder_input.setEnabled(False)
+            self.death_folder_browse_btn.setEnabled(False)
+            self.test_death_folder_sound_btn.setEnabled(False)
+        else:
+            self.death_sound_mode = "random_folder"
+            self.death_sound_path_input.setEnabled(False)
+            self.death_sound_folder_input.setEnabled(True)
+            self.death_folder_browse_btn.setEnabled(True)
+            self.test_death_folder_sound_btn.setEnabled(True)
+        self.save_config()
+
+    def on_death_sound_folder_browse(self) -> None:
+        """Browse for death sound folder."""
+        folder_path = QFileDialog.getExistingDirectory(
+            self, "Select Death Sound Folder", "",
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        if folder_path:
+            self.death_sound_folder = folder_path
+            self.death_sound_folder_input.setText(folder_path)
+            self.save_config()
+
+    def test_death_folder_sound(self) -> None:
+        """Test a random sound from the death sound folder."""
+        folder_path = self.death_sound_folder_input.text().strip()
+        
+        if not folder_path:
+            QMessageBox.warning(self, "No Folder Selected", "Please select a sound folder first.")
+            return
+            
+        if not os.path.exists(folder_path):
+            QMessageBox.warning(self, "Folder Not Found", f"The sound folder '{folder_path}' was not found.")
+            return
+        
+        random_sound = self.get_random_sound_from_folder(folder_path)
+        if not random_sound:
+            QMessageBox.warning(self, "No Audio Files", "No supported audio files (.wav, .mp3, .ogg) found in the selected folder.")
+            return
+            
+        try:
+            self.death_sound_effect.setSource(QUrl.fromLocalFile(random_sound))
             self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
             self.death_sound_effect.play()
+
+            filename = os.path.basename(random_sound)
+            self.show_temporary_popup(f"Playing: {filename}", 2000)
         except Exception as e:
             QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
 
@@ -3299,6 +3468,15 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         if not self.twitch_chat_message_template:
             self.twitch_chat_message_template = "🔫 {username} just killed {victim}! 🚀 {profile_url}"
             self.twitch_message_input.setText(self.twitch_chat_message_template)
+
+        self.save_config()
+
+    def on_twitch_death_message_changed(self) -> None:
+        """Handle Twitch death message template changes"""
+        self.twitch_death_message_template = self.twitch_death_message_input.text()
+        if not self.twitch_death_message_template:
+            self.twitch_death_message_template = "💀 {username} was killed by {attacker}! 😵 {profile_url}"
+            self.twitch_death_message_input.setText(self.twitch_death_message_template)
 
         self.save_config()
 
