@@ -209,6 +209,10 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.apply_styles = lambda: apply_styles_func(self)
         
         init_ui(self)
+        
+        if hasattr(self, 'config_file'):
+            language_manager.load_language_preference(self.config_file)
+        
         load_config(self)
         load_local_kills(self)
         apply_styles(self)
@@ -3525,8 +3529,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def setup_translation_system(self) -> None:
         """Initialize the translation system and language selector"""
         try:
-            if hasattr(self, 'config_file'):
-                language_manager.load_language_preference(self.config_file)
+            # Language preference already loaded earlier in __init__
+            # No need to load it again here to avoid race conditions
             
             self.language_selector = LanguageSelector(self)
             
@@ -3535,9 +3539,10 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             
             setup_auto_translation(self, self.language_selector)
             
+            # Apply translations immediately after system is set up
             translate_application(self)
             
-            logging.info("Translation system initialized with English text storage")
+            logging.info(f"Translation system initialized for language: {language_manager.current_language}")
             
         except Exception as e:
             logging.error(f"Error setting up translation system: {e}")

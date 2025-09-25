@@ -164,10 +164,14 @@ class LanguageSelector(QWidget):
                 print(f"Language successfully changed to '{selected_code}'")
                 
                 try:
-                    from Kill_form import get_appdata_paths
-                    config_file, _, _ = get_appdata_paths()
-                    language_manager.save_current_language_preference(config_file)
-                    print("Language preference saved to config")
+                    if main_app and hasattr(main_app, 'save_config'):
+                        main_app.save_config()
+                        print("Language preference saved via main app config")
+                    else:
+                        from Kill_form import get_appdata_paths
+                        config_file, _, _ = get_appdata_paths()
+                        language_manager.save_current_language_preference(config_file)
+                        print("Language preference saved to config file directly")
                 except Exception as e:
                     logging.error(f"Failed to save language preference: {e}")
                     print(f"Error saving language preference: {e}")

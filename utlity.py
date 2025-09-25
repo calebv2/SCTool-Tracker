@@ -2039,7 +2039,11 @@ def load_config(self) -> None:
             
             language_code = config.get('language', 'en')
             from language_manager import language_manager
-            language_manager.set_language(language_code)
+            if language_manager.current_language != language_code:
+                logging.info(f"Load config: updating language from {language_manager.current_language} to {language_code}")
+                language_manager.set_language(language_code)
+            else:
+                logging.debug(f"Load config: language already set to {language_code}")
             
             if config.get('monitoring_active', False):
                 QTimer.singleShot(500, self.toggle_monitoring)
