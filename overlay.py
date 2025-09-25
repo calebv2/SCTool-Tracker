@@ -141,7 +141,7 @@ class OverlayControlPanel(QFrame):
         mode_layout.addWidget(self.mode_label_text)
         
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems([t("Minimal"), t("Compact"), t("Detailed"), t("Horizontal"), t("Faded")])
+        self.mode_combo.addItems([t("Minimal"), t("Compact"), t("Detailed"), t("Horizontal"), t("Faded"), t("Simple Text")])
         
         current_mode = self.overlay.display_mode.lower()
         mode_translations = {
@@ -149,7 +149,8 @@ class OverlayControlPanel(QFrame):
             "compact": t("Compact"), 
             "detailed": t("Detailed"),
             "horizontal": t("Horizontal"),
-            "faded": t("Faded")
+            "faded": t("Faded"),
+            "simple_text": t("Simple Text")
         }
         current_translated = mode_translations.get(current_mode, t("Compact"))
         self.mode_combo.setCurrentText(current_translated)
@@ -516,8 +517,8 @@ class OverlayControlPanel(QFrame):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll_area)
 
-        self.helper_btn = QPushButton(t("Show Faded Mode Helper"))
-        self.helper_btn.clicked.connect(self.show_faded_helper)
+        self.helper_btn = QPushButton(self.get_helper_button_text())
+        self.helper_btn.clicked.connect(self.show_notification_helper)
         self.helper_btn.setStyleSheet("""
             QPushButton {
                 background-color: #1e1e1e;
@@ -537,10 +538,21 @@ class OverlayControlPanel(QFrame):
         reset_btn = QPushButton(t("Reset to Default"))
         reset_btn.clicked.connect(self.reset_position)
     
-    def show_faded_helper(self):
-        """Manually show the faded positioning helper"""
+    def get_helper_button_text(self):
+        """Get the appropriate helper button text based on display mode"""
+        if self.overlay.display_mode == 'faded':
+            return t("Show Faded Mode Helper")
+        elif self.overlay.display_mode == 'simple_text':
+            return t("Show Simple Text")
+        else:
+            return t("Show Faded Mode Helper")
+    
+    def show_notification_helper(self):
+        """Show notification helper for current mode or switch temporarily"""
         if self.overlay.display_mode == 'faded':
             self.overlay.show_faded_positioning_helper()
+        elif self.overlay.display_mode == 'simple_text':
+            self.overlay.show_simple_notification()
         else:
             old_mode = self.overlay.display_mode
             self.overlay.display_mode = 'faded'
@@ -552,10 +564,12 @@ class OverlayControlPanel(QFrame):
                 self.overlay.config['display_mode'] = old_mode
                 self.overlay.create_ui()
                 self.overlay.update_display()
-                if self.overlay.is_enabled:
-                    self.overlay.show_overlay()
-            
-            QTimer.singleShot(6000, restore_mode)
+                
+            QTimer.singleShot(3000, restore_mode)
+    
+    def show_faded_helper(self):
+        """Manually show the faded positioning helper - kept for backward compatibility"""
+        self.show_notification_helper()
 
     def on_hotkey_captured(self, hotkey_string):
         """Handle captured hotkey"""
@@ -597,10 +611,11 @@ class OverlayControlPanel(QFrame):
             t("Compact"): "compact", 
             t("Detailed"): "detailed",
             t("Horizontal"): "horizontal",
-            t("Faded"): "faded"
+            t("Faded"): "faded",
+            t("Simple Text"): "simple_text"
         }
         
-        if mode_text.lower() in ["minimal", "compact", "detailed", "horizontal", "faded"]:
+        if mode_text.lower() in ["minimal", "compact", "detailed", "horizontal", "faded", "simple_text"]:
             mode = mode_text.lower()
         else:
             mode = mode_map.get(mode_text, mode_text.lower())
@@ -609,10 +624,17 @@ class OverlayControlPanel(QFrame):
         self.overlay.config['display_mode'] = mode
         self.overlay.create_ui()
         self.overlay.update_display()
+        
+        if hasattr(self, 'helper_btn'):
+            self.helper_btn.setText(self.get_helper_button_text())
 
         if mode == 'faded':
             self.overlay.hide()
             QTimer.singleShot(100, self.overlay.show_faded_positioning_helper)
+        elif mode == 'simple_text':
+            if self.overlay.is_enabled:
+                self.overlay.show_overlay()
+            QTimer.singleShot(100, self.overlay.show_simple_sample_notification)
         elif self.overlay.is_enabled:
             self.overlay.show_overlay()
     
@@ -708,13 +730,14 @@ class OverlayControlPanel(QFrame):
             if hasattr(self, 'mode_combo'):
                 current_mode = self.overlay.display_mode.lower()
                 self.mode_combo.clear()
-                self.mode_combo.addItems([t("Minimal"), t("Compact"), t("Detailed"), t("Horizontal"), t("Faded")])
+                self.mode_combo.addItems([t("Minimal"), t("Compact"), t("Detailed"), t("Horizontal"), t("Faded"), t("Simple Text")])
                 mode_translations = {
                     "minimal": t("Minimal"),
                     "compact": t("Compact"), 
                     "detailed": t("Detailed"),
                     "horizontal": t("Horizontal"),
-                    "faded": t("Faded")
+                    "faded": t("Faded"),
+                    "simple_text": t("Simple Text")
                 }
                 current_translated = mode_translations.get(current_mode, t("Compact"))
                 self.mode_combo.setCurrentText(current_translated)
@@ -743,7 +766,7 @@ class OverlayControlPanel(QFrame):
             if hasattr(self, 'pos_center_btn'):
                 self.pos_center_btn.setText(t("Center"))
             if hasattr(self, 'helper_btn'):
-                self.helper_btn.setText(t("Show Faded Mode Helper"))
+                self.helper_btn.setText(self.get_helper_button_text())
             if hasattr(self, 'mode_label_text'):
                 self.mode_label_text.setText(t("Display Mode:"))
             if hasattr(self, 'opacity_label_text'):
@@ -787,8 +810,12 @@ class OverlayControlPanel(QFrame):
                     button.setText(t("Click to Capture"))
                 elif button_text == "Show Faded Mode Helper":
                     button.setText(t("Show Faded Mode Helper"))
+                elif button_text == "Show Simple Text":
+                    button.setText(t("Show Simple Text"))
                 elif button_text == "Mostrar Ayuda del Modo Desvanecido":
                     button.setText(t("Show Faded Mode Helper"))
+                elif button_text == "Mostrar Texto Simple":
+                    button.setText(t("Show Simple Text"))
                 elif button_text in position_button_texts or button_text in spanish_position_texts:
                     if button_text in ["Top Left", "Arriba Izquierda"]:
                         button.setText(t("Top Left"))

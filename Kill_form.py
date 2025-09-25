@@ -218,6 +218,9 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         
         self.setup_translation_system()
         
+        if hasattr(self, 'update_sound_settings_translations'):
+            self.update_sound_settings_translations()
+        
         self.update_ui_scaling()
 
     def _append_to_display(self, html_content: str) -> None:
@@ -2045,6 +2048,11 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     zone=payload.get('location', 'Unknown'),
                     game_mode=current_game_mode
                 )
+            elif self.game_overlay.display_mode == 'simple_text':
+                self.game_overlay.show_simple_death_notification(
+                    attacker=attacker,
+                    weapon=payload.get('weapon', 'Unknown')
+                )
             elif self.game_overlay.display_mode == 'custom':
                 self.game_overlay.show_custom_death_notification(
                     attacker=attacker,
@@ -2666,7 +2674,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.monitor_thread.stop()
             self.monitor_thread.wait(3000)
             self.monitor_thread = None
-            self.start_button.setText("START MONITORING")
+            self.start_button.setText(t("START MONITORING"))
             self.start_button.setIcon(QIcon(resource_path("play.png")))
             self.start_button.setStyleSheet(
                 "QPushButton { "
@@ -2918,9 +2926,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.monitor_thread.game_mode_changed.connect(self.on_game_mode_changed)
             self.monitor_thread.start()
             self.on_ship_updated(killer_ship)
-            self.start_button.setText("STOP MONITORING")
+            self.start_button.setText(t("STOP MONITORING"))
             self.start_button.setIcon(QIcon(resource_path("stop.png")))
-            # Update sidebar button styling for active state  
             self.start_button.setStyleSheet(
                 "QPushButton { "
                 "background: rgba(244, 67, 54, 0.15); color: #F44336; border: 1px solid #F44336; "
@@ -3004,6 +3011,11 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     weapon=data.get('weapon', 'Unknown'),
                     zone=data.get('zone', 'Unknown'),
                     game_mode=current_game_mode
+                )
+            elif self.game_overlay.display_mode == 'simple_text':
+                self.game_overlay.show_simple_kill_notification(
+                    victim=data.get('victim', 'Unknown'),
+                    weapon=data.get('weapon', 'Unknown')
                 )
             elif self.game_overlay.display_mode == 'custom':
                 self.game_overlay.show_custom_kill_notification(

@@ -18,6 +18,8 @@ from PyQt5.QtWidgets import (
     QPushButton, QMessageBox
 )
 
+from language_manager import t
+
 from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT, KillParser
 from language_manager import t
 
@@ -38,10 +40,10 @@ class MissingKillsDialog(QDialog):
     def initUI(self):
         layout = QVBoxLayout(self)
 
-        info_label = QLabel("Select which kills you'd like to send:")
+        info_label = QLabel(t("Select which kills you'd like to send:"))
         layout.addWidget(info_label)
 
-        self.toggle_checkbox = QCheckBox("Deselect All")
+        self.toggle_checkbox = QCheckBox(t("Deselect All"))
         self.toggle_checkbox.setChecked(True)
         self.toggle_checkbox.stateChanged.connect(self.on_toggle_changed)
         layout.addWidget(self.toggle_checkbox)
@@ -60,9 +62,9 @@ class MissingKillsDialog(QDialog):
             self.checkbox_list.append((checkbox, kill))
 
         button_layout = QHBoxLayout()
-        send_button = QPushButton("Send Selected")
+        send_button = QPushButton(t("Send Selected"))
         send_button.clicked.connect(self.accept)
-        cancel_button = QPushButton("Cancel")
+        cancel_button = QPushButton(t("Cancel"))
         cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(send_button)
         button_layout.addWidget(cancel_button)
@@ -74,13 +76,13 @@ class MissingKillsDialog(QDialog):
     def on_toggle_changed(self, state):
         """Handle toggle checkbox state change - toggles all checkboxes and updates text"""
         if state == Qt.Checked:
-            self.toggle_checkbox.setText("Deselect All")
+            self.toggle_checkbox.setText(t("Deselect All"))
             for checkbox, _ in self.checkbox_list:
                 checkbox.blockSignals(True)
                 checkbox.setChecked(True)
                 checkbox.blockSignals(False)
         else:
-            self.toggle_checkbox.setText("Select All")
+            self.toggle_checkbox.setText(t("Select All"))
             for checkbox, _ in self.checkbox_list:
                 checkbox.blockSignals(True)
                 checkbox.setChecked(False)
@@ -132,13 +134,13 @@ class MissingKillsDialog(QDialog):
         
         if all_checked:
             self.toggle_checkbox.setChecked(True)
-            self.toggle_checkbox.setText("Deselect All")
+            self.toggle_checkbox.setText(t("Deselect All"))
         elif all_unchecked:
             self.toggle_checkbox.setChecked(False)
-            self.toggle_checkbox.setText("Select All")
+            self.toggle_checkbox.setText(t("Select All"))
         else:
             self.toggle_checkbox.setChecked(False)
-            self.toggle_checkbox.setText("Select All")
+            self.toggle_checkbox.setText(t("Select All"))
         
         self.toggle_checkbox.blockSignals(False)
 

@@ -130,7 +130,7 @@ def init_ui(self) -> None:
     
     sidebar_layout.addWidget(logo_container)
     
-    self.start_button = QPushButton("START MONITORING")
+    self.start_button = QPushButton(t("START MONITORING"))
     self.start_button.setIcon(QIcon(resource_path("play.png")))
     self.start_button.clicked.connect(self.toggle_monitoring)
     self.start_button.setToolTip("Start monitoring your Game.log file for kills and deaths")
@@ -2620,6 +2620,14 @@ class TranslationMixin:
                 self.kill_sound_test_button.setText(t("Test Sound"))
             if hasattr(self, 'death_sound_test_button'):
                 self.death_sound_test_button.setText(t("Test Sound"))
+            if hasattr(self, 'kill_single_file_radio'):
+                self.kill_single_file_radio.setText(t("Single Sound File"))
+            if hasattr(self, 'kill_random_folder_radio'):
+                self.kill_random_folder_radio.setText(t("Random from Folder"))
+            if hasattr(self, 'death_single_file_radio'):
+                self.death_single_file_radio.setText(t("Single Sound File"))
+            if hasattr(self, 'death_random_folder_radio'):
+                self.death_random_folder_radio.setText(t("Random from Folder"))
         except Exception as e:
             logging.error(f"Error updating sound settings translations: {e}")
         

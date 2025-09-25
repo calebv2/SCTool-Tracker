@@ -16,31 +16,6 @@ def create_minimal_ui(self):
     layout.setContentsMargins(8, 6, 8, 6)
     layout.setSpacing(3)
 
-    header_layout = QHBoxLayout()
-    header_layout.setSpacing(2)
-    header_layout.setContentsMargins(0, 0, 0, 0)
-
-    header_layout.addStretch()
-    
-    mode_btn = QPushButton("○")
-    mode_btn.setFixedSize(12, 12)
-    mode_btn.clicked.connect(self.cycle_display_mode)
-    mode_btn.setStyleSheet(f"""
-        QPushButton {{
-            background: transparent;
-            border: 1px solid {self.colors['border'].name()};
-            border-radius: 6px;
-            color: {self.colors['text_secondary'].name()};
-            font-size: 8px;
-        }}
-        QPushButton:hover {{
-            background: {self.colors['accent'].name()};
-        }}
-    """)
-    header_layout.addWidget(mode_btn)
-    
-    layout.addLayout(header_layout)
-
     stats_layout = QHBoxLayout()
     stats_layout.setSpacing(10)
 

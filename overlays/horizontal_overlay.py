@@ -34,24 +34,6 @@ def create_horizontal_ui(self):
         }}
     """)
     title_layout.addWidget(title)
-    title_layout.addStretch()
-    
-    mode_btn = QPushButton("◩")
-    mode_btn.setFixedSize(16, 16)
-    mode_btn.clicked.connect(self.cycle_display_mode)
-    mode_btn.setStyleSheet(f"""
-        QPushButton {{
-            background: transparent;
-            border: 1px solid {self.colors['border'].name()};
-            border-radius: 8px;
-            color: {self.colors['text_secondary'].name()};
-            font-size: 12px;
-        }}
-        QPushButton:hover {{
-            background: {self.colors['accent'].name()};
-        }}
-    """)
-    title_layout.addWidget(mode_btn)
     
     main_layout.addLayout(title_layout)
 

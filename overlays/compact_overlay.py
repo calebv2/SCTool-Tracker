@@ -34,24 +34,6 @@ def create_compact_ui(self):
         }}
     """)
     header_layout.addWidget(title)
-    header_layout.addStretch()
-
-    mode_btn = QPushButton("◐")
-    mode_btn.setFixedSize(18, 18)
-    mode_btn.clicked.connect(self.cycle_display_mode)
-    mode_btn.setStyleSheet(f"""
-        QPushButton {{
-            background: transparent;
-            border: 1px solid {self.colors['border'].name()};
-            border-radius: 9px;
-            color: {self.colors['text_secondary'].name()};
-            font-size: 14px;
-        }}
-        QPushButton:hover {{
-            background: {self.colors['accent'].name()};
-        }}
-    """)
-    header_layout.addWidget(mode_btn)
     
     layout.addLayout(header_layout)
 

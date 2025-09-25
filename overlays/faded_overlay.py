@@ -752,17 +752,17 @@ def hide_positioning_helper(self):
 def update_countdown(self):
     """Update the countdown display"""
     if not hasattr(self, 'countdown_label') or not hasattr(self, 'countdown_seconds'):
-        if hasattr(self, 'countdown_timer'):
+        if hasattr(self, 'countdown_timer') and self.countdown_timer:
             self.countdown_timer.stop()
         return
         
     try:
         if self.countdown_label is None or not hasattr(self.countdown_label, 'setText'):
-            if hasattr(self, 'countdown_timer'):
+            if hasattr(self, 'countdown_timer') and self.countdown_timer:
                 self.countdown_timer.stop()
             return
     except RuntimeError:
-        if hasattr(self, 'countdown_timer'):
+        if hasattr(self, 'countdown_timer') and self.countdown_timer:
             self.countdown_timer.stop()
         return
         
@@ -791,7 +791,7 @@ def update_countdown(self):
                 }}
             """)
         except RuntimeError:
-            if hasattr(self, 'countdown_timer'):
+            if hasattr(self, 'countdown_timer') and self.countdown_timer:
                 self.countdown_timer.stop()
             return
     else:
@@ -800,7 +800,7 @@ def update_countdown(self):
 def clear_faded_container(self):
     """Clear the faded container content safely"""
 
-    if hasattr(self, 'countdown_timer') and self.countdown_timer.isActive():
+    if hasattr(self, 'countdown_timer') and self.countdown_timer and self.countdown_timer.isActive():
         self.countdown_timer.stop()
         self.countdown_timer.deleteLater()
         if hasattr(self, 'countdown_timer'):

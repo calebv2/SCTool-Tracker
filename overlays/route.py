@@ -8,7 +8,6 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-# Add parent directory to sys.path to import kill_parser
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
@@ -33,6 +32,11 @@ from .minimal_overlay import create_minimal_ui
 from .compact_overlay import create_compact_ui
 from .detailed_overlay import create_detailed_ui
 from .horizontal_overlay import create_horizontal_ui
+from .simple_text_overlay import (
+    create_simple_text_ui, show_simple_kill_notification, show_simple_death_notification,
+    start_fade_animation, hide_simple_notification, clear_simple_container, show_simple_notification,
+    show_simple_sample_notification, adjust_simple_text_size, update_simple_countdown, cleanup_simple_timers
+)
 from .faded_overlay import (
     create_faded_ui, show_death_notification, show_kill_notification,
     show_faded_notification, show_faded_positioning_helper,
@@ -68,6 +72,17 @@ class GameOverlay(QWidget):
         self.create_compact_ui = lambda: create_compact_ui(self)
         self.create_detailed_ui = lambda: create_detailed_ui(self)
         self.create_horizontal_ui = lambda: create_horizontal_ui(self)
+        self.create_simple_text_ui = lambda: create_simple_text_ui(self)
+        self.show_simple_kill_notification = lambda victim, weapon=None: show_simple_kill_notification(self, victim, weapon)
+        self.show_simple_death_notification = lambda attacker, weapon=None: show_simple_death_notification(self, attacker, weapon)
+        self.start_fade_animation = lambda: start_fade_animation(self)
+        self.hide_simple_notification = lambda: hide_simple_notification(self)
+        self.clear_simple_container = lambda: clear_simple_container(self)
+        self.show_simple_notification = lambda: show_simple_notification(self)
+        self.show_simple_sample_notification = lambda: show_simple_sample_notification(self)
+        self.adjust_simple_text_size = lambda: adjust_simple_text_size(self)
+        self.update_simple_countdown = lambda: update_simple_countdown(self)
+        self.cleanup_simple_timers = lambda: cleanup_simple_timers(self)
         
         self.hotkey_enabled = self.config.get('hotkey_enabled', True)
         self.hotkey_combination = self.config.get('hotkey_combination', 'ctrl+`')
@@ -370,6 +385,9 @@ class GameOverlay(QWidget):
 
     def create_ui(self):
         """Create overlay UI elements based on display mode"""
+        if hasattr(self, 'cleanup_simple_timers'):
+            self.cleanup_simple_timers()
+            
         if self.layout():
             QWidget().setLayout(self.layout())
         
@@ -381,6 +399,8 @@ class GameOverlay(QWidget):
             self.create_horizontal_ui()
         elif self.display_mode == 'faded':
             self.create_faded_ui()
+        elif self.display_mode == 'simple_text':
+            self.create_simple_text_ui()
         else:
             self.create_compact_ui()
         
@@ -389,6 +409,9 @@ class GameOverlay(QWidget):
     def paintEvent(self, event):
         """Draw overlay background with enhanced visuals and animations"""
         if self.display_mode == 'faded' and (not hasattr(self, 'faded_container') or not self.faded_container.isVisible()):
+            return
+        
+        if self.display_mode == 'simple_text':
             return
         
         painter = QPainter(self)
@@ -471,7 +494,7 @@ class GameOverlay(QWidget):
 
     def cycle_display_mode(self):
         """Cycle through display modes"""
-        modes = ['minimal', 'compact', 'detailed', 'horizontal', 'faded']
+        modes = ['minimal', 'compact', 'detailed', 'horizontal', 'faded', 'simple_text']
         current_index = modes.index(self.display_mode)
         next_index = (current_index + 1) % len(modes)
         self.display_mode = modes[next_index]
@@ -483,6 +506,8 @@ class GameOverlay(QWidget):
 
         if self.display_mode == 'faded':
             self.show_faded_positioning_helper()
+        elif self.display_mode == 'simple_text':
+            self.show_simple_sample_notification()
     
     def show_mode_change_indicator(self):
         """Show visual indicator when mode changes"""
