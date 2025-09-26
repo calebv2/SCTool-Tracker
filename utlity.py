@@ -984,28 +984,28 @@ def init_ui(self) -> None:
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
     
-    sound_browse_btn = QPushButton(t("Browse"))
-    sound_browse_btn.setStyleSheet(
+    self.kill_sound_browse_btn = QPushButton(t("Browse"))
+    self.kill_sound_browse_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
     )
-    sound_browse_btn.setFixedWidth(120)
-    sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
+    self.kill_sound_browse_btn.setFixedWidth(120)
+    self.kill_sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
     
-    test_sound_btn = QPushButton(t("Test Sound"))
-    test_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
-    test_sound_btn.setStyleSheet(
+    self.kill_sound_test_btn = QPushButton(t("Test Sound"))
+    self.kill_sound_test_btn.setIcon(QIcon(resource_path("volume_icon.png")))
+    self.kill_sound_test_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
     )
-    test_sound_btn.setFixedWidth(120)
-    test_sound_btn.clicked.connect(self.test_kill_sound)
+    self.kill_sound_test_btn.setFixedWidth(120)
+    self.kill_sound_test_btn.clicked.connect(self.test_kill_sound)
     
     sound_path_layout.addWidget(self.kill_sound_path_input)
-    sound_path_layout.addWidget(sound_browse_btn)
-    sound_path_layout.addWidget(test_sound_btn)
+    sound_path_layout.addWidget(self.kill_sound_browse_btn)
+    sound_path_layout.addWidget(self.kill_sound_test_btn)
     
     sound_card_layout.addRow(sound_path_label, sound_path_container)
     
@@ -1164,28 +1164,28 @@ def init_ui(self) -> None:
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
     
-    death_sound_browse_btn = QPushButton(t("Browse"))
-    death_sound_browse_btn.setStyleSheet(
+    self.death_sound_browse_btn = QPushButton(t("Browse"))
+    self.death_sound_browse_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
     )
-    death_sound_browse_btn.setFixedWidth(120)
-    death_sound_browse_btn.clicked.connect(self.on_death_sound_file_browse)
+    self.death_sound_browse_btn.setFixedWidth(120)
+    self.death_sound_browse_btn.clicked.connect(self.on_death_sound_file_browse)
     
-    test_death_sound_btn = QPushButton(t("Test Sound"))
-    test_death_sound_btn.setIcon(QIcon(resource_path("volume_icon.png")))
-    test_death_sound_btn.setStyleSheet(
+    self.death_sound_test_btn = QPushButton(t("Test Sound"))
+    self.death_sound_test_btn.setIcon(QIcon(resource_path("volume_icon.png")))
+    self.death_sound_test_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
     )
-    test_death_sound_btn.setFixedWidth(120)
-    test_death_sound_btn.clicked.connect(self.test_death_sound)
+    self.death_sound_test_btn.setFixedWidth(120)
+    self.death_sound_test_btn.clicked.connect(self.test_death_sound)
     
     death_sound_path_layout.addWidget(self.death_sound_path_input)
-    death_sound_path_layout.addWidget(death_sound_browse_btn)
-    death_sound_path_layout.addWidget(test_death_sound_btn)
+    death_sound_path_layout.addWidget(self.death_sound_browse_btn)
+    death_sound_path_layout.addWidget(self.death_sound_test_btn)
     
     sound_card_layout.addRow(death_sound_path_label, death_sound_path_container)
     
@@ -1748,7 +1748,7 @@ def init_ui(self) -> None:
     self.game_info_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
     game_info_layout = QHBoxLayout(self.game_info_container)
     game_info_layout.setContentsMargins(15, 10, 15, 10)
-    game_info_layout.setSpacing(8)
+    game_info_layout.setSpacing(15)
     
     self.game_mode_display = QLabel("Mode: Unknown")
     self.game_mode_display.setStyleSheet(
@@ -1756,8 +1756,8 @@ def init_ui(self) -> None:
         "background: transparent; border: none; }"
     )
     self.game_mode_display.setAlignment(Qt.AlignLeft)
-    self.game_mode_display.setWordWrap(True)
-    self.game_mode_display.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
+    self.game_mode_display.setWordWrap(False)
+    self.game_mode_display.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
     game_info_layout.addWidget(self.game_mode_display)
     
     self.current_ship_display = QLabel("Ship Type: No Ship")

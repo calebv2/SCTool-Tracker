@@ -3278,12 +3278,16 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         if self.kill_single_file_radio.isChecked():
             self.kill_sound_mode = "single"
             self.kill_sound_path_input.setEnabled(True)
+            self.kill_sound_browse_btn.setEnabled(True)
+            self.kill_sound_test_btn.setEnabled(True)
             self.kill_sound_folder_input.setEnabled(False)
             self.kill_folder_browse_btn.setEnabled(False)
             self.test_folder_sound_btn.setEnabled(False)
         else:
             self.kill_sound_mode = "random_folder"
             self.kill_sound_path_input.setEnabled(False)
+            self.kill_sound_browse_btn.setEnabled(False)
+            self.kill_sound_test_btn.setEnabled(False)
             self.kill_sound_folder_input.setEnabled(True)
             self.kill_folder_browse_btn.setEnabled(True)
             self.test_folder_sound_btn.setEnabled(True)
@@ -3332,12 +3336,16 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         if self.death_single_file_radio.isChecked():
             self.death_sound_mode = "single"
             self.death_sound_path_input.setEnabled(True)
+            self.death_sound_browse_btn.setEnabled(True)
+            self.death_sound_test_btn.setEnabled(True)
             self.death_sound_folder_input.setEnabled(False)
             self.death_folder_browse_btn.setEnabled(False)
             self.test_death_folder_sound_btn.setEnabled(False)
         else:
             self.death_sound_mode = "random_folder"
             self.death_sound_path_input.setEnabled(False)
+            self.death_sound_browse_btn.setEnabled(False)
+            self.death_sound_test_btn.setEnabled(False)
             self.death_sound_folder_input.setEnabled(True)
             self.death_folder_browse_btn.setEnabled(True)
             self.test_death_folder_sound_btn.setEnabled(True)
