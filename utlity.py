@@ -983,14 +983,17 @@ def init_ui(self) -> None:
         "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
+    self.kill_sound_path_input.setMinimumWidth(300)
     
     self.kill_sound_browse_btn = QPushButton(t("Browse"))
     self.kill_sound_browse_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     self.kill_sound_browse_btn.setFixedWidth(120)
+    self.kill_sound_browse_btn.setFixedHeight(44)
     self.kill_sound_browse_btn.clicked.connect(self.on_kill_sound_file_browse)
     
     self.kill_sound_test_btn = QPushButton(t("Test Sound"))
@@ -999,8 +1002,10 @@ def init_ui(self) -> None:
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     self.kill_sound_test_btn.setFixedWidth(120)
+    self.kill_sound_test_btn.setFixedHeight(44)
     self.kill_sound_test_btn.clicked.connect(self.test_kill_sound)
     
     sound_path_layout.addWidget(self.kill_sound_path_input)
@@ -1025,6 +1030,7 @@ def init_ui(self) -> None:
         "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
+    self.kill_sound_folder_input.setMinimumWidth(300)
     self.kill_sound_folder_input.setEnabled(False)
     
     kill_folder_browse_btn = QPushButton(t("Browse Folder"))
@@ -1035,6 +1041,7 @@ def init_ui(self) -> None:
         "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     kill_folder_browse_btn.setFixedWidth(140)
+    kill_folder_browse_btn.setFixedHeight(44)
     kill_folder_browse_btn.clicked.connect(self.on_kill_sound_folder_browse)
     kill_folder_browse_btn.setEnabled(False)
     
@@ -1047,6 +1054,7 @@ def init_ui(self) -> None:
         "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     test_folder_sound_btn.setFixedWidth(140)
+    test_folder_sound_btn.setFixedHeight(44)
     test_folder_sound_btn.clicked.connect(self.test_kill_folder_sound)
     test_folder_sound_btn.setEnabled(False)
     
@@ -1163,14 +1171,17 @@ def init_ui(self) -> None:
         "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
+    self.death_sound_path_input.setMinimumWidth(300)
     
     self.death_sound_browse_btn = QPushButton(t("Browse"))
     self.death_sound_browse_btn.setStyleSheet(
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     self.death_sound_browse_btn.setFixedWidth(120)
+    self.death_sound_browse_btn.setFixedHeight(44)
     self.death_sound_browse_btn.clicked.connect(self.on_death_sound_file_browse)
     
     self.death_sound_test_btn = QPushButton(t("Test Sound"))
@@ -1179,8 +1190,10 @@ def init_ui(self) -> None:
         "QPushButton { background-color: #1e1e1e; color: #f0f0f0; "
         "border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; }"
         "QPushButton:hover { border-color: #f04747; background-color: #2a2a2a; }"
+        "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     self.death_sound_test_btn.setFixedWidth(120)
+    self.death_sound_test_btn.setFixedHeight(44)
     self.death_sound_test_btn.clicked.connect(self.test_death_sound)
     
     death_sound_path_layout.addWidget(self.death_sound_path_input)
@@ -1205,6 +1218,7 @@ def init_ui(self) -> None:
         "border: 1px solid #2a2a2a; border-radius: 4px; font-size: 14px; }"
         "QLineEdit:hover, QLineEdit:focus { border-color: #f04747; }"
     )
+    self.death_sound_folder_input.setMinimumWidth(300)
     self.death_sound_folder_input.setEnabled(False)
     
     death_folder_browse_btn = QPushButton(t("Browse Folder"))
@@ -1215,6 +1229,7 @@ def init_ui(self) -> None:
         "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     death_folder_browse_btn.setFixedWidth(140)
+    death_folder_browse_btn.setFixedHeight(44)
     death_folder_browse_btn.clicked.connect(self.on_death_sound_folder_browse)
     death_folder_browse_btn.setEnabled(False)
     
@@ -1227,6 +1242,7 @@ def init_ui(self) -> None:
         "QPushButton:disabled { background-color: #0a0a0a; color: #666666; border-color: #1a1a1a; }"
     )
     test_death_folder_sound_btn.setFixedWidth(140)
+    test_death_folder_sound_btn.setFixedHeight(44)
     test_death_folder_sound_btn.clicked.connect(self.test_death_folder_sound)
     test_death_folder_sound_btn.setEnabled(False)
     
@@ -1531,15 +1547,42 @@ def init_ui(self) -> None:
         "border: 1px solid #333333; }"
     )
 
-    support_card_layout = QFormLayout(support_card)
-    support_card_layout.setContentsMargins(20, 20, 20, 20)
-    support_card_layout.setSpacing(15)
-    support_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+    support_card_main_layout = QVBoxLayout(support_card)
+    support_card_main_layout.setContentsMargins(20, 20, 20, 20)
+    support_card_main_layout.setSpacing(15)
+    
+    header_container = QWidget()
+    header_container.setStyleSheet("background: transparent; border: none;")
+    header_layout = QHBoxLayout(header_container)
+    header_layout.setContentsMargins(0, 0, 0, 0)
+    header_layout.setSpacing(10)
     
     support_header = QLabel("SUPPORT & HELP")
     support_header.setStyleSheet("QLabel { color: #4CAF50; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
     self.support_header = support_header
-    support_card_layout.addRow(support_header)
+    header_layout.addWidget(support_header)
+    
+    try:
+        madeby_image_path = os.path.join(os.path.dirname(__file__), "MadeBy.png")
+        if os.path.exists(madeby_image_path):
+            madeby_label = QLabel()
+            madeby_pixmap = QPixmap(madeby_image_path)
+            if not madeby_pixmap.isNull():
+                scaled_pixmap = madeby_pixmap.scaledToWidth(120, Qt.SmoothTransformation)
+                madeby_label.setPixmap(scaled_pixmap)
+                madeby_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
+                madeby_label.setStyleSheet("QLabel { background: transparent; border: none; }")
+                header_layout.addStretch()
+                header_layout.addWidget(madeby_label)
+    except Exception as e:
+        logging.debug(f"Could not load MadeBy.png: {e}")
+    
+    support_card_main_layout.addWidget(header_container)
+    
+    support_card_layout = QFormLayout()
+    support_card_layout.setContentsMargins(0, 0, 0, 0)
+    support_card_layout.setSpacing(15)
+    support_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
     api_setup_header = QLabel("API Setup")
     api_setup_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
@@ -1684,6 +1727,11 @@ def init_ui(self) -> None:
     version_label.setStyleSheet("QLabel { color: #888888; font-size: 12px; background: transparent; border: none; margin-top: 10px; }")
     version_label.setWordWrap(True)
     support_card_layout.addRow(version_label)
+    
+    form_widget = QWidget()
+    form_widget.setLayout(support_card_layout)
+    form_widget.setStyleSheet("background: transparent; border: none;")
+    support_card_main_layout.addWidget(form_widget)
     
     support_layout.addWidget(support_card)
     support_layout.addStretch(1)

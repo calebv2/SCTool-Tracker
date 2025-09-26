@@ -151,16 +151,14 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.kill_sound_effect = QSoundEffect()
         self.kill_sound_path = resource_path("kill.wav")
         self.kill_sound_volume = 100
-        # Random sound folder support for kills
-        self.kill_sound_mode = "single"  # "single" or "random_folder"
+        self.kill_sound_mode = "single"
         self.kill_sound_folder = ""
         
         self.death_sound_enabled = False
         self.death_sound_effect = QSoundEffect()
         self.death_sound_path = resource_path("death.wav")
         self.death_sound_volume = 100
-        # Random sound folder support for deaths
-        self.death_sound_mode = "single"  # "single" or "random_folder"
+        self.death_sound_mode = "single"
         self.death_sound_folder = ""
         
         self.api_key = ""
@@ -3537,8 +3535,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def setup_translation_system(self) -> None:
         """Initialize the translation system and language selector"""
         try:
-            # Language preference already loaded earlier in __init__
-            # No need to load it again here to avoid race conditions
             
             self.language_selector = LanguageSelector(self)
             
@@ -3547,7 +3543,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             
             setup_auto_translation(self, self.language_selector)
             
-            # Apply translations immediately after system is set up
             translate_application(self)
             
             logging.info(f"Translation system initialized for language: {language_manager.current_language}")
