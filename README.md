@@ -6,12 +6,13 @@
 
 ## Overview
 
-SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.4.
+SCTool Tracker is an advanced application for Star Citizen that monitors the game's log file to track and record player kills and deaths. This tool provides real-time notifications about combat events and sends this data to the SCTool API to maintain your combat statistics. The current version is 5.8.
 
 ### Key Features at a Glance
 
 - **Real-time Combat Tracking**: Monitor kills and deaths as they happen in-game
-- **Advanced Game Overlay**: 5 different overlay modes with global hotkey support
+- **Advanced Game Overlay**: 6 different overlay modes with global hotkey support
+- **Multi-language Support**: Full internationalization with 8 supported languages
 - **Dual Sound Notifications**: Separate customizable audio alerts for kills and deaths
 - **Twitch Integration**: Automatic clip creation and chat messaging
 - **Button Automation**: Execute custom key sequences on kill events
@@ -40,12 +41,13 @@ The tracker operates by:
 - BeautifulSoup4 4.9.0+ (if running from source)
 - Requests 2.25.0+ (if running from source)
 - Packaging 20.0+ (if running from source)
+- PyInstaller 5.0.0+ (if building from source)
 
 ### Installation
 
 #### Recommended Method (Installer)
-1. Download the latest release (v5.4) from [starcitizentool.com/download-sctool](https://starcitizentool.com/download-sctool)
-2. Run the installer (`SCTool_Killfeed_5.4_Setup.exe`)
+1. Download the latest release (v5.8) from [starcitizentool.com/download-sctool](https://starcitizentool.com/download-sctool)
+2. Run the installer (`SCTool_Killfeed_5.8_Setup.exe`)
 3. Follow the installation wizard instructions
 4. Launch SCTool Tracker from your desktop or start menu
 
@@ -53,6 +55,46 @@ The tracker operates by:
 1. Download the standalone executable from the releases page
 2. Extract the files to a location of your choice (e.g., `C:\Program Files\SCTool Tracker\`)
 3. Run `Kill_main.exe` to start the application
+
+#### Installation from Source
+If you prefer to run SCTool Tracker from source code or want to contribute to development:
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/calebv2/SCTool-Tracker.git
+   cd SCTool-Tracker
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Run from Source**:
+   ```bash
+   python Kill_main.py
+   ```
+
+4. **Build Executable (Optional)**:
+   ```bash
+   # Build standalone executable
+   pyinstaller --onefile --icon=chris2.ico --name=Kill_main Kill_main.py
+   
+   # Build installer (requires Inno Setup)
+   # Use the included SCTool.iss script with Inno Setup Compiler
+   ```
+
+#### Dependencies Installation
+The project includes a `requirements.txt` file with all necessary dependencies:
+
+```bash
+# Core application dependencies
+PyQt5>=5.15.0          # GUI framework
+requests>=2.25.0       # HTTP requests for API integration
+beautifulsoup4>=4.9.0  # HTML parsing for profile fetching
+packaging>=20.0        # Version management utilities
+pyinstaller>=5.0.0     # Executable building (development only)
+```
 
 #### System Requirements
 - **Operating System**: Windows 10 or later (64-bit recommended)
@@ -94,6 +136,85 @@ The tracker operates by:
 - **Start with Windows**: Option to launch automatically on system startup
 - **Responsive Design**: Adapts to different screen resolutions and DPI settings with automatic scaling
 - **Modern UI**: Sleek, dark-themed interface with customizable settings and themes
+- **Multi-language Interface**: Complete internationalization support with real-time language switching
+
+## Multi-language Support
+
+SCTool Tracker includes internationalization support, allowing you to use the application in your preferred language with full interface translation.
+
+### Supported Languages
+
+The application currently supports **8 languages** with complete interface translations:
+
+1. **English** (en) - Default language
+2. **German** (de) - Deutsch
+3. **Spanish** (es) - Español
+4. **French** (fr) - Français
+5. **Italian** (it) - Italiano
+6. **Japanese** (ja) - 日本語
+7. **Russian** (ru) - Русский
+8. **Chinese (Simplified)** (zh-cn) - 简体中文
+
+### Language Features
+
+- **Complete Interface Translation**: All UI elements, menus, buttons, labels, and messages are fully translated
+- **Real-time Language Switching**: Change languages instantly without restarting the application
+- **Persistent Language Preference**: Your selected language is automatically saved and restored
+- **Overlay Translation**: Game overlay system supports all languages with proper text rendering
+- **Context-aware Translations**: Smart translation system that considers context for better accuracy
+- **Automatic Language Detection**: Can detect system language on first launch
+
+### Language Configuration
+
+#### Changing Language
+1. **Navigate to Settings**: Open the main application and go to "Killfeed Settings"
+2. **Language Selector**: Find the "Language" dropdown in the Application Preferences section
+3. **Select Language**: Choose your preferred language from the dropdown menu
+4. **Instant Update**: The interface will immediately update to the selected language
+5. **Automatic Save**: Your language preference is automatically saved for future sessions
+
+#### Language Selector Features
+- **Visual Language Names**: Languages are displayed in both English and their native script
+- **Flag Icons**: Visual language identification with country/region flags
+- **Search Functionality**: Quickly find languages in the dropdown list
+- **Keyboard Navigation**: Full keyboard support for language selection
+
+### Technical Implementation
+
+#### Translation System Architecture
+- **Language Manager**: Centralized translation management with caching and optimization
+- **Translation Files**: JSON-based translation files located in the `languages/` directory
+- **Dynamic Loading**: Translation files are loaded dynamically and cached for performance
+- **Fallback System**: Automatic fallback to English if translations are missing
+- **Memory Optimization**: Efficient memory usage with smart caching strategies
+
+#### Translation Coverage
+- **UI Elements**: All buttons, labels, menus, and interface text
+- **Error Messages**: Complete error and status message translations
+- **Tooltips and Help Text**: Help system translation
+- **Overlay System**: Full overlay interface translation including all display modes
+- **Settings and Configuration**: All configuration options and settings descriptions
+- **Notification Messages**: Kill/death notifications and system messages
+
+#### Developer Features
+- **Translation Validation**: Built-in validation system to ensure translation completeness
+- **Debug Mode**: Advanced debugging tools for translation issues
+- **Hot Reloading**: Development support for real-time translation updates
+- **Missing Translation Detection**: Automatic detection and logging of missing translations
+
+### Troubleshooting Language Issues
+
+#### Common Problems
+- **Language Not Changing**: Restart the application if language changes don't take effect immediately
+- **Partial Translation**: Some elements may show in English - this indicates missing translations
+- **Font Issues**: Some languages may require system font support for proper character display
+- **Overlay Text Issues**: Ensure graphics drivers support Unicode text rendering
+
+#### Advanced Solutions
+- **Manual Language Reset**: Delete the language preference in the configuration file to reset to English
+- **Translation Cache**: Clear application data to refresh translation cache
+- **Font Installation**: Install appropriate fonts for languages with special character sets
+- **System Locale**: Ensure your system supports the selected language's character encoding
 
 ## Game Overlay System
 
@@ -101,7 +222,7 @@ SCTool Tracker includes a powerful **Game Overlay System** that provides real-ti
 
 ### Overlay Features
 
-- **5 Display Modes**: Choose from Minimal, Compact, Detailed, Horizontal, and Faded notification modes
+- **6 Display Modes**: Choose from Minimal, Compact, Detailed, Horizontal, Faded notification, and Simple Text modes
 - **Global Hotkey Support**: System-wide hotkey detection (default: `Ctrl+\``) for overlay toggling
 - **Real-time Statistics**: Live kill/death counts, K/D ratio, session time, ship info, and game mode
 - **Kill/Death Notifications**: Rich notifications in faded mode with player organization info and profile images
@@ -136,6 +257,11 @@ SCTool Tracker includes a powerful **Game Overlay System** that provides real-ti
 - **Purpose**: Notification-only mode that appears during kill/death events
 - **Features**: Rich notifications with player profile images, organization info, weapon details
 - **Layout**: Large notification panels that fade in/out during combat events
+
+#### 6. Simple Text Mode
+- **Purpose**: Lightweight text-only display with minimal system impact
+- **Features**: Basic kill/death counters in plain text format for maximum performance
+- **Layout**: Clean, simple text display ideal for streaming overlays or low-spec systems
 
 ### Global Hotkey System
 
@@ -913,7 +1039,7 @@ Contributions to SCTool Tracker are welcome! If you'd like to contribute:
 4. **Report Issues**: Use Discord or GitHub issues for bug reports with log files attached
 
 ### Version Information
-- **Current Version**: 5.4
+- **Current Version**: 5.8
 - **Release Date**: Updated regularly with Star Citizen patches
 - **Compatibility**: Star Citizen Live, PTU, and Arena Commander modes
 - **Platform**: Windows 10/11 (64-bit recommended)
