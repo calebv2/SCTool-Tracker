@@ -535,6 +535,12 @@ class OverlayControlPanel(QFrame):
         """)
         position_layout.addWidget(self.helper_btn)
         
+        # Set initial visibility based on display mode
+        if self.should_show_helper_button():
+            self.helper_btn.show()
+        else:
+            self.helper_btn.hide()
+        
         reset_btn = QPushButton(t("Reset to Default"))
         reset_btn.clicked.connect(self.reset_position)
     
@@ -543,9 +549,13 @@ class OverlayControlPanel(QFrame):
         if self.overlay.display_mode == 'faded':
             return t("Show Faded Mode Helper")
         elif self.overlay.display_mode == 'simple_text':
-            return t("Show Simple Text")
+            return t("Show Simple Text Helper")
         else:
             return t("Show Faded Mode Helper")
+    
+    def should_show_helper_button(self):
+        """Check if helper button should be visible for current display mode"""
+        return self.overlay.display_mode in ['faded', 'simple_text']
     
     def show_notification_helper(self):
         """Show notification helper for current mode or switch temporarily"""
@@ -626,7 +636,11 @@ class OverlayControlPanel(QFrame):
         self.overlay.update_display()
         
         if hasattr(self, 'helper_btn'):
-            self.helper_btn.setText(self.get_helper_button_text())
+            if self.should_show_helper_button():
+                self.helper_btn.setText(self.get_helper_button_text())
+                self.helper_btn.show()
+            else:
+                self.helper_btn.hide()
 
         if mode == 'faded':
             self.overlay.hide()
@@ -815,7 +829,11 @@ class OverlayControlPanel(QFrame):
                 elif button_text == "Mostrar Ayuda del Modo Desvanecido":
                     button.setText(t("Show Faded Mode Helper"))
                 elif button_text == "Mostrar Texto Simple":
-                    button.setText(t("Show Simple Text"))
+                    button.setText(t("Show Simple Text Helper"))
+                elif button_text == "Show Simple Text Helper":
+                    button.setText(t("Show Simple Text Helper"))
+                elif "Simple Text Helper" in button_text or "Mostrar Ayuda de Texto Simple" in button_text:
+                    button.setText(t("Show Simple Text Helper"))
                 elif button_text in position_button_texts or button_text in spanish_position_texts:
                     if button_text in ["Top Left", "Arriba Izquierda"]:
                         button.setText(t("Top Left"))

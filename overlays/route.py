@@ -721,9 +721,9 @@ class GameOverlay(QWidget):
         self.animation_timer.stop()
         if hasattr(self, 'live_update_timer'):
             self.live_update_timer.stop()
-        if hasattr(self, 'fade_timer') and self.fade_timer:
+        if hasattr(self, 'fade_timer'):
             self.fade_timer.stop()
-        if hasattr(self, 'fade_animation') and self.fade_animation:
+        if hasattr(self, 'fade_animation') and self.fade_animation is not None:
             self.fade_animation.stop()
 
     def show_overlay(self):
