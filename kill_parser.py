@@ -19,7 +19,7 @@ GAME_MODE_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> Loading GameModeRecord='(?P<game_mode>[^']+)' with EGameModeId='[^']+'"
 )
 
-VERSION = "6.0"
+VERSION = "5.9"
 
 GAME_MODE_MAPPING = {
     'EA_TeamElimination': 'Team Elimination',

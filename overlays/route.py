@@ -14,6 +14,7 @@ if parent_dir not in sys.path:
 
 from kill_parser import KillParser
 from language_manager import t
+from color_manager import color_manager
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
@@ -304,7 +305,13 @@ class GameOverlay(QWidget):
             print(f"Error saving overlay config: {e}")
     
     def get_theme_colors(self) -> Dict[str, QColor]:
-        """Get colors for the current theme"""
+        """Get colors for the current theme - ensures complete separation between themes"""
+        if self.theme == 'custom':
+            colors = color_manager.get_all_colors()
+            if not os.path.exists(color_manager.config_file):
+                color_manager.save_custom_colors()
+            return colors
+        
         themes = {
             'default': {
                 'background': QColor(0, 0, 0, 180),
@@ -337,7 +344,39 @@ class GameOverlay(QWidget):
                 'info_color': QColor(0, 191, 255, 255)
             }
         }
-        return themes.get(self.theme, themes['default'])
+        
+        selected_theme = themes.get(self.theme, themes['default'])
+        return {key: QColor(color) for key, color in selected_theme.items()}
+    
+    def refresh_colors(self):
+        if hasattr(self, 'colors'):
+            del self.colors
+        
+        self.colors = self.get_theme_colors()
+        
+        self.create_ui()
+        
+        self.setAttribute(Qt.WA_OpaquePaintEvent, False)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.repaint()
+        self.update()
+        
+        if hasattr(self, 'show') and self.isVisible():
+            self.hide()
+            self.show()
+    
+    def set_theme(self, theme_name: str):
+        old_theme = getattr(self, 'theme', None)
+        self.theme = theme_name
+        self.config['theme'] = theme_name
+        
+        self.refresh_colors()
+        
+        self.save_config()
+        
+        if old_theme == 'custom' or theme_name == 'custom':
+            self.create_ui()
+            self.repaint()
     
     def setup_overlay(self):
         """Setup overlay window properties"""
@@ -556,14 +595,6 @@ class GameOverlay(QWidget):
         self.config['opacity'] = opacity
         self.setWindowOpacity(opacity)
         self.update()
-    
-    def set_theme(self, theme: str):
-        """Change overlay theme"""
-        self.theme = theme
-        self.config['theme'] = theme
-        self.colors = self.get_theme_colors()
-        self.create_ui()
-        self.update_display()
     
     def toggle_animations(self, enabled: bool):
         """Toggle animations with immediate visual feedback"""

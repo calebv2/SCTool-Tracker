@@ -32,9 +32,10 @@ try:
         from PyQt5.QtWebEngineWidgets import QWebEnginePage
     except Exception:
         QWebEnginePage = None
-except ImportError:
+    print("QWebEngineView imported successfully")
+except ImportError as e:
     WEB_ENGINE_AVAILABLE = False
-    print("QWebEngineView not available, falling back to QTextBrowser")
+    print(f"QWebEngineView not available: {e}, falling back to QTextBrowser")
 
 from PyQt5.QtCore import (
     Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect
@@ -82,6 +83,22 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+def test_webengine_functionality():
+    """Test if WebEngine actually works at runtime (after QApplication is created)"""
+    global WEB_ENGINE_AVAILABLE
+    if WEB_ENGINE_AVAILABLE:
+        try:
+            test_view = QWebEngineView()
+            test_view.setHtml("<html><body>test</body></html>")
+            test_view.deleteLater()
+            print("QWebEngineView runtime test passed")
+            return True
+        except Exception as e:
+            print(f"QWebEngineView failed runtime test: {e}")
+            WEB_ENGINE_AVAILABLE = False
+            return False
+    return False
 
 def init_ui(self) -> None:
     main_widget = QWidget()
@@ -321,7 +338,10 @@ def init_ui(self) -> None:
     killfeed_layout.setContentsMargins(0, 0, 0, 0)
     killfeed_layout.setSpacing(15)
     
-    if WEB_ENGINE_AVAILABLE:
+    # Test WebEngine functionality at runtime
+    webengine_works = test_webengine_functionality()
+    
+    if webengine_works:
         self.kill_display = QWebEngineView()
         if QWebEnginePage is not None:
             class ExternalOpenWebPage(QWebEnginePage):

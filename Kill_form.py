@@ -3660,7 +3660,15 @@ def main(start_minimized=False) -> None:
         find_existing_window()
         sys.exit(0)
 
-    app = QApplication(sys.argv)
+    try:
+        app = QApplication(sys.argv)
+        logging.info(f"Python version: {sys.version}")
+        logging.info(f"PyQt5 version available")
+        logging.info(f"Running from: {sys.executable}")
+        logging.info(f"Frozen (compiled): {getattr(sys, 'frozen', False)}")
+    except Exception as e:
+        logging.error(f"Failed to create QApplication: {e}")
+        sys.exit(1)
     
     screen = QApplication.primaryScreen()
     if screen:

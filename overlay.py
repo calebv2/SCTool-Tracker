@@ -24,6 +24,7 @@ from PyQt5.QtGui import (
 )
 
 from overlays import GameOverlay, HotkeyCapture, GlobalHotkeyThread
+from color_customization_widget import ColorCustomizationWidget
 
 class OverlayControlPanel(QFrame):
     """Advanced control panel for overlay configuration"""
@@ -290,8 +291,14 @@ class OverlayControlPanel(QFrame):
         theme_layout.addWidget(self.theme_label_text)
         
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems([t("Default"), t("Dark"), t("Neon")])
-        self.theme_combo.setCurrentText(self.overlay.theme.title())
+        self.theme_combo.addItems([t("Default"), t("Dark"), t("Neon"), t("Custom")])
+
+        current_theme = self.overlay.theme.title()
+        if current_theme == "Custom":
+            self.theme_combo.setCurrentText(t("Custom"))
+        else:
+            self.theme_combo.setCurrentText(current_theme)
+        
         self.theme_combo.currentTextChanged.connect(self.change_theme)
         self.theme_combo.setStyleSheet("""
             QComboBox {
@@ -372,6 +379,11 @@ class OverlayControlPanel(QFrame):
         appearance_layout.addWidget(self.animations_checkbox)
         
         content_layout.addWidget(self.appearance_group)
+
+        self.color_customization = ColorCustomizationWidget(self)
+        self.color_customization.colors_changed.connect(self.on_custom_colors_changed)
+        self.color_customization.setVisible(self.overlay.theme == 'custom')
+        content_layout.addWidget(self.color_customization)
 
         self.position_group = QGroupBox(t("Position & Size"))
         self.position_group.setStyleSheet("QGroupBox { color: #f0f0f0; }")
@@ -653,8 +665,22 @@ class OverlayControlPanel(QFrame):
     
     def change_theme(self, theme_text: str):
         """Change overlay theme"""
-        theme = theme_text.lower()
+        theme_map = {
+            t("Default"): "default",
+            t("Dark"): "dark", 
+            t("Neon"): "neon",
+            t("Custom"): "custom"
+        }
+        
+        theme = theme_map.get(theme_text, theme_text.lower())
         self.overlay.set_theme(theme)
+
+        self.color_customization.setVisible(theme == 'custom')
+    
+    def on_custom_colors_changed(self):
+        """Handle when custom colors are changed"""
+        if self.overlay.theme == 'custom':
+            self.overlay.refresh_colors()
     
     def set_position(self, position: str):
         """Set overlay to predefined position"""
@@ -786,6 +812,18 @@ class OverlayControlPanel(QFrame):
                 self.opacity_label_text.setText(t("Opacity:"))
             if hasattr(self, 'theme_label_text'):
                 self.theme_label_text.setText(t("Theme:"))
+            
+            # Update theme combo box items
+            if hasattr(self, 'theme_combo'):
+                current_theme = self.overlay.theme
+                self.theme_combo.clear()
+                self.theme_combo.addItems([t("Default"), t("Dark"), t("Neon"), t("Custom")])
+                
+                # Restore selection
+                if current_theme == "custom":
+                    self.theme_combo.setCurrentText(t("Custom"))
+                else:
+                    self.theme_combo.setCurrentText(current_theme.title())
             if hasattr(self, 'current_hotkey_label'):
                 self.current_hotkey_label.setText(t("Current Hotkey:"))
             if hasattr(self, 'hotkey_group'):

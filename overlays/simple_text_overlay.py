@@ -268,15 +268,22 @@ def show_simple_kill_notification(self, victim, weapon=None):
             clear_example_mode(self)
         
         if hasattr(self, 'colors') and self.colors:
-            kill_color = self.colors['kill_color'].name()
-            death_color = self.colors['death_color'].name()
-            text_color = self.colors['text_primary'].name()
-            
-            segments = [
-                (player_name, kill_color),
-                (t(' killed '), text_color),
-                (victim, death_color)
-            ]
+            if hasattr(self, 'theme') and self.theme == 'dark':
+                segments = [
+                    (player_name, '#808080'),
+                    (t(' killed '), '#808080'),
+                    (victim, '#808080')
+                ]
+            else:
+                kill_color = self.colors['kill_color'].name()
+                death_color = self.colors['death_color'].name()
+                text_color = self.colors['text_primary'].name()
+                
+                segments = [
+                    (player_name, kill_color),
+                    (t(' killed '), text_color),
+                    (victim, death_color)
+                ]
         else:
             if hasattr(self, 'theme') and self.theme == 'default':
                 segments = [
@@ -289,6 +296,12 @@ def show_simple_kill_notification(self, victim, weapon=None):
                     (player_name, '#00ff7f'),
                     (t(' killed '), '#00ffff'),
                     (victim, '#ff1493')
+                ]
+            elif hasattr(self, 'theme') and self.theme == 'dark':
+                segments = [
+                    (player_name, '#808080'),
+                    (t(' killed '), '#808080'),
+                    (victim, '#808080')
                 ]
             else:
                 segments = [
@@ -314,15 +327,22 @@ def show_simple_death_notification(self, attacker, weapon=None):
             clear_example_mode(self)
         
         if hasattr(self, 'colors') and self.colors:
-            kill_color = self.colors['kill_color'].name()
-            death_color = self.colors['death_color'].name()
-            text_color = self.colors['text_primary'].name()
-            
-            segments = [
-                (attacker, death_color),
-                (t(' killed '), text_color),
-                (player_name, kill_color)
-            ]
+            if hasattr(self, 'theme') and self.theme == 'dark':
+                segments = [
+                    (attacker, '#808080'),
+                    (t(' killed '), '#808080'),
+                    (player_name, '#808080')
+                ]
+            else:
+                kill_color = self.colors['kill_color'].name()
+                death_color = self.colors['death_color'].name()
+                text_color = self.colors['text_primary'].name()
+                
+                segments = [
+                    (attacker, death_color),
+                    (t(' killed '), text_color),
+                    (player_name, kill_color)
+                ]
         else:
             if hasattr(self, 'theme') and self.theme == 'default':
                 segments = [
@@ -335,6 +355,12 @@ def show_simple_death_notification(self, attacker, weapon=None):
                     (attacker, '#ff1493'),
                     (t(' killed '), '#00ffff'),
                     (player_name, '#00ff7f')
+                ]
+            elif hasattr(self, 'theme') and self.theme == 'dark':
+                segments = [
+                    (attacker, '#808080'),
+                    (t(' killed '), '#808080'),
+                    (player_name, '#808080')
                 ]
             else:
                 segments = [
@@ -367,16 +393,24 @@ def show_simple_sample_notification(self):
         self.countdown_seconds = 30
         
         if hasattr(self, 'colors') and self.colors:
-            kill_color = self.colors['kill_color'].name()
-            death_color = self.colors['death_color'].name()
-            text_color = self.colors['text_primary'].name()
-            
-            segments = [
-                (t('player'), kill_color),
-                (t(' killed '), text_color),
-                (t('player'), death_color),
-                (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
-            ]
+            if hasattr(self, 'theme') and self.theme == 'dark':
+                segments = [
+                    (t('player'), '#808080'),
+                    (t(' killed '), '#808080'),
+                    (t('player'), '#808080'),
+                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#808080')
+                ]
+            else:
+                kill_color = self.colors['kill_color'].name()
+                death_color = self.colors['death_color'].name()
+                text_color = self.colors['text_primary'].name()
+                
+                segments = [
+                    (t('player'), kill_color),
+                    (t(' killed '), text_color),
+                    (t('player'), death_color),
+                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
+                ]
         else:
             if hasattr(self, 'theme') and self.theme == 'default':
                 segments = [
@@ -391,6 +425,13 @@ def show_simple_sample_notification(self):
                     (t(' killed '), '#00ffff'),
                     (t('player'), '#ff1493'),
                     (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#00ffff')
+                ]
+            elif hasattr(self, 'theme') and self.theme == 'dark':
+                segments = [
+                    (t('player'), '#808080'),
+                    (t(' killed '), '#808080'),
+                    (t('player'), '#808080'),
+                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#808080')
                 ]
             else:
                 segments = [
@@ -421,16 +462,24 @@ def update_simple_countdown(self):
             self.countdown_seconds -= 1
             
             if hasattr(self, 'colors') and self.colors:
-                kill_color = self.colors['kill_color'].name()
-                death_color = self.colors['death_color'].name()
-                text_color = self.colors['text_primary'].name()
-                
-                segments = [
-                    (t('player'), kill_color),
-                    (t(' killed '), text_color),
-                    (t('player'), death_color),
-                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
-                ]
+                if hasattr(self, 'theme') and self.theme == 'dark':
+                    segments = [
+                        (t('player'), '#808080'),
+                        (t(' killed '), '#808080'),
+                        (t('player'), '#808080'),
+                        (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#808080')
+                    ]
+                else:
+                    kill_color = self.colors['kill_color'].name()
+                    death_color = self.colors['death_color'].name()
+                    text_color = self.colors['text_primary'].name()
+                    
+                    segments = [
+                        (t('player'), kill_color),
+                        (t(' killed '), text_color),
+                        (t('player'), death_color),
+                        (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
+                    ]
             else:
                 if hasattr(self, 'theme') and self.theme == 'default':
                     segments = [
@@ -445,6 +494,13 @@ def update_simple_countdown(self):
                         (t(' killed '), '#00ffff'),
                         (t('player'), '#ff1493'),
                         (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#00ffff')
+                    ]
+                elif hasattr(self, 'theme') and self.theme == 'dark':
+                    segments = [
+                        (t('player'), '#808080'),
+                        (t(' killed '), '#808080'),
+                        (t('player'), '#808080'),
+                        (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#808080')
                     ]
                 else:
                     segments = [
