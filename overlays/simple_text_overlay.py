@@ -3,8 +3,9 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from language_manager import t
 
-from PyQt5.QtWidgets import QVBoxLayout, QLabel
-from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
+import weakref
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget, QSizePolicy
+from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, pyqtProperty
 from PyQt5.QtGui import QFont, QPainter, QPen, QColor, QFontMetrics
 
 class OutlinedLabel(QLabel):
@@ -63,7 +64,7 @@ class MultiColoredLabel(QLabel):
         self.use_outline = True
         
     def set_text_segments(self, segments):
-        """Set text segments with individual colors: [(text, color), ...]"""
+        """Set text segments with individual colors: [(text, color)]"""
         self.text_segments = segments
         full_text = ''.join([segment[0] for segment in segments])
         self.setText(full_text)
@@ -113,26 +114,72 @@ class MultiColoredLabel(QLabel):
             painter.drawText(current_x, y, text)
             current_x += fm.width(text)
 
+class NotificationItem(QWidget):
+    """Individual notification item with its own fade timer"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setStyleSheet("background: transparent;")
+        
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.label = MultiColoredLabel("")
+        self.label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.label)
+        self.setLayout(layout)
+        
+        self.fade_timer = QTimer()
+        self.fade_timer.timeout.connect(self.start_fade)
+        self.fade_animation = None
+        self._opacity = 1.0
+        
+    @pyqtProperty(float)
+    def opacity(self):
+        return self._opacity
+        
+    @opacity.setter
+    def opacity(self, value):
+        self._opacity = value
+        self.setWindowOpacity(value)
+        self.update()
+        
+    def start_fade(self):
+        self.fade_timer.stop()
+        self.fade_animation = QPropertyAnimation(self, b"opacity")
+        self.fade_animation.setDuration(2000)
+        self.fade_animation.setStartValue(1.0)
+        self.fade_animation.setEndValue(0.0)
+        self.fade_animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.fade_animation.finished.connect(self.deleteLater)
+        self.fade_animation.start()
+        
+    def cleanup(self):
+        if self.fade_timer:
+            self.fade_timer.stop()
+        if self.fade_animation:
+            self.fade_animation.stop()
+
 def create_simple_text_ui(self):
     self.setAttribute(Qt.WA_TranslucentBackground, True)
     self.setStyleSheet("background: transparent;")
+
+    self.main_layout = QVBoxLayout()
+    self.main_layout.setContentsMargins(0, 0, 0, 0)
+    self.main_layout.setSpacing(5)
+    self.main_layout.setAlignment(Qt.AlignTop)
+
+    self.notification_container = QWidget()
+    self.notification_container.setStyleSheet("background: transparent;")
+    self.notification_layout = QVBoxLayout()
+    self.notification_layout.setContentsMargins(0, 0, 0, 0)
+    self.notification_layout.setSpacing(5)
+    self.notification_container.setLayout(self.notification_layout)
     
-    layout = QVBoxLayout()
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(0)
+    self.main_layout.addWidget(self.notification_container)
+    self.setLayout(self.main_layout)
     
-    self.simple_text_label = MultiColoredLabel("")
-    self.simple_text_label.setAlignment(Qt.AlignCenter)
-    self.simple_text_label.setWordWrap(False)
-    apply_simple_text_theme(self)
-    
-    layout.addWidget(self.simple_text_label)
-    self.setLayout(layout)
-    
-    if not hasattr(self, 'fade_timer') or not self.fade_timer:
-        self.fade_timer = QTimer()
-        self.fade_timer.timeout.connect(self.start_fade_animation)
-    self.fade_animation = None
+    self.active_notifications = []
     
     if not hasattr(self, 'countdown_timer') or not self.countdown_timer:
         self.countdown_timer = QTimer()
@@ -140,153 +187,239 @@ def create_simple_text_ui(self):
     
     self.countdown_seconds = 0
     self.is_example_mode = False
+    self.example_notification = None
 
-def apply_simple_text_theme(self):
-    """Apply theme-based styling to simple text overlay"""
-    if hasattr(self, 'simple_text_label') and self.simple_text_label:
+def add_notification(self, segments, notification_type='kill'):
+    """Add a new notification to the stack"""
+    notification = NotificationItem(self)
+    notification.label.set_text_segments(segments)
+    
+    if hasattr(self, 'colors') and self.colors:
+        notification.label.set_outline_enabled(True)
+        notification.label.set_outline_color('black')
+        
+        text_color = self.colors['text_primary'].name()
+        base_style = f"""
+            QLabel {{
+                font-size: 18px;
+                font-weight: bold;
+                font-family: 'Consolas', monospace;
+                background: transparent;
+                border: none;
+                white-space: nowrap;
+                color: {text_color};
+            }}
+        """
+        notification.label.setStyleSheet(base_style)
+    
+    self.notification_layout.addWidget(notification)
+    self.active_notifications.append(notification)
+    
+    if notification_type == 'example':
+        notification.adjustSize()
         try:
-            theme_colors = self.colors if hasattr(self, 'colors') else None
-            
-            # Base style with theme-specific color
-            if theme_colors:
-                text_color = theme_colors['text_primary'].name()
-                base_style = f"""
-                    QLabel {{
-                        font-size: 18px;
-                        font-weight: bold;
-                        font-family: 'Consolas', monospace;
-                        background: transparent;
-                        border: none;
-                        white-space: nowrap;
-                        color: {text_color};
-                    }}
-                """
-            else:
-                base_style = """
-                    QLabel {
-                        font-size: 18px;
-                        font-weight: bold;
-                        font-family: 'Consolas', monospace;
-                        background: transparent;
-                        border: none;
-                        white-space: nowrap;
-                        color: white;
-                    }
-                """
-            
-            self.simple_text_label.setStyleSheet(base_style)
-            
-            # Set outline based on theme
-            if theme_colors:
-                if hasattr(self, 'theme') and self.theme == 'default':
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-                elif hasattr(self, 'theme') and self.theme == 'dark':
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-                elif hasattr(self, 'theme') and self.theme == 'neon':
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-                else:
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-            else:
-                self.simple_text_label.set_outline_enabled(True)
-                self.simple_text_label.set_outline_color('black')
-                
-        except (RuntimeError, AttributeError):
+            w = notification.sizeHint().width()
+            notification.setFixedWidth(w)
+            notification.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            notification.label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        except Exception:
             pass
 
-def apply_simple_notification_theme(self, notification_type):
-    """Apply theme-based styling for kill/death notifications"""
-    if hasattr(self, 'simple_text_label') and self.simple_text_label:
-        try:
-            theme_colors = self.colors if hasattr(self, 'colors') else None
-            
-            # Base style with theme-specific color
-            if theme_colors:
-                text_color = theme_colors['text_primary'].name()
-                base_style = f"""
-                    QLabel {{
-                        font-size: 18px;
-                        font-weight: bold;
-                        font-family: 'Consolas', monospace;
-                        background: transparent;
-                        border: none;
-                        white-space: nowrap;
-                        color: {text_color};
-                    }}
-                """
-            else:
-                base_style = """
-                    QLabel {
-                        font-size: 18px;
-                        font-weight: bold;
-                        font-family: 'Consolas', monospace;
-                        background: transparent;
-                        border: none;
-                        white-space: nowrap;
-                        color: white;
-                    }
-                """
-            
-            self.simple_text_label.setStyleSheet(base_style)
-            
-            # Set outline based on theme
-            if theme_colors:
-                if hasattr(self, 'theme') and self.theme == 'default':
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-                elif hasattr(self, 'theme') and self.theme == 'dark':
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-                elif hasattr(self, 'theme') and self.theme == 'neon':
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-                else:
-                    self.simple_text_label.set_outline_enabled(True)
-                    self.simple_text_label.set_outline_color('black')
-            else:
-                self.simple_text_label.set_outline_enabled(True)
-                self.simple_text_label.set_outline_color('black')
-                
-        except (RuntimeError, AttributeError):
-            pass
+    overlay_ref = weakref.ref(self)
+    notification.destroyed.connect(lambda *args, nr=notification, orf=overlay_ref: remove_notification_ref(orf, nr))
+    
+    notification.fade_timer.start(8000)
+    
+    self.adjustSize()
+    
+    return notification
 
-def adjust_simple_text_size(self):
-    if hasattr(self, 'simple_text_label') and self.simple_text_label:
+def remove_notification(self, notification):
+    """Remove notification from tracking list"""
+    try:
+        if notification in self.active_notifications:
+            self.active_notifications.remove(notification)
         try:
-            self.simple_text_label.adjustSize()
             self.adjustSize()
-            self.resize(self.simple_text_label.sizeHint())
         except RuntimeError:
             pass
+    except Exception:
+        pass
+
+def remove_notification_ref(overlay_ref, notification):
+    """Safe wrapper that resolves a weakref to the overlay and calls
+    remove_notification if the overlay is still alive."""
+    overlay = overlay_ref()
+    if overlay is None:
+        return
+    try:
+        remove_notification(overlay, notification)
+    except RuntimeError:
+        pass
+
+def show_simple_kill_notification(self, victim, weapon=None):
+    try:
+        player_name = t('You')
+        if hasattr(self, 'parent_tracker') and self.parent_tracker:
+            if hasattr(self.parent_tracker, 'local_user_name') and self.parent_tracker.local_user_name:
+                player_name = self.parent_tracker.local_user_name
+        
+        if self.is_example_mode:
+            clear_example_mode(self)
+        
+        if hasattr(self, 'colors') and self.colors:
+            kill_color = self.colors['kill_color'].name()
+            death_color = self.colors['death_color'].name()
+            text_color = self.colors['text_primary'].name()
+            
+            segments = [
+                (player_name, kill_color),
+                (t(' killed '), text_color),
+                (victim, death_color)
+            ]
+        else:
+            if hasattr(self, 'theme') and self.theme == 'default':
+                segments = [
+                    (player_name, '#00ff00'),
+                    (t(' killed '), 'white'),
+                    (victim, '#ff0000')
+                ]
+            elif hasattr(self, 'theme') and self.theme == 'neon':
+                segments = [
+                    (player_name, '#00ff7f'),
+                    (t(' killed '), '#00ffff'),
+                    (victim, '#ff1493')
+                ]
+            else:
+                segments = [
+                    (player_name, 'white'),
+                    (t(' killed '), 'white'),
+                    (victim, 'white')
+                ]
+        
+        add_notification(self, segments, 'kill')
+        self.setWindowOpacity(1.0)
+        
+    except RuntimeError:
+        return
+
+def show_simple_death_notification(self, attacker, weapon=None):
+    try:
+        player_name = t('You')
+        if hasattr(self, 'parent_tracker') and self.parent_tracker:
+            if hasattr(self.parent_tracker, 'local_user_name') and self.parent_tracker.local_user_name:
+                player_name = self.parent_tracker.local_user_name
+        
+        if self.is_example_mode:
+            clear_example_mode(self)
+        
+        if hasattr(self, 'colors') and self.colors:
+            kill_color = self.colors['kill_color'].name()
+            death_color = self.colors['death_color'].name()
+            text_color = self.colors['text_primary'].name()
+            
+            segments = [
+                (attacker, death_color),
+                (t(' killed '), text_color),
+                (player_name, kill_color)
+            ]
+        else:
+            if hasattr(self, 'theme') and self.theme == 'default':
+                segments = [
+                    (attacker, '#ff0000'),
+                    (t(' killed '), 'white'),
+                    (player_name, '#00ff00')
+                ]
+            elif hasattr(self, 'theme') and self.theme == 'neon':
+                segments = [
+                    (attacker, '#ff1493'),
+                    (t(' killed '), '#00ffff'),
+                    (player_name, '#00ff7f')
+                ]
+            else:
+                segments = [
+                    (attacker, 'white'),
+                    (t(' killed '), 'white'),
+                    (player_name, 'white')
+                ]
+        
+        add_notification(self, segments, 'death')
+        self.setWindowOpacity(1.0)
+        
+    except RuntimeError:
+        return
+
+def clear_example_mode(self):
+    """Clear example notification if active"""
+    self.is_example_mode = False
+    if self.example_notification:
+        self.example_notification.cleanup()
+        self.example_notification.deleteLater()
+        self.example_notification = None
+    if hasattr(self, 'countdown_timer'):
+        self.countdown_timer.stop()
+
+def show_simple_sample_notification(self):
+    try:
+        clear_simple_container(self)
+        
+        self.is_example_mode = True
+        self.countdown_seconds = 30
+        
+        if hasattr(self, 'colors') and self.colors:
+            kill_color = self.colors['kill_color'].name()
+            death_color = self.colors['death_color'].name()
+            text_color = self.colors['text_primary'].name()
+            
+            segments = [
+                (t('player'), kill_color),
+                (t(' killed '), text_color),
+                (t('player'), death_color),
+                (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
+            ]
+        else:
+            if hasattr(self, 'theme') and self.theme == 'default':
+                segments = [
+                    (t('player'), '#00ff00'),
+                    (t(' killed '), 'white'),
+                    (t('player'), '#ff0000'),
+                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', 'white')
+                ]
+            elif hasattr(self, 'theme') and self.theme == 'neon':
+                segments = [
+                    (t('player'), '#00ff7f'),
+                    (t(' killed '), '#00ffff'),
+                    (t('player'), '#ff1493'),
+                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#00ffff')
+                ]
+            else:
+                segments = [
+                    (t('player'), 'white'),
+                    (t(' killed '), 'white'),
+                    (t('player'), 'white'),
+                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', 'white')
+                ]
+        
+        self.example_notification = add_notification(self, segments, 'example')
+        self.example_notification.fade_timer.stop()
+        
+        self.setWindowOpacity(1.0)
+        if hasattr(self, 'countdown_timer'):
+            self.countdown_timer.start(1000)
+            
+    except RuntimeError:
+        return
 
 def update_simple_countdown(self):
     try:
-        if not hasattr(self, 'simple_text_label') or not self.simple_text_label:
-            if hasattr(self, 'countdown_timer') and self.countdown_timer:
-                try:
-                    self.countdown_timer.stop()
-                except RuntimeError:
-                    pass
-            return
-            
-        if not hasattr(self, 'is_example_mode') or not self.is_example_mode:
-            if hasattr(self, 'countdown_timer') and self.countdown_timer:
-                try:
-                    self.countdown_timer.stop()
-                except RuntimeError:
-                    pass
-            return
-            
-        if not hasattr(self, 'countdown_seconds'):
+        if not self.is_example_mode or not self.example_notification:
+            if hasattr(self, 'countdown_timer'):
+                self.countdown_timer.stop()
             return
             
         if self.countdown_seconds > 0:
             self.countdown_seconds -= 1
             
-            # Use theme colors if available
             if hasattr(self, 'colors') and self.colors:
                 kill_color = self.colors['kill_color'].name()
                 death_color = self.colors['death_color'].name()
@@ -298,9 +431,7 @@ def update_simple_countdown(self):
                     (t('player'), death_color),
                     (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
                 ]
-                self.simple_text_label.set_text_segments(segments)
             else:
-                # Fallback to theme-specific hardcoded colors
                 if hasattr(self, 'theme') and self.theme == 'default':
                     segments = [
                         (t('player'), '#00ff00'),
@@ -308,7 +439,6 @@ def update_simple_countdown(self):
                         (t('player'), '#ff0000'),
                         (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', 'white')
                     ]
-                    self.simple_text_label.set_text_segments(segments)
                 elif hasattr(self, 'theme') and self.theme == 'neon':
                     segments = [
                         (t('player'), '#00ff7f'),
@@ -316,292 +446,80 @@ def update_simple_countdown(self):
                         (t('player'), '#ff1493'),
                         (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#00ffff')
                     ]
-                    self.simple_text_label.set_text_segments(segments)
                 else:
-                    text = f"{t('player')}{t(' killed ')}{t('player')} {t('(EXAMPLE)')} {self.countdown_seconds}s"
-                    self.simple_text_label.setText(text)
+                    segments = [
+                        (t('player'), 'white'),
+                        (t(' killed '), 'white'),
+                        (t('player'), 'white'),
+                        (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', 'white')
+                    ]
             
-            adjust_simple_text_size(self)
+            self.example_notification.label.set_text_segments(segments)
+            
         else:
-            if hasattr(self, 'countdown_timer') and self.countdown_timer:
-                try:
-                    self.countdown_timer.stop()
-                except RuntimeError:
-                    pass
-            self.start_fade_animation()
+            if hasattr(self, 'countdown_timer'):
+                self.countdown_timer.stop()
+            if self.example_notification:
+                self.example_notification.start_fade()
+            self.is_example_mode = False
+            self.example_notification = None
+            
     except (RuntimeError, AttributeError):
-        if hasattr(self, 'countdown_timer') and self.countdown_timer:
-            try:
-                self.countdown_timer.stop()
-            except RuntimeError:
-                pass
-        return
-
-def show_simple_kill_notification(self, victim, weapon=None):
-    if hasattr(self, 'simple_text_label') and self.simple_text_label:
-        try:
-            player_name = t('You')
-            if hasattr(self, 'parent_tracker') and self.parent_tracker:
-                if hasattr(self.parent_tracker, 'local_user_name') and self.parent_tracker.local_user_name:
-                    player_name = self.parent_tracker.local_user_name
-            
-            if hasattr(self, 'colors') and self.colors:
-                kill_color = self.colors['kill_color'].name()
-                death_color = self.colors['death_color'].name()
-                text_color = self.colors['text_primary'].name()
-                
-                segments = [
-                    (player_name, kill_color),
-                    (t(' killed '), text_color),
-                    (victim, death_color)
-                ]
-                self.simple_text_label.set_text_segments(segments)
-            else:
-                if hasattr(self, 'theme') and self.theme == 'default':
-                    segments = [
-                        (player_name, '#00ff00'),
-                        (t(' killed '), 'white'),
-                        (victim, '#ff0000')
-                    ]
-                    self.simple_text_label.set_text_segments(segments)
-                elif hasattr(self, 'theme') and self.theme == 'neon':
-                    segments = [
-                        (player_name, '#00ff7f'),
-                        (t(' killed '), '#00ffff'),
-                        (victim, '#ff1493')
-                    ]
-                    self.simple_text_label.set_text_segments(segments)
-                else:
-                    text = f"{player_name}{t(' killed ')}{victim}"
-                    self.simple_text_label.setText(text)
-            
-            apply_simple_notification_theme(self, 'kill')
-            self.is_example_mode = False
-            if hasattr(self, 'countdown_timer'):
-                self.countdown_timer.stop()
-            adjust_simple_text_size(self)
-            self.setWindowOpacity(1.0)
-            self.fade_timer.start(8000)
-        except RuntimeError:
-            return
-
-def show_simple_death_notification(self, attacker, weapon=None):
-    if hasattr(self, 'simple_text_label') and self.simple_text_label:
-        try:
-            player_name = t('You')
-            if hasattr(self, 'parent_tracker') and self.parent_tracker:
-                if hasattr(self.parent_tracker, 'local_user_name') and self.parent_tracker.local_user_name:
-                    player_name = self.parent_tracker.local_user_name
-            
-            if hasattr(self, 'colors') and self.colors:
-                kill_color = self.colors['kill_color'].name()
-                death_color = self.colors['death_color'].name()
-                text_color = self.colors['text_primary'].name()
-                
-                segments = [
-                    (attacker, death_color),
-                    (t(' killed '), text_color),
-                    (player_name, kill_color)
-                ]
-                self.simple_text_label.set_text_segments(segments)
-            else:
-                if hasattr(self, 'theme') and self.theme == 'default':
-                    segments = [
-                        (attacker, '#ff0000'),
-                        (t(' killed '), 'white'),
-                        (player_name, '#00ff00')
-                    ]
-                    self.simple_text_label.set_text_segments(segments)
-                elif hasattr(self, 'theme') and self.theme == 'neon':
-                    segments = [
-                        (attacker, '#ff1493'),
-                        (t(' killed '), '#00ffff'),
-                        (player_name, '#00ff7f')
-                    ]
-                    self.simple_text_label.set_text_segments(segments)
-                else:
-                    text = f"{attacker}{t(' killed ')}{player_name}"
-                    self.simple_text_label.setText(text)
-            
-            apply_simple_notification_theme(self, 'death')
-            self.is_example_mode = False
-            if hasattr(self, 'countdown_timer'):
-                self.countdown_timer.stop()
-            adjust_simple_text_size(self)
-            self.setWindowOpacity(1.0)
-            self.fade_timer.start(8000)
-        except RuntimeError:
-            return
-
-def start_fade_animation(self):
-    try:
-        if hasattr(self, 'fade_timer') and self.fade_timer:
-            try:
-                self.fade_timer.stop()
-            except RuntimeError:
-                pass
-                
-        if hasattr(self, 'countdown_timer') and self.countdown_timer:
-            try:
-                self.countdown_timer.stop()
-            except RuntimeError:
-                pass
-        
-        self.fade_animation = QPropertyAnimation(self, b"windowOpacity")
-        self.fade_animation.setDuration(2000)
-        self.fade_animation.setStartValue(1.0)
-        self.fade_animation.setEndValue(0.0)
-        self.fade_animation.setEasingCurve(QEasingCurve.OutCubic)
-        self.fade_animation.finished.connect(self.hide_simple_notification)
-        self.fade_animation.start()
-    except RuntimeError:
-        pass
-
-def hide_simple_notification(self):
-    if hasattr(self, 'simple_text_label'):
-        self.simple_text_label.setText("")
-    self.setWindowOpacity(0.0)
-
-def show_simple_notification(self):
-    if hasattr(self, 'simple_text_label') and self.simple_text_label.text():
-        current_text = self.simple_text_label.text()
-        if "(EXAMPLE)" in current_text:
-            show_simple_sample_notification(self)
-        else:
-            self.setWindowOpacity(1.0)
-            if hasattr(self, 'fade_animation') and self.fade_animation:
-                try:
-                    self.fade_animation.stop()
-                except RuntimeError:
-                    pass
-            if hasattr(self, 'countdown_timer') and self.countdown_timer:
-                try:
-                    self.countdown_timer.stop()
-                except RuntimeError:
-                    pass
-            self.is_example_mode = False
-            if hasattr(self, 'fade_timer') and self.fade_timer:
-                try:
-                    self.fade_timer.start(8000)
-                except RuntimeError:
-                    pass
-    else:
-        show_simple_sample_notification(self)
-
-def show_simple_sample_notification(self):
-    if hasattr(self, 'simple_text_label') and self.simple_text_label:
-        try:
-            self.is_example_mode = True
-            self.countdown_seconds = 30
-            
-            if hasattr(self, 'colors') and self.colors:
-                kill_color = self.colors['kill_color'].name()
-                death_color = self.colors['death_color'].name()
-                text_color = self.colors['text_primary'].name()
-                
-                segments = [
-                    (t('player'), kill_color),
-                    (t(' killed '), text_color),
-                    (t('player'), death_color),
-                    (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', text_color)
-                ]
-                self.simple_text_label.set_text_segments(segments)
-            else:
-                if hasattr(self, 'theme') and self.theme == 'default':
-                    segments = [
-                        (t('player'), '#00ff00'),
-                        (t(' killed '), 'white'),
-                        (t('player'), '#ff0000'),
-                        (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', 'white')
-                    ]
-                    self.simple_text_label.set_text_segments(segments)
-                elif hasattr(self, 'theme') and self.theme == 'neon':
-                    segments = [
-                        (t('player'), '#00ff7f'),
-                        (t(' killed '), '#00ffff'),
-                        (t('player'), '#ff1493'),
-                        (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', '#00ffff')
-                    ]
-                    self.simple_text_label.set_text_segments(segments)
-                else:
-                    text = f"{t('player')}{t(' killed ')}{t('player')} {t('(EXAMPLE)')} {self.countdown_seconds}s"
-                    self.simple_text_label.setText(text)
-            
-            apply_simple_notification_theme(self, 'kill')
-            adjust_simple_text_size(self)
-            self.setWindowOpacity(1.0)
-            if hasattr(self, 'fade_timer') and self.fade_timer:
-                try:
-                    if self.fade_timer.isActive():
-                        self.fade_timer.stop()
-                except RuntimeError:
-                    pass
-            if hasattr(self, 'countdown_timer') and self.countdown_timer:
-                try:
-                    self.countdown_timer.start(1000)
-                except RuntimeError:
-                    pass
-        except RuntimeError:
-            return
+        if hasattr(self, 'countdown_timer'):
+            self.countdown_timer.stop()
 
 def clear_simple_container(self):
+    """Clear all notifications"""
     try:
         if hasattr(self, 'countdown_timer') and self.countdown_timer:
-            try:
-                if self.countdown_timer and self.countdown_timer.isActive():
-                    self.countdown_timer.stop()
-            except RuntimeError:
-                pass
-                
-        if hasattr(self, 'fade_timer') and self.fade_timer:
-            try:
-                if self.fade_timer.isActive():
-                    self.fade_timer.stop()
-            except RuntimeError:
-                pass
-                
-        if hasattr(self, 'fade_animation') and self.fade_animation:
-            try:
-                self.fade_animation.stop()
-            except RuntimeError:
-                pass
-                
-        if hasattr(self, 'simple_text_label') and self.simple_text_label:
-            try:
-                self.simple_text_label.setText("")
-            except RuntimeError:
-                pass
-                
+            self.countdown_timer.stop()
+        
+        for notification in self.active_notifications[:]:
+            notification.cleanup()
+            notification.deleteLater()
+        
+        self.active_notifications.clear()
         self.is_example_mode = False
+        self.example_notification = None
         self.setWindowOpacity(0.0)
+        
     except (RuntimeError, AttributeError):
         pass
 
 def cleanup_simple_timers(self):
-    """Cleanup all timers to prevent errors when overlay is destroyed"""
+    """Cleanup all timers and notifications"""
     try:
+        clear_simple_container(self)
+        
         if hasattr(self, 'countdown_timer') and self.countdown_timer:
-            try:
-                self.countdown_timer.stop()
-                self.countdown_timer.disconnect()
-                self.countdown_timer.deleteLater()
-            except RuntimeError:
-                pass
+            self.countdown_timer.stop()
+            self.countdown_timer.disconnect()
+            self.countdown_timer.deleteLater()
             self.countdown_timer = None
             
-        if hasattr(self, 'fade_timer') and self.fade_timer:
-            try:
-                self.fade_timer.stop()
-            except RuntimeError:
-                pass
-                
-        if hasattr(self, 'fade_animation') and self.fade_animation:
-            try:
-                self.fade_animation.stop()
-            except RuntimeError:
-                pass
-            self.fade_animation = None
-            
-        self.is_example_mode = False
     except (RuntimeError, AttributeError):
         pass
+
+def apply_simple_text_theme(self):
+    """Compatibility stub - theming now handled in add_notification"""
+    pass
+
+def apply_simple_notification_theme(self, notification_type):
+    """Compatibility stub - theming now handled in add_notification"""
+    pass
+
+def adjust_simple_text_size(self):
+    """Adjust window size to fit content"""
+    self.adjustSize()
+
+def start_fade_animation(self):
+    """Compatibility stub - fade now handled per notification"""
+    pass
+
+def hide_simple_notification(self):
+    """Hide all notifications"""
+    clear_simple_container(self)
+
+def show_simple_notification(self):
+    """Show sample notification"""
+    show_simple_sample_notification(self)

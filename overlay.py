@@ -535,7 +535,6 @@ class OverlayControlPanel(QFrame):
         """)
         position_layout.addWidget(self.helper_btn)
         
-        # Set initial visibility based on display mode
         if self.should_show_helper_button():
             self.helper_btn.show()
         else:

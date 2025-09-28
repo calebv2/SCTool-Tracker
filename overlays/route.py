@@ -401,8 +401,15 @@ class GameOverlay(QWidget):
             self.create_faded_ui()
         elif self.display_mode == 'simple_text':
             self.create_simple_text_ui()
+            try:
+                self.show_simple_sample_notification()
+            except Exception:
+                pass
         else:
             self.create_compact_ui()
+        
+        if self.display_mode != 'simple_text':
+            self.setWindowOpacity(self.opacity_level)
         
         self.adjust_size_to_content()
 
@@ -733,6 +740,7 @@ class GameOverlay(QWidget):
         if self.display_mode == 'faded':
             return
         
+        self.setWindowOpacity(self.opacity_level)
         self.show()
         if self.show_animations:
             self.animation_timer.start(50)
@@ -929,6 +937,18 @@ class GameOverlay(QWidget):
         elif self.display_mode == 'horizontal':
             self.setMinimumSize(800, 120)
             self.resize(1200, 120)
+        elif self.display_mode == 'simple_text':
+            try:
+                if hasattr(self, 'notification_container') and self.notification_container:
+                    self.notification_container.adjustSize()
+                self.adjustSize()
+                min_w, min_h = 500, 40
+                if self.width() < min_w or self.height() < min_h:
+                    self.setMinimumSize(min_w, min_h)
+                    self.resize(max(self.width(), min_w), max(self.height(), min_h))
+            except Exception:
+                self.setMinimumSize(500, 40)
+                self.resize(300, 80)
     
     def handle_content_update(self):
         """Handle content updates and ensure proper sizing"""
