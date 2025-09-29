@@ -338,7 +338,6 @@ def init_ui(self) -> None:
     killfeed_layout.setContentsMargins(0, 0, 0, 0)
     killfeed_layout.setSpacing(15)
     
-    # Test WebEngine functionality at runtime
     webengine_works = test_webengine_functionality()
     
     if webengine_works:

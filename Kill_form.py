@@ -184,19 +184,72 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.twitch_enabled = False
         self.auto_connect_twitch = False
         self.twitch = TwitchIntegration()
+        from queue import Queue, Empty
+        from PyQt5.QtCore import QThread
+
+        class TwitchWorker(QThread):
+            def __init__(self, twitch_instance: TwitchIntegration, task_queue: Queue, parent=None):
+                super().__init__(parent)
+                self.twitch = twitch_instance
+                self.queue = task_queue
+                self._stop = False
+
+            def run(self):
+                while not self._stop:
+                    try:
+                        task = self.queue.get(timeout=0.5)
+                    except Empty:
+                        continue
+
+                    try:
+                        ttype = task.get('type')
+                        if ttype == 'clip':
+                            kill_data = task.get('kill_data')
+                            callback = task.get('callback')
+                            try:
+                                self.twitch.create_clip(kill_data, callback)
+                            except Exception as e:
+                                logging.error(f"TwitchWorker: failed to queue clip creation: {e}")
+                                if callback:
+                                    try:
+                                        callback('', kill_data)
+                                    except Exception:
+                                        pass
+                        elif ttype == 'chat':
+                            message = task.get('message')
+                            try:
+                                self.twitch.send_chat_message(message)
+                            except Exception as e:
+                                logging.error(f"TwitchWorker: failed to send chat message: {e}")
+                        else:
+                            logging.warning(f"TwitchWorker: unknown task type: {ttype}")
+                    except Exception as e:
+                        logging.error(f"TwitchWorker: unexpected error processing task: {e}")
+                    finally:
+                        try:
+                            self.queue.task_done()
+                        except Exception:
+                            pass
+
+            def stop(self):
+                self._stop = True
+
+        self._twitch_task_queue = Queue()
+        self._twitch_worker = TwitchWorker(self.twitch, self._twitch_task_queue, parent=self)
+        self._twitch_worker.start()
         self.clip_creation_enabled = True
         self.chat_posting_enabled = True
         self.clips: Dict[str, str] = {}
         
         self.twitch_callback_timer = QTimer()
         self.twitch_callback_timer.timeout.connect(lambda: process_twitch_callbacks(self))
-        self.twitch_callback_timer.start(1000)
+        self.twitch_callback_timer.start(250)
         self.last_clip_creation_time = 0
         
         self.button_automation = ButtonAutomation()
         self.button_automation_callback_timer = QTimer()
         self.button_automation_callback_timer.timeout.connect(lambda: process_button_automation_callbacks(self))
-        self.button_automation_callback_timer.start(1000)
+        self.button_automation_callback_timer.start(250)
         
         self.current_clip_group_id = ""
         self.clip_group_window_seconds = 10
@@ -2072,9 +2125,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     profile_url=attacker_rsi_url
                 )
                 try:
-                    self.twitch.post_death_to_chat(death_message)
+                    # enqueue death chat message to background worker
+                    self._twitch_task_queue.put_nowait({
+                        'type': 'chat',
+                        'message': death_message
+                    })
                 except Exception as e:
-                    logging.error(f"Error sending Twitch death message: {e}")
+                    logging.error(f"Failed to enqueue Twitch death message: {e}")
         
         self.save_local_kills()
         if self.send_to_api_checkbox.isChecked():
@@ -2109,42 +2166,106 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             return
             
         kill_data = self.local_kills[local_key]
-        victim_name = kill_data.get("victim", "")
-        
-        update_payload = {
-            "clip_url": clip_url,
-            "timestamp": kill_data.get("timestamp", ""),
-            "victim_name": victim_name
-        }
-        
+
+        raw_victim_name = (
+            kill_data.get("victim")
+            or kill_data.get("payload", {}).get("victim_name")
+            or kill_data.get("payload", {}).get("victim")
+            or ""
+        )
+        victim_name = raw_victim_name.strip() if isinstance(raw_victim_name, str) else ""
+
+        raw_timestamp = kill_data.get("timestamp", "")
+        timestamp = raw_timestamp.strip() if isinstance(raw_timestamp, str) else ""
+
+        update_payload = {"clip_url": clip_url}
+        if timestamp:
+            update_payload["timestamp"] = timestamp
+        if victim_name:
+            update_payload["victim_name"] = victim_name
+
         api_kill_id = kill_data.get("api_kill_id")
         if api_kill_id:
             update_payload["kill_id"] = api_kill_id
+
+        identifiers_present = any(key in update_payload for key in ("kill_id", "timestamp", "victim_name"))
+        if not identifiers_present:
+            logging.warning(
+                f"Skipping clip update for kill {local_key}; no identifier available to send with clip URL."
+            )
+            return
+
+        logging.info(
+            "Updating API with clip URL: %s for kill %s%s",
+            clip_url,
+            local_key,
+            f", victim: {victim_name}" if victim_name else ""
+        )
         
-        logging.info(f"Updating API with clip URL: {clip_url} for kill {local_key}, victim: {victim_name}")
-        
+        # Use strict, minimal headers required by the Dashboard validator
         headers = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'X-API-Key': self.api_key,
-            'User-Agent': self.user_agent
+            'User-Agent': self.user_agent,
+            'X-Client-ID': self.__client_id__,
+            'X-Client-Version': self.__version__
         }
-        
-        update_endpoint = f"{self.api_endpoint}/update-clip"
-        
+
+        update_endpoint = f"{self.api_endpoint.replace('/kills', '')}/kills/update-clip"
+
         try:
             logging.debug(f"Sending clip update payload: {update_payload}")
-            
-            response = requests.post(update_endpoint, json=update_payload, headers=headers, timeout=10)
+
+            verify_ssl = not getattr(self, 'disable_ssl_verification', False)
+            response = requests.post(update_endpoint, json=update_payload, headers=headers, timeout=10, verify=verify_ssl)
             logging.info(f"API response for clip update: {response.status_code} - {response.text}")
-            
-            if response.status_code == 200:
+
+            # Attempt to parse structured JSON response
+            resp_json = None
+            try:
+                resp_json = response.json()
+            except Exception:
+                resp_json = None
+
+            # Success path
+            if response.status_code in (200, 201):
+                # Dashboard may return structured success or an info object
+                if isinstance(resp_json, dict):
+                    # If validator returned a non-zero code or an explicit error field, treat as failure
+                    code = resp_json.get('code')
+                    message = resp_json.get('message') or resp_json.get('error') or ''
+                    if code and str(code) != '0':
+                        logging.error(f"Clip update rejected by API (code={code}): {message}")
+                        return
+                    # If API indicates duplicate, treat as already-set and mark sent
+                    if 'duplicate' in str(message).lower() or resp_json.get('duplicate'):
+                        logging.info(f"Clip update duplicate detected for kill {local_key}; marking as sent.")
+                        self.local_kills[local_key]["clip_url_sent_to_api"] = True
+                        self.save_local_kills()
+                        return
+
                 logging.info(f"Successfully updated API with clip URL for kill {local_key}")
                 self.local_kills[local_key]["clip_url_sent_to_api"] = True
                 self.save_local_kills()
-            else:
-                logging.error(f"Failed to update API with clip URL. Status code: {response.status_code}, Response: {response.text}")
+                return
+
+            # Client-side validation errors (structured)
+            if 400 <= response.status_code < 500:
+                if isinstance(resp_json, dict):
+                    code = resp_json.get('code')
+                    message = resp_json.get('message') or resp_json.get('error') or response.text
+                    logging.error(f"API validation error for clip update (status={response.status_code}, code={code}): {message}")
+                else:
+                    logging.error(f"Failed to update API with clip URL. Status code: {response.status_code}, Response: {response.text}")
+                return
+
+            # Server errors
+            logging.error(f"Server error updating API with clip URL. Status code: {response.status_code}, Response: {response.text}")
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error updating API with clip URL: {e}")
         except Exception as e:
-            logging.error(f"Error updating API with clip URL: {e}")
+            logging.error(f"Unexpected error updating API with clip URL: {e}")
 
     def on_tab_clicked(self):
         sender = self.sender()
@@ -2406,6 +2527,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             except Exception as e:
                 logging.error(f"Error disconnecting from Twitch during shutdown: {e}")
 
+        if hasattr(self, '_twitch_worker') and self._twitch_worker:
+            try:
+                self._twitch_worker.stop()
+                self._twitch_worker.wait(1000)
+            except Exception:
+                pass
+
         if hasattr(self, 'ship_combo'):
             self.ship_combo.setCurrentText("No Ship")
             logging.info("Reset ship selection to 'No Ship' on application close")
@@ -2615,7 +2743,15 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.clip_groups[self.current_clip_group_id] = [local_key]
         logging.info(f"Created new clip group {self.current_clip_group_id} for kill {local_key}")
 
-        self.twitch.create_clip(kill_data, lambda url, data: self.handle_clip_created_for_group(url, data, self.current_clip_group_id))
+        try:
+            # enqueue clip creation to background worker
+            self._twitch_task_queue.put_nowait({
+                'type': 'clip',
+                'kill_data': kill_data,
+                'callback': lambda url, data: self.handle_clip_created_for_group(url, data, self.current_clip_group_id)
+            })
+        except Exception as e:
+            logging.error(f"Failed to enqueue clip creation: {e}")
 
     def handle_clip_created_for_group(self, clip_url: str, kill_data: Dict[str, Any], group_id: str) -> None:
         """Handle clip creation for a kill group - applies clip URL to all kills in the group"""
@@ -2631,11 +2767,9 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     continue
 
                 if local_key in self.local_kills:
-                    group_kill_data = {
-                        "local_key": local_key,
-                        "readout": self.local_kills[local_key].get("readout", "")
-                    }
-                    self.on_create_clip_finished(clip_url, group_kill_data)
+                    full_kill_data = self.local_kills[local_key].copy()
+                    full_kill_data.setdefault("local_key", local_key)
+                    self.on_create_clip_finished(clip_url, full_kill_data)
                     logging.info(f"Applied group clip URL to kill: {local_key}")
         logging.info(f"Processed clip for kill group {group_id} with {len(self.clip_groups.get(group_id, []))} kills")
 
@@ -3029,7 +3163,15 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
         if self.twitch_enabled and self.twitch.is_ready():
             if self.clip_creation_enabled:
-                self.create_kill_clip(kill_data)
+                # enqueue clip creation task to background worker
+                try:
+                    self._twitch_task_queue.put_nowait({
+                        'type': 'clip',
+                        'kill_data': kill_data,
+                        'callback': lambda url, data: self.handle_clip_created_for_group(url, data, self.current_clip_group_id)
+                    })
+                except Exception as e:
+                    logging.error(f"Failed to enqueue clip creation task: {e}")
 
             if self.chat_posting_enabled:
                 rsi_url = f"https://robertsspaceindustries.com/en/citizens/{victim}"
@@ -3039,9 +3181,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     profile_url=rsi_url
                 )
                 try:
-                    self.twitch.send_chat_message(message)
+                    # enqueue chat send to background worker to avoid blocking UI
+                    self._twitch_task_queue.put_nowait({
+                        'type': 'chat',
+                        'message': message
+                    })
                 except Exception as e:
-                    logging.error(f"Error sending Twitch chat message: {e}")
+                    logging.error(f"Failed to enqueue Twitch chat message: {e}")
 
         if hasattr(self, 'button_automation') and self.button_automation:
             try:
