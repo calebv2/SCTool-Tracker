@@ -493,5 +493,20 @@
   "Changing hotkey to: %s": "ホットキーを変更中：%s",
   "Error updating overlay control panel translations: %s": "オーバーレイコントロールパネル翻訳の更新エラー：%s",
   "Confirm Exit": "終了確認",
-  "Monitoring is active. Stop and exit?": "監視が有効です。停止して終了しますか？"
+  "Monitoring is active. Stop and exit?": "監視が有効です。停止して終了しますか？",
+  "_COLOR_CUSTOMIZATION_": "===== カラーカスタマイゼーション =====",
+  "CUSTOM COLOR MODE": "カスタムカラーモード",
+  "Color Customization": "カラーカスタマイゼーション",
+  "Change Color": "色を変更",
+  "Select Color": "色を選択",
+  "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.": "オーバーレイシステムのすべての色要素をカスタマイズします。「色を変更」をクリックして簡易カラーピッカーを開きます。すべてのアイテムがすべてのオーバーレイで表示されるわけではありませんが、すべての色が保存されます。変更は即座に適用され、自動的に保存されます。",
+  "Background": "背景",
+  "Border": "境界線",
+  "Primary Text": "プライマリテキスト",
+  "Secondary Text": "セカンダリテキスト",
+  "Accent Color": "アクセントカラー",
+  "Kill Color": "キル色",
+  "Death Color": "デス色",
+  "Info Color": "情報色",
+  "Show Simple Text Helper": "シンプルテキストヘルパーを表示"
 }

@@ -493,5 +493,20 @@
   "Changing hotkey to: %s": "将热键更改为：%s",
   "Error updating overlay control panel translations: %s": "更新覆盖层控制面板翻译时出错：%s",
   "Confirm Exit": "确认退出",
-  "Monitoring is active. Stop and exit?": "监控正在运行。停止并退出吗？"
+  "Monitoring is active. Stop and exit?": "监控正在运行。停止并退出吗？",
+  "_COLOR_CUSTOMIZATION_": "===== 颜色自定义 =====",
+  "CUSTOM COLOR MODE": "自定义颜色模式",
+  "Color Customization": "颜色自定义",
+  "Change Color": "更改颜色",
+  "Select Color": "选择颜色",
+  "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.": "自定义覆盖系统中的每个颜色元素。点击'更改颜色'打开简化的颜色选择器。并非所有项目在所有覆盖中都可见，但所有颜色都将保存。更改立即应用并自动保存。",
+  "Background": "背景",
+  "Border": "边框",
+  "Primary Text": "主要文本",
+  "Secondary Text": "次要文本",
+  "Accent Color": "强调色",
+  "Kill Color": "击杀颜色",
+  "Death Color": "死亡颜色",
+  "Info Color": "信息颜色",
+  "Show Simple Text Helper": "显示简单文本助手"
 }

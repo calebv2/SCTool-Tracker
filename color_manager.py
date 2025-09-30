@@ -6,6 +6,11 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QColorDialog
 from typing import Dict, Any
 
+# Import the translation function
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from language_manager import t
+
 class ColorManager:
     """Manages custom colors for overlays with persistence"""
     
@@ -100,14 +105,14 @@ class ColorManager:
     def get_color_display_names(self) -> Dict[str, str]:
         """Get human-readable display names for colors"""
         return {
-            'background': 'Background',
-            'border': 'Border',
-            'text_primary': 'Primary Text',
-            'text_secondary': 'Secondary Text',
-            'accent': 'Accent Color',
-            'kill_color': 'Kill Color',
-            'death_color': 'Death Color',
-            'info_color': 'Info Color'
+            'background': t('Background'),
+            'border': t('Border'),
+            'text_primary': t('Primary Text'),
+            'text_secondary': t('Secondary Text'),
+            'accent': t('Accent Color'),
+            'kill_color': t('Kill Color'),
+            'death_color': t('Death Color'),
+            'info_color': t('Info Color')
         }
 
 color_manager = ColorManager()

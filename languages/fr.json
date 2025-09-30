@@ -493,5 +493,20 @@
   "Warning: Unknown key '%s' in hotkey combination '%s'": "Avertissement : Touche inconnue '%s' dans la combinaison de raccourci '%s'",
   "Invalid hotkey combination: %s": "Combinaison de raccourci invalide : %s",
   "Hotkey %s is already registered by another application": "Le raccourci %s est déjà enregistré par une autre application",
-  "Failed to register hotkey %s. Error code: %s": "Échec de l'enregistrement du raccourci %s. Code d'erreur : %s"
+  "Failed to register hotkey %s. Error code: %s": "Échec de l'enregistrement du raccourci %s. Code d'erreur : %s",
+  "_COLOR_CUSTOMIZATION_": "===== Personnalisation des Couleurs =====",
+  "CUSTOM COLOR MODE": "MODE COULEUR PERSONNALISÉ",
+  "Color Customization": "Personnalisation des Couleurs",
+  "Change Color": "Changer la Couleur",
+  "Select Color": "Sélectionner la Couleur",
+  "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.": "Personnalisez chaque élément de couleur dans le système de superposition. Cliquez sur 'Changer la Couleur' pour ouvrir un sélecteur de couleur simplifié. Tous les éléments peuvent ne pas être visibles dans toutes les superpositions, mais toutes les couleurs seront sauvegardées. Les modifications sont appliquées immédiatement et sauvegardées automatiquement.",
+  "Background": "Arrière-plan",
+  "Border": "Bordure",
+  "Primary Text": "Texte Primaire",
+  "Secondary Text": "Texte Secondaire",
+  "Accent Color": "Couleur d'Accent",
+  "Kill Color": "Couleur d'Élimination",
+  "Death Color": "Couleur de Mort",
+  "Info Color": "Couleur d'Information",
+  "Show Simple Text Helper": "Afficher l'Assistant Texte Simple"
 }

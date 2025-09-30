@@ -493,5 +493,20 @@
   "Changing hotkey to: %s": "Changing hotkey to: %s",
   "Error updating overlay control panel translations: %s": "Error updating overlay control panel translations: %s",
   "Confirm Exit": "Confirm Exit",
-  "Monitoring is active. Stop and exit?": "Monitoring is active. Stop and exit?"
+  "Monitoring is active. Stop and exit?": "Monitoring is active. Stop and exit?",
+  "_COLOR_CUSTOMIZATION_": "===== Color Customization =====",
+  "CUSTOM COLOR MODE": "CUSTOM COLOR MODE",
+  "Color Customization": "Color Customization",
+  "Change Color": "Change Color",
+  "Select Color": "Select Color",
+  "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.": "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.",
+  "Background": "Background",
+  "Border": "Border",
+  "Primary Text": "Primary Text",
+  "Secondary Text": "Secondary Text",
+  "Accent Color": "Accent Color",
+  "Kill Color": "Kill Color",
+  "Death Color": "Death Color",
+  "Info Color": "Info Color",
+  "Show Simple Text Helper": "Show Simple Text Helper"
 }

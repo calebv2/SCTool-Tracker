@@ -403,15 +403,13 @@ class TailThread(QThread):
         timestamp = event.get('timestamp', '')
         destroy_level = event.get('destroy_level', 0)
         
-        # Check if destroyer is NPC - if so, don't show vehicle destruction
         if KillParser.is_npc(destroyer):
             logging.info(f"NPC vehicle destruction detected (destroyer: {destroyer}). Not showing.")
             return
         
-        # Clean vehicle name by removing trailing numbers and underscores
-        cleaned_vehicle = re.sub(r'_\d+$', '', vehicle_name)  # Remove trailing _numbers
-        cleaned_vehicle = re.sub(r'\s+\d+$', '', cleaned_vehicle)  # Remove trailing numbers after space
-        cleaned_vehicle = cleaned_vehicle.replace('_', ' ')  # Replace underscores with spaces
+        cleaned_vehicle = re.sub(r'_\d+$', '', vehicle_name)
+        cleaned_vehicle = re.sub(r'\s+\d+$', '', cleaned_vehicle)
+        cleaned_vehicle = cleaned_vehicle.replace('_', ' ')
         
         if destroyer.lower() == self.registered_user.strip().lower():
             if destroy_level == 1:
@@ -427,6 +425,7 @@ class TailThread(QThread):
                     <tr>
                         <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
                             <div style="font-size: 18px; font-weight: bold; color: #00ccff; margin-bottom: 5px;">VEHICLE {destruction_type}</div>
+                            <div style="font-size: 14px; color: #ff9900; margin-bottom: 3px;">EMPTY VEHICLE DESTROYED</div>
                             <div style="font-size: 14px; color: #c8c8c8;">{cleaned_vehicle}</div>
                         </td>
                     </tr>
@@ -443,8 +442,7 @@ class TailThread(QThread):
         attacker = event.get('attacker', '').strip()
         vehicle_name = event.get('vehicle_name', '')
         timestamp = event.get('timestamp', '')
-        
-        # Check if attacker is NPC - if so, don't show vehicle kill
+
         if KillParser.is_npc(attacker):
             logging.info(f"NPC vehicle kill detected (attacker: {attacker}). Not showing.")
             return
@@ -518,7 +516,6 @@ class TailThread(QThread):
         victim = data.get('victim', '').strip()
         attacker = data.get('attacker', '').strip()
 
-        # Skip vehicledestruction events - let the vehicle correlator handle them
         if data.get("damage_type", "").lower() == "vehicledestruction":
             logging.debug(f"Skipping vehicledestruction event - will be handled by vehicle correlator: {victim} killed by {attacker}")
             return
@@ -543,7 +540,6 @@ class TailThread(QThread):
             return
 
         captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
-        # Since vehicledestruction events are handled by correlator, all remaining events are player destruction
         data["killer_ship"] = "Player destruction"
 
         if attacker.lower() == self.registered_user.strip().lower():

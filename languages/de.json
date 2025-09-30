@@ -493,5 +493,20 @@
   "Changing hotkey to: %s": "Hotkey wird geändert zu: %s",
   "Error updating overlay control panel translations: %s": "Fehler beim Aktualisieren der Overlay-Kontrollpanel-Übersetzungen: %s",
   "Confirm Exit": "Beenden bestätigen",
-  "Monitoring is active. Stop and exit?": "Überwachung ist aktiv. Stoppen und beenden?"
+  "Monitoring is active. Stop and exit?": "Überwachung ist aktiv. Stoppen und beenden?",
+  "_COLOR_CUSTOMIZATION_": "===== Farbanpassung =====",
+  "CUSTOM COLOR MODE": "BENUTZERDEFINIERTER FARBMODUS",
+  "Color Customization": "Farbanpassung",
+  "Change Color": "Farbe ändern",
+  "Select Color": "Farbe auswählen",
+  "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.": "Passen Sie jedes Farbelement im Overlay-System an. Klicken Sie auf 'Farbe ändern', um einen vereinfachten Farbwähler zu öffnen. Nicht jedes Element ist in allen Overlays sichtbar, aber alle Farben werden gespeichert. Änderungen werden sofort angewendet und automatisch gespeichert.",
+  "Background": "Hintergrund",
+  "Border": "Rahmen",
+  "Primary Text": "Primärer Text",
+  "Secondary Text": "Sekundärer Text",
+  "Accent Color": "Akzentfarbe",
+  "Kill Color": "Kill-Farbe",
+  "Death Color": "Tod-Farbe",
+  "Info Color": "Info-Farbe",
+  "Show Simple Text Helper": "Einfachen Text-Helfer anzeigen"
 }

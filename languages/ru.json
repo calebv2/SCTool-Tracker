@@ -493,5 +493,20 @@
   "Changing hotkey to: %s": "Изменение горячей клавиши на: %s",
   "Error updating overlay control panel translations: %s": "Ошибка обновления переводов панели управления оверлея: %s",
   "Confirm Exit": "Подтвердить выход",
-  "Monitoring is active. Stop and exit?": "Мониторинг активен. Остановить и выйти?"
+  "Monitoring is active. Stop and exit?": "Мониторинг активен. Остановить и выйти?",
+  "_COLOR_CUSTOMIZATION_": "===== Настройка Цветов =====",
+  "CUSTOM COLOR MODE": "ПОЛЬЗОВАТЕЛЬСКИЙ ЦВЕТОВОЙ РЕЖИМ",
+  "Color Customization": "Настройка Цветов",
+  "Change Color": "Изменить Цвет",
+  "Select Color": "Выбрать Цвет",
+  "Customize every color element in the overlay system. Click 'Change Color' to open a simplified color picker. Not every item may be visible in all overlays, but all colors will be saved. Changes are applied immediately and saved automatically.": "Настройте каждый цветовой элемент в системе оверлея. Нажмите 'Изменить Цвет', чтобы открыть упрощенный селектор цветов. Не все элементы могут быть видны во всех оверлеях, но все цвета будут сохранены. Изменения применяются немедленно и сохраняются автоматически.",
+  "Background": "Фон",
+  "Border": "Граница",
+  "Primary Text": "Основной Текст",
+  "Secondary Text": "Вторичный Текст",
+  "Accent Color": "Акцентный Цвет",
+  "Kill Color": "Цвет Убийства",
+  "Death Color": "Цвет Смерти",
+  "Info Color": "Цвет Информации",
+  "Show Simple Text Helper": "Показать Простой Текстовый Помощник"
 }
