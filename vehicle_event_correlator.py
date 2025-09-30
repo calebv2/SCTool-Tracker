@@ -94,8 +94,6 @@ class VehicleEventCorrelator:
                     self.logger.info(f"Buffering vehicle destruction (unknown destroyer): {vehicle_event.vehicle_name} (level {vehicle_event.destroy_level})")
                 
                 elif vehicle_event.destroy_level == 1:
-                    # For disabled vehicles (level 1), create immediate display event
-                    # These are just informational and don't need correlation delay
                     self.logger.info(f"Creating immediate vehicle disabled event: {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
                     display_event = self._create_vehicle_destruction_event(vehicle_event)
                     correlated_events.append(display_event)
@@ -121,7 +119,6 @@ class VehicleEventCorrelator:
                     self.logger.debug(f"Skipping vehicle entity death: {actor_event.victim}")
                     return None, correlated_events
                 
-                # Check if victim is an NPC and skip if so
                 if KillParser.is_npc(actor_event.victim, actor_event.victim_id):
                     self.logger.debug(f"Skipping NPC vehicle death: {actor_event.victim}")
                     return None, correlated_events
@@ -307,7 +304,6 @@ class VehicleEventCorrelator:
     def _create_correlated_kill_event(self, vehicle_event: VehicleDestroyEvent, actor_event: ActorDeathEvent) -> Optional[Dict]:
         """Create kill event from correlated vehicle and actor events"""
         
-        # Check if victim is an NPC and skip if so
         if KillParser.is_npc(actor_event.victim, actor_event.victim_id):
             self.logger.info(f"NPC kill detected in vehicle correlation (victim: {actor_event.victim}). Not processing.")
             return None

@@ -518,6 +518,7 @@ SCTool Tracker includes a dual sound notification system that plays audio alerts
 
 - **Dual Sound Systems**: Separate customizable sound notifications for kills and deaths
 - **Custom Sound Files**: Support for .wav, .mp3, and .ogg audio formats
+ - **Custom Sound Files**: Support for .wav, .mp3, and .ogg audio formats (you can add more formats in Settings — e.g. m4a, flac)
 - **Independent Volume Control**: Adjustable volume sliders from 0-100% for both kill and death sounds
 - **File Browser**: Easy sound file selection through built-in file browser
 - **Default Sounds**: Includes default `kill.wav` and `death.wav` files for immediate use
@@ -531,7 +532,7 @@ SCTool Tracker includes a dual sound notification system that plays audio alerts
 3. **Select Audio File**: 
    - Use the default `kill.wav` file (included)
    - Browse for your custom sound file using the "Browse" button
-   - Supported formats: .wav, .mp3, .ogg
+   - Supported formats: configurable in Settings (default: .wav, .mp3, .ogg)
 4. **Adjust Volume**: Use the volume slider to set your preferred audio level
 5. **Test Sound**: Click the test button to preview your sound selection
 
@@ -540,7 +541,7 @@ SCTool Tracker includes a dual sound notification system that plays audio alerts
 2. **Select Death Audio File**: 
    - Use the default `death.wav` file (included)
    - Browse for your custom death sound file using the "Browse" button
-   - Supported formats: .wav, .mp3, .ogg
+   - Supported formats: configurable in Settings (default: .wav, .mp3, .ogg)
 3. **Adjust Death Volume**: Use the separate death volume slider to set your preferred audio level
 4. **Test Death Sound**: Click the death sound test button to preview your selection
 

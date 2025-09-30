@@ -32,7 +32,6 @@ class SimpleColorDialog(QColorDialog):
                 color: #ffffff;
             }
             
-            /* Hide all input fields and labels by making them invisible and tiny */
             QSpinBox, QLineEdit {
                 max-height: 0px;
                 max-width: 0px;
@@ -49,7 +48,6 @@ class SimpleColorDialog(QColorDialog):
                 border: none;
             }
             
-            /* Style all QPushButtons first, then override for specific ones */
             QPushButton {
                 background: #404040;
                 color: #ffffff;
@@ -66,7 +64,6 @@ class SimpleColorDialog(QColorDialog):
                 border-color: #666666;
             }
             
-            /* Style OK/Apply button to be prominent */
             QPushButton[text="OK"], QPushButton[text="Apply"] {
                 background: #00aa00;
                 color: #ffffff;
@@ -123,9 +120,7 @@ class SimpleColorDialog(QColorDialog):
                 
                 if widget_class == 'QPushButton':
                     text = child.text().lower() if hasattr(child, 'text') else ""
-                    # Keep essential buttons visible
                     if text in ['ok', 'cancel', 'apply']:
-                        # Make sure these buttons are visible and properly styled
                         child.setMinimumSize(60, 30)
                         child.show()
                     elif any(word in text for word in ['pick', 'screen', 'add', 'custom']):

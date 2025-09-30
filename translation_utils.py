@@ -532,13 +532,13 @@ def validate_translations():
         logging.error(f"Error validating translations: {e}")
         return {}
 
-def create_comprehensive_translation_fix():
-    """Create a comprehensive fix for translation issues"""
-    
+def create_translation_fix():
+    """Create a fix for translation issues"""
+
     def enhanced_translate_application(main_app):
         """Enhanced version of translate_application with better UI refresh"""
         try:
-            print(f"=== COMPREHENSIVE TRANSLATION UPDATE START ===")
+            print(f"=== TRANSLATION UPDATE START ===")
             print(f"Target language: {language_manager.current_language}")
             
             if hasattr(main_app, 'language_selector') and main_app.language_selector:
@@ -557,12 +557,12 @@ def create_comprehensive_translation_fix():
             
             force_complete_ui_refresh(main_app)
             
-            print(f"=== COMPREHENSIVE TRANSLATION UPDATE COMPLETE ===")
+            print(f"=== TRANSLATION UPDATE COMPLETE ===")
             
         except Exception as e:
             logging.error(f"Error in enhanced_translate_application: {e}")
-            print(f"Error in comprehensive translation update: {e}")
-    
+            print(f"Error in translation update: {e}")
+
     def update_ui_sections_with_force_refresh(main_app):
         """Update UI sections with forced refresh"""
         try:
@@ -775,7 +775,7 @@ def create_comprehensive_translation_fix():
     
     return enhanced_translate_application
 
-enhanced_translate_application = create_comprehensive_translation_fix()
+enhanced_translate_application = create_translation_fix()
 
 def manual_translation_fix(main_app):
     """Manual translation fix that can be called when translations get stuck"""

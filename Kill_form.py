@@ -35,7 +35,7 @@ from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen
 from PyQt5.QtCore import (
     Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect, QPropertyAnimation, QEasingCurve
 )
-from PyQt5.QtMultimedia import QSoundEffect
+from PyQt5.QtMultimedia import QSoundEffect, QMediaPlayer, QMediaContent
 
 from Kill_thread import ApiSenderThread, TailThread, RescanThread, MissingKillsDialog
 from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT
@@ -153,6 +153,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.kill_sound_volume = 100
         self.kill_sound_mode = "single"
         self.kill_sound_folder = ""
+        self.custom_audio_extensions = ['wav', 'mp3', 'ogg']
         
         self.death_sound_enabled = False
         self.death_sound_effect = QSoundEffect()
@@ -277,6 +278,71 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.update_sound_settings_translations()
         
         self.update_ui_scaling()
+
+        try:
+            self._media_player_kill = QMediaPlayer()
+            self._media_player_death = QMediaPlayer()
+        except Exception:
+            self._media_player_kill = None
+            self._media_player_death = None
+
+    def _play_sound_with_fallback(self, path: str, volume_fraction: float, kind: str = 'kill') -> bool:
+        """
+        Try to play sound using QSoundEffect, fall back to QMediaPlayer on failure.
+        volume_fraction: 0.0 - 1.0
+        kind: 'kill' or 'death'
+        Returns True if playback started, False otherwise.
+        """
+        try:
+            ext = os.path.splitext(path)[1].lower().lstrip('.')
+            use_sound_effect = ext in ('wav', 'wave')
+
+            player = self._media_player_kill if kind == 'kill' else self._media_player_death
+
+            if not use_sound_effect:
+                if player is None:
+                    logging.debug(f"No media player available, attempting QSoundEffect for {path}")
+                else:
+                    try:
+                        try:
+                            player.stop()
+                        except Exception:
+                            pass
+                        player.setMedia(QMediaContent(QUrl.fromLocalFile(path)))
+                        player.setVolume(int(max(0.0, min(1.0, float(volume_fraction))) * 100))
+                        player.play()
+                        return True
+                    except Exception as e:
+                        logging.debug(f"QMediaPlayer failed for {path}: {e}")
+
+            try:
+                effect = self.kill_sound_effect if kind == 'kill' else self.death_sound_effect
+                effect.stop()
+                effect.setSource(QUrl.fromLocalFile(path))
+                effect.setVolume(max(0.0, min(1.0, float(volume_fraction))))
+                effect.play()
+                return True
+            except Exception as e:
+                logging.debug(f"QSoundEffect failed for {path}: {e}")
+
+            if player is None:
+                return False
+            try:
+                try:
+                    player.stop()
+                except Exception:
+                    pass
+                player.setMedia(QMediaContent(QUrl.fromLocalFile(path)))
+                player.setVolume(int(max(0.0, min(1.0, float(volume_fraction))) * 100))
+                player.play()
+                return True
+            except Exception as e:
+                logging.error(f"Playback error for {path}: {e}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Playback error (outer) for {path}: {e}")
+            return False
 
     def _append_to_display(self, html_content: str) -> None:
         """Wrapper method to append HTML content to display widget (works with both QWebEngineView and QTextBrowser)"""
@@ -454,6 +520,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'death_sound_volume': self.death_volume_slider.value(),
             'death_sound_mode': self.death_sound_mode,
             'death_sound_folder': self.death_sound_folder_input.text().strip(),
+            'custom_audio_extensions': self.custom_audio_extensions,
             'log_path': self.log_path_input.text().strip(),
             'api_key': self.api_key_input.text().strip(),
             'disable_ssl_verification': self.disable_ssl_verification,
@@ -726,7 +793,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         webbrowser.open(TRACKER_DIR)
 
     def generate_api_diagnostic_report(self) -> str:
-        """Generate a comprehensive diagnostic report for API connection issues"""
+        """Generate a diagnostic report for API connection issues"""
         import platform
         import sys
         
@@ -1334,13 +1401,18 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         """Get a random sound file from the specified folder."""
         if not folder_path or not os.path.exists(folder_path):
             return ""
-        
-        audio_extensions = ['*.wav', '*.mp3', '*.ogg']
         audio_files = []
-        
-        for extension in audio_extensions:
-            audio_files.extend(glob.glob(os.path.join(folder_path, extension)))
-            audio_files.extend(glob.glob(os.path.join(folder_path, extension.upper())))
+        exts = []
+        if hasattr(self, 'custom_audio_extensions') and self.custom_audio_extensions:
+            exts = [e.lstrip('.').lower() for e in self.custom_audio_extensions if e]
+        else:
+            exts = ['wav', 'mp3', 'ogg']
+
+        for ext in exts:
+            pattern = f"*.{ext}"
+            pattern_up = f"*.{ext.upper()}"
+            audio_files.extend(glob.glob(os.path.join(folder_path, pattern)))
+            audio_files.extend(glob.glob(os.path.join(folder_path, pattern_up)))
         
         if not audio_files:
             return ""
@@ -1359,18 +1431,14 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         if self.kill_sound_enabled:
             sound_file = self.get_sound_file_for_event(self.kill_sound_mode, self.kill_sound_path, self.kill_sound_folder)
             if sound_file and os.path.exists(sound_file):
-                self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_file))
-                self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
-                self.kill_sound_effect.play()
+                self._play_sound_with_fallback(sound_file, self.kill_sound_volume / 100.0, kind='kill')
 
     def on_death_detected(self, readout: str, attacker: str) -> None:
         self.append_death_readout(readout)
         if self.death_sound_enabled:
             sound_file = self.get_sound_file_for_event(self.death_sound_mode, self.death_sound_path, self.death_sound_folder)
             if sound_file and os.path.exists(sound_file):
-                self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_file))
-                self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
-                self.death_sound_effect.play()
+                self._play_sound_with_fallback(sound_file, self.death_sound_volume / 100.0, kind='death')
 
     def export_logs(self) -> None:
         """Export the kill/death log entries to an HTML file."""
@@ -2125,7 +2193,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     profile_url=attacker_rsi_url
                 )
                 try:
-                    # enqueue death chat message to background worker
                     self._twitch_task_queue.put_nowait({
                         'type': 'chat',
                         'message': death_message
@@ -2201,8 +2268,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             local_key,
             f", victim: {victim_name}" if victim_name else ""
         )
-        
-        # Use strict, minimal headers required by the Dashboard validator
+    
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
@@ -2221,24 +2287,19 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             response = requests.post(update_endpoint, json=update_payload, headers=headers, timeout=10, verify=verify_ssl)
             logging.info(f"API response for clip update: {response.status_code} - {response.text}")
 
-            # Attempt to parse structured JSON response
             resp_json = None
             try:
                 resp_json = response.json()
             except Exception:
                 resp_json = None
 
-            # Success path
             if response.status_code in (200, 201):
-                # Dashboard may return structured success or an info object
                 if isinstance(resp_json, dict):
-                    # If validator returned a non-zero code or an explicit error field, treat as failure
                     code = resp_json.get('code')
                     message = resp_json.get('message') or resp_json.get('error') or ''
                     if code and str(code) != '0':
                         logging.error(f"Clip update rejected by API (code={code}): {message}")
                         return
-                    # If API indicates duplicate, treat as already-set and mark sent
                     if 'duplicate' in str(message).lower() or resp_json.get('duplicate'):
                         logging.info(f"Clip update duplicate detected for kill {local_key}; marking as sent.")
                         self.local_kills[local_key]["clip_url_sent_to_api"] = True
@@ -2250,7 +2311,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 self.save_local_kills()
                 return
 
-            # Client-side validation errors (structured)
             if 400 <= response.status_code < 500:
                 if isinstance(resp_json, dict):
                     code = resp_json.get('code')
@@ -2260,7 +2320,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     logging.error(f"Failed to update API with clip URL. Status code: {response.status_code}, Response: {response.text}")
                 return
 
-            # Server errors
             logging.error(f"Server error updating API with clip URL. Status code: {response.status_code}, Response: {response.text}")
         except requests.exceptions.RequestException as e:
             logging.error(f"Network error updating API with clip URL: {e}")
@@ -3338,9 +3397,12 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def on_kill_sound_file_browse(self) -> None:
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
+        exts = getattr(self, 'custom_audio_extensions', ['wav', 'mp3', 'ogg'])
+        patterns = ' '.join(f"*.{e.lstrip('.')}" for e in exts)
+        filter_str = f"Audio Files ({patterns});;All Files (*)"
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Kill Sound File", "",
-            "Audio Files (*.wav *.mp3 *.ogg);;All Files (*)",
+            filter_str,
             options=options
         )
         if file_path:
@@ -3368,9 +3430,9 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 return
                 
             try:
-                self.kill_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
-                self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
-                self.kill_sound_effect.play()
+                played = self._play_sound_with_fallback(sound_path, self.kill_sound_volume / 100.0, kind='kill')
+                if not played:
+                    raise Exception("Playback failed")
             except Exception as e:
                 QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
 
@@ -3381,9 +3443,12 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
     def on_death_sound_file_browse(self) -> None:
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
+        exts = getattr(self, 'custom_audio_extensions', ['wav', 'mp3', 'ogg'])
+        patterns = ' '.join(f"*.{e.lstrip('.')}" for e in exts)
+        filter_str = f"Audio Files ({patterns});;All Files (*)"
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Death Sound File", "",
-            "Audio Files (*.wav *.mp3 *.ogg);;All Files (*)",
+            filter_str,
             options=options
         )
         if file_path:
@@ -3411,9 +3476,9 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 return
                 
             try:
-                self.death_sound_effect.setSource(QUrl.fromLocalFile(sound_path))
-                self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
-                self.death_sound_effect.play()
+                played = self._play_sound_with_fallback(sound_path, self.death_sound_volume / 100.0, kind='death')
+                if not played:
+                    raise Exception("Playback failed")
             except Exception as e:
                 QMessageBox.critical(self, "Sound Test Failed", f"Failed to play sound file:\n{str(e)}")
 
@@ -3462,13 +3527,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         
         random_sound = self.get_random_sound_from_folder(folder_path)
         if not random_sound:
-            QMessageBox.warning(self, "No Audio Files", "No supported audio files (.wav, .mp3, .ogg) found in the selected folder.")
+            exts = getattr(self, 'custom_audio_extensions', ['wav', 'mp3', 'ogg'])
+            ext_list = ', '.join(f'.{e}' for e in exts)
+            QMessageBox.warning(self, "No Audio Files", f"No supported audio files ({ext_list}) found in the selected folder.")
             return
             
         try:
-            self.kill_sound_effect.setSource(QUrl.fromLocalFile(random_sound))
-            self.kill_sound_effect.setVolume(self.kill_sound_volume / 100.0)
-            self.kill_sound_effect.play()
+            self._play_sound_with_fallback(random_sound, self.kill_sound_volume / 100.0, kind='kill')
             
             filename = os.path.basename(random_sound)
             self.show_temporary_popup(f"Playing: {filename}", 2000)
@@ -3520,13 +3585,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         
         random_sound = self.get_random_sound_from_folder(folder_path)
         if not random_sound:
-            QMessageBox.warning(self, "No Audio Files", "No supported audio files (.wav, .mp3, .ogg) found in the selected folder.")
+            exts = getattr(self, 'custom_audio_extensions', ['wav', 'mp3', 'ogg'])
+            ext_list = ', '.join(f'.{e}' for e in exts)
+            QMessageBox.warning(self, "No Audio Files", f"No supported audio files ({ext_list}) found in the selected folder.")
             return
             
         try:
-            self.death_sound_effect.setSource(QUrl.fromLocalFile(random_sound))
-            self.death_sound_effect.setVolume(self.death_sound_volume / 100.0)
-            self.death_sound_effect.play()
+            self._play_sound_with_fallback(random_sound, self.death_sound_volume / 100.0, kind='death')
 
             filename = os.path.basename(random_sound)
             self.show_temporary_popup(f"Playing: {filename}", 2000)

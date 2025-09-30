@@ -1032,7 +1032,25 @@ def init_ui(self) -> None:
     sound_path_layout.addWidget(self.kill_sound_test_btn)
     
     sound_card_layout.addRow(sound_path_label, sound_path_container)
-    
+
+    self.custom_ext_input = QLineEdit()
+    exts_val = ','.join(getattr(self, 'custom_audio_extensions', ['wav', 'mp3', 'ogg']))
+    self.custom_ext_input.setText(exts_val)
+    def _handle_custom_ext_change(val: str):
+        try:
+            parts = [p.strip().lstrip('.').lower() for p in val.split(',') if p.strip()]
+            if parts:
+                self.custom_audio_extensions = parts
+            else:
+                self.custom_audio_extensions = ['wav', 'mp3', 'ogg']
+            self.save_config()
+        except Exception as e:
+            logging.error(f"Error updating custom audio extensions: {e}")
+
+    self.on_custom_ext_changed = _handle_custom_ext_change
+    self.custom_ext_input.textChanged.connect(self.on_custom_ext_changed)
+
+
     kill_folder_label = QLabel(t("Kill Sound Folder:"))
     kill_folder_label.setStyleSheet("QLabel { color: #ffffff; font-weight: bold; background: transparent; border: none; font-size: 14px; }")
     
@@ -2061,6 +2079,10 @@ def load_config(self) -> None:
             if death_sound_folder:
                 self.death_sound_folder = death_sound_folder
                 self.death_sound_folder_input.setText(death_sound_folder)
+
+            custom_exts = config.get('custom_audio_extensions', None)
+            if custom_exts and isinstance(custom_exts, list):
+                self.custom_audio_extensions = [str(e).lstrip('.').lower() for e in custom_exts if e]
             
             self.twitch_enabled = config.get('twitch_enabled', False)
             self.twitch_enabled_checkbox.setChecked(self.twitch_enabled)
@@ -2118,6 +2140,20 @@ def load_config(self) -> None:
             logging.info("Configuration loaded successfully")
     except json.JSONDecodeError as e:
         logging.error(f"Configuration file is corrupted (JSON error): {e}")
+    except Exception as e:
+        logging.error(f"Error loading configuration: {e}")
+
+def on_custom_ext_changed(self, value: str) -> None:
+    """Update custom audio extensions from comma-separated input and save."""
+    try:
+        parts = [p.strip().lstrip('.').lower() for p in value.split(',') if p.strip()]
+        if parts:
+            self.custom_audio_extensions = parts
+        else:
+            self.custom_audio_extensions = ['wav', 'mp3', 'ogg']
+        self.save_config()
+    except Exception as e:
+        logging.error(f"Error updating custom audio extensions: {e}")
         logging.info("The config file will be recreated with default settings")
         try:
             os.remove(CONFIG_FILE)

@@ -813,13 +813,11 @@ class OverlayControlPanel(QFrame):
             if hasattr(self, 'theme_label_text'):
                 self.theme_label_text.setText(t("Theme:"))
             
-            # Update theme combo box items
             if hasattr(self, 'theme_combo'):
                 current_theme = self.overlay.theme
                 self.theme_combo.clear()
                 self.theme_combo.addItems([t("Default"), t("Dark"), t("Neon"), t("Custom")])
                 
-                # Restore selection
                 if current_theme == "custom":
                     self.theme_combo.setCurrentText(t("Custom"))
                 else:

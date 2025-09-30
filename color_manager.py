@@ -6,7 +6,6 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QColorDialog
 from typing import Dict, Any
 
-# Import the translation function
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from language_manager import t
