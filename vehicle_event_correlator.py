@@ -52,7 +52,7 @@ class VehicleEventCorrelator:
         self._cleanup_interval = 0.1
         self._cleanup_thread: Optional[threading.Thread] = None
         self._cleanup_stop = threading.Event()
-        self.event_callback = event_callback  # Callback to emit expired events
+        self.event_callback = event_callback
         self.logger = logging.getLogger(__name__)
         self.npc_patterns = ["pu_", "npc", "ai", "enemy", "criminal", "soldier", "engineer",
                             "gunner", "sniper", "shipjacker"]
@@ -93,7 +93,6 @@ class VehicleEventCorrelator:
             if vehicle_event:
                 should_buffer = False
                 
-                # Check for ejection - these should be shown immediately
                 if vehicle_event.damage_cause.lower() == 'ejection':
                     self.logger.info(f"Ejection detected: {vehicle_event.destroyer_name} ejected from {vehicle_event.vehicle_name}")
                     ejection_event = self._create_ejection_event(vehicle_event)
@@ -456,7 +455,6 @@ class VehicleEventCorrelator:
                 try:
                     now = time.time()
                     expired = self._cleanup_expired_events(now)
-                    # Emit expired events through callback if available
                     if expired and self.event_callback:
                         for event in expired:
                             self.event_callback(event)

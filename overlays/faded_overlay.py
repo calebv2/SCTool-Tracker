@@ -101,6 +101,20 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
     
     header_row.addWidget(image_container, 0, Qt.AlignRight)
     
+    attacker_row = QHBoxLayout()
+    attacker_row.setSpacing(8)
+    
+    icon_label = QLabel()
+    icon_label.setFixedSize(20, 20)
+    icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'player_destruction.png')
+    if os.path.exists(icon_path):
+        pixmap = QPixmap(icon_path)
+        if not pixmap.isNull():
+            scaled_pixmap = pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icon_label.setPixmap(scaled_pixmap)
+    
+    attacker_row.addWidget(icon_label)
+    
     attacker_label = QLabel(f"{t('KILLED BY:')} {attacker.upper()}")
     attacker_label.setAlignment(Qt.AlignLeft)
     attacker_label.setStyleSheet(f"""
@@ -112,7 +126,10 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
             background: transparent;
         }}
     """)
-    notification_layout.addWidget(attacker_label)
+    attacker_row.addWidget(attacker_label)
+    attacker_row.addStretch()
+    
+    notification_layout.addLayout(attacker_row)
 
     org_name = details.get('org_name', 'None')
     org_tag = details.get('org_tag', 'None')
@@ -203,8 +220,6 @@ def show_death_notification(self, attacker: str, weapon: str, zone: str, game_mo
     if attacker_image_data_uri:
         try:
             if attacker_image_data_uri.startswith('data:image'):
-                from PyQt5.QtGui import QPixmap
-                import base64
                 
                 header, data = attacker_image_data_uri.split(',', 1)
                 image_data = base64.b64decode(data)
@@ -327,6 +342,20 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
     
     header_row.addWidget(image_container, 0, Qt.AlignRight)
     
+    victim_row = QHBoxLayout()
+    victim_row.setSpacing(8)
+    
+    icon_label = QLabel()
+    icon_label.setFixedSize(20, 20)
+    icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'player_destruction.png')
+    if os.path.exists(icon_path):
+        pixmap = QPixmap(icon_path)
+        if not pixmap.isNull():
+            scaled_pixmap = pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icon_label.setPixmap(scaled_pixmap)
+    
+    victim_row.addWidget(icon_label)
+    
     victim_label = QLabel(t(victim.upper()))
     victim_label.setAlignment(Qt.AlignLeft)
     victim_label.setStyleSheet(f"""
@@ -338,7 +367,10 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
             background: transparent;
         }}
     """)
-    notification_layout.addWidget(victim_label)
+    victim_row.addWidget(victim_label)
+    victim_row.addStretch()
+    
+    notification_layout.addLayout(victim_row)
     
     org_name = details.get('org_name', 'None')
     org_tag = details.get('org_tag', 'None')
@@ -428,8 +460,6 @@ def show_kill_notification(self, victim: str, weapon: str, zone: str, game_mode:
     if victim_image_data_uri:
         try:
             if victim_image_data_uri.startswith('data:image'):
-                from PyQt5.QtGui import QPixmap
-                import base64
                 
                 header, data = victim_image_data_uri.split(',', 1)
                 image_data = base64.b64decode(data)
@@ -502,7 +532,10 @@ def show_faded_notification(self):
         min_height = 150
     self.resize(min_width, min_height)
 
-    self.faded_container.show()
+    try:
+        self.faded_container.show()
+    except RuntimeError:
+        return
     self.setWindowOpacity(self.opacity_level)
     self.show()
 
@@ -603,7 +636,6 @@ def show_faded_positioning_helper(self):
     
     notification_layout.addWidget(org_widget)
 
-    # Details widget
     details_widget = QWidget()
     details_layout = QVBoxLayout(details_widget)
     details_layout.setContentsMargins(0, 0, 0, 0)
@@ -671,7 +703,10 @@ def show_faded_positioning_helper(self):
     min_height = max(natural_size.height() + 20, 150)
     self.resize(min_width, min_height)
 
-    self.faded_container.show()
+    try:
+        self.faded_container.show()
+    except RuntimeError:
+        return
     self.show()
 
     self.countdown_seconds = 30
@@ -698,7 +733,11 @@ def fade_notification(self):
     if hasattr(self, 'positioning_mode') and self.positioning_mode:
         return
     
-    if not hasattr(self, 'faded_container') or not self.faded_container.isVisible():
+    try:
+        if not hasattr(self, 'faded_container') or not self.faded_container.isVisible():
+            return
+    except RuntimeError:
+        # Widget has been deleted
         return
         
     if hasattr(self, 'fade_timer'):
@@ -719,7 +758,10 @@ def hide_faded_notification(self):
         return
         
     if hasattr(self, 'faded_container'):
-        self.faded_container.hide()
+        try:
+            self.faded_container.hide()
+        except RuntimeError:
+            pass
     self.hide()
     self.setWindowOpacity(self.opacity_level)
 
@@ -744,7 +786,10 @@ def hide_positioning_helper(self):
         delattr(self, 'countdown_seconds')
         
     if hasattr(self, 'faded_container'):
-        self.faded_container.hide()
+        try:
+            self.faded_container.hide()
+        except RuntimeError:
+            pass
         
     self.hide()
     self.resize(50, 50)

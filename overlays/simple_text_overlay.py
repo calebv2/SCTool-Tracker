@@ -4,9 +4,35 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from language_manager import t
 
 import weakref
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget, QSizePolicy
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QSizePolicy
 from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, pyqtProperty
-from PyQt5.QtGui import QFont, QPainter, QPen, QColor, QFontMetrics
+from PyQt5.QtGui import QFont, QPainter, QPen, QColor, QFontMetrics, QPixmap
+
+class IconLabel(QLabel):
+    """Custom label that properly renders pixmaps on transparent backgrounds"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pixmap = None
+        
+    def setPixmap(self, pixmap):
+        self._pixmap = pixmap
+        self.update()
+        
+    def pixmap(self):
+        return self._pixmap if self._pixmap else QPixmap()
+        
+    def paintEvent(self, event):
+        if self._pixmap and not self._pixmap.isNull():
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            
+            x = (self.width() - self._pixmap.width()) // 2
+            y = (self.height() - self._pixmap.height()) // 2
+            
+            painter.drawPixmap(x, y, self._pixmap)
+        else:
+            super().paintEvent(event)
 
 class OutlinedLabel(QLabel):
     def __init__(self, text="", parent=None):
@@ -116,18 +142,44 @@ class MultiColoredLabel(QLabel):
 
 class NotificationItem(QWidget):
     """Individual notification item with its own fade timer"""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, use_icon=False):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setStyleSheet("background: transparent;")
         
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        self.use_icon = use_icon
         
-        self.label = MultiColoredLabel("")
-        self.label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.label)
-        self.setLayout(layout)
+        if use_icon:
+            self.content_layout = QHBoxLayout()
+            self.content_layout.setContentsMargins(0, 0, 0, 0)
+            self.content_layout.setSpacing(8)
+            self.content_layout.setAlignment(Qt.AlignCenter)
+            
+            self.left_label = OutlinedLabel("")
+            self.left_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            self.icon_label = IconLabel()
+            self.icon_label.setAlignment(Qt.AlignCenter)
+            self.icon_label.setStyleSheet("")
+            self.icon_label.setMinimumSize(24, 24)
+            self.icon_label.setMaximumSize(24, 24)
+            self.icon_label.setAttribute(Qt.WA_TranslucentBackground, False)
+            
+            self.right_label = OutlinedLabel("")
+            self.right_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            
+            self.content_layout.addWidget(self.left_label)
+            self.content_layout.addWidget(self.icon_label)
+            self.content_layout.addWidget(self.right_label)
+        else:
+            self.content_layout = QVBoxLayout()
+            self.content_layout.setContentsMargins(0, 0, 0, 0)
+            
+            self.label = MultiColoredLabel("")
+            self.label.setAlignment(Qt.AlignCenter)
+            self.content_layout.addWidget(self.label)
+        
+        self.setLayout(self.content_layout)
         
         self.fade_timer = QTimer()
         self.fade_timer.timeout.connect(self.start_fade)
@@ -189,19 +241,72 @@ def create_simple_text_ui(self):
     self.is_example_mode = False
     self.example_notification = None
 
-def add_notification(self, segments, notification_type='kill'):
+def add_notification(self, segments, notification_type='kill', event_type='player_destruction'):
     """Add a new notification to the stack"""
-    notification = NotificationItem(self)
-    notification.label.set_text_segments(segments)
+    use_icon = event_type in ['player_destruction', 'vehicle_destruction']
+    notification = NotificationItem(self, use_icon=use_icon)
+    
+    print(f"DEBUG: event_type={event_type}, use_icon={use_icon}")
+    
+    if use_icon:
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), f'{event_type}.png')
+        print(f"DEBUG: Looking for icon at: {icon_path}")
+        print(f"DEBUG: Icon exists: {os.path.exists(icon_path)}")
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            print(f"DEBUG: Pixmap loaded, size: {pixmap.width()}x{pixmap.height()}, isNull: {pixmap.isNull()}")
+            if not pixmap.isNull():
+                scaled_pixmap = pixmap.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                print(f"DEBUG: Scaled pixmap size: {scaled_pixmap.width()}x{scaled_pixmap.height()}")
+                
+                notification.icon_label.setPixmap(scaled_pixmap)
+                notification.icon_label.setScaledContents(False)
+                
+                notification.icon_label.adjustSize()
+
+                notification.icon_label.setVisible(True)
+                notification.icon_label.show()
+                notification.icon_label.raise_()
+
+                notification.icon_label.setStyleSheet("background: transparent; border: none;")
+                
+                print(f"DEBUG: Icon set on label, visible: {notification.icon_label.isVisible()}, hasPixmap: {not notification.icon_label.pixmap().isNull()}")
+            else:
+                print(f"DEBUG: Pixmap is null!")
+        else:
+            print(f"DEBUG: Icon file not found!")
+        
+        if len(segments) >= 2:
+            left_text = segments[0][0]
+            left_color = segments[0][1]
+            right_text = segments[-1][0]
+            right_color = segments[-1][1]
+            
+            print(f"DEBUG: Setting left label: '{left_text}' with color {left_color}")
+            print(f"DEBUG: Setting right label: '{right_text}' with color {right_color}")
+            
+            notification.left_label.setText(left_text)
+            notification.left_label.set_text_color(left_color)
+            notification.right_label.setText(right_text)
+            notification.right_label.set_text_color(right_color)
+    else:
+        notification.label.set_text_segments(segments)
+    
     
     if hasattr(self, 'colors') and self.colors:
-        notification.label.set_outline_enabled(True)
-        notification.label.set_outline_color('black')
+        if use_icon:
+            notification.left_label.set_outline_enabled(True)
+            notification.left_label.set_outline_color('black')
+            notification.right_label.set_outline_enabled(True)
+            notification.right_label.set_outline_color('black')
+        else:
+            notification.label.set_outline_enabled(True)
+            notification.label.set_outline_color('black')
         
         text_color = self.colors['text_primary'].name()
         base_style = f"""
             QLabel {{
-                font-size: 18px;
+                font-size: 20px;
                 font-weight: bold;
                 font-family: 'Consolas', monospace;
                 background: transparent;
@@ -210,7 +315,11 @@ def add_notification(self, segments, notification_type='kill'):
                 color: {text_color};
             }}
         """
-        notification.label.setStyleSheet(base_style)
+        if use_icon:
+            notification.left_label.setStyleSheet(base_style)
+            notification.right_label.setStyleSheet(base_style)
+        else:
+            notification.label.setStyleSheet(base_style)
     
     self.notification_layout.addWidget(notification)
     self.active_notifications.append(notification)
@@ -221,7 +330,8 @@ def add_notification(self, segments, notification_type='kill'):
             w = notification.sizeHint().width()
             notification.setFixedWidth(w)
             notification.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            notification.label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            if not use_icon and hasattr(notification, 'label'):
+                notification.label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         except Exception:
             pass
 
@@ -257,7 +367,7 @@ def remove_notification_ref(overlay_ref, notification):
     except RuntimeError:
         pass
 
-def show_simple_kill_notification(self, victim, weapon=None):
+def show_simple_kill_notification(self, victim, weapon=None, event_type='player_destruction'):
     try:
         player_name = t('You')
         if hasattr(self, 'parent_tracker') and self.parent_tracker:
@@ -310,13 +420,13 @@ def show_simple_kill_notification(self, victim, weapon=None):
                     (victim, 'white')
                 ]
         
-        add_notification(self, segments, 'kill')
+        add_notification(self, segments, 'kill', event_type)
         self.setWindowOpacity(1.0)
         
     except RuntimeError:
         return
 
-def show_simple_death_notification(self, attacker, weapon=None):
+def show_simple_death_notification(self, attacker, weapon=None, event_type='player_destruction'):
     try:
         player_name = t('You')
         if hasattr(self, 'parent_tracker') and self.parent_tracker:
@@ -369,7 +479,7 @@ def show_simple_death_notification(self, attacker, weapon=None):
                     (player_name, 'white')
                 ]
         
-        add_notification(self, segments, 'death')
+        add_notification(self, segments, 'death', event_type)
         self.setWindowOpacity(1.0)
         
     except RuntimeError:
@@ -441,7 +551,7 @@ def show_simple_sample_notification(self):
                     (f' {t("(EXAMPLE)")} {self.countdown_seconds}s', 'white')
                 ]
         
-        self.example_notification = add_notification(self, segments, 'example')
+        self.example_notification = add_notification(self, segments, 'example', 'text_only')
         self.example_notification.fade_timer.stop()
         
         self.setWindowOpacity(1.0)

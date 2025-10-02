@@ -2193,7 +2193,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             elif self.game_overlay.display_mode == 'simple_text':
                 self.game_overlay.show_simple_death_notification(
                     attacker=attacker,
-                    weapon=payload.get('weapon', 'Unknown')
+                    weapon=payload.get('weapon', 'Unknown'),
+                    event_type='player_destruction'
                 )
             elif self.game_overlay.display_mode == 'custom':
                 self.game_overlay.show_custom_death_notification(
@@ -3229,7 +3230,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             elif self.game_overlay.display_mode == 'simple_text':
                 self.game_overlay.show_simple_kill_notification(
                     victim=data.get('victim', 'Unknown'),
-                    weapon=data.get('weapon', 'Unknown')
+                    weapon=data.get('weapon', 'Unknown'),
+                    event_type='player_destruction'
                 )
             elif self.game_overlay.display_mode == 'custom':
                 self.game_overlay.show_custom_kill_notification(
