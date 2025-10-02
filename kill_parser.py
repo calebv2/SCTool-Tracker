@@ -19,7 +19,7 @@ GAME_MODE_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> Loading GameModeRecord='(?P<game_mode>[^']+)' with EGameModeId='[^']+'"
 )
 
-VERSION = "6.0"
+VERSION = "5.9"
 
 GAME_MODE_MAPPING = {
     'EA_TeamElimination': 'Team Elimination',
@@ -137,7 +137,7 @@ class KillParser:
         if name.startswith("Vlk_"):
             return True
 
-        npc_patterns = ["pu_", "npc", "enemy", "criminal", "soldier", "engineer",
+        npc_patterns = ["pu_", "npc", "ai", "enemy", "criminal", "soldier", "engineer",
                         "gunner", "sniper", "shipjacker"]
         for pattern in npc_patterns:
             if pattern in name_lower:

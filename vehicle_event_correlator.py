@@ -6,6 +6,7 @@ import logging
 from typing import Dict, List, Optional, Tuple, NamedTuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+import threading
 
 from kill_parser import KillParser
 
@@ -20,6 +21,7 @@ class VehicleDestroyEvent:
     destroyer_id: str
     destroyer_name: str
     destroy_level: int
+    damage_cause: str
     log_time: float
 
 @dataclass
@@ -41,12 +43,19 @@ class VehicleEventCorrelator:
     to properly identify victims of vehicle kills
     """
     
-    def __init__(self, correlation_timeout: float = 8.0):
+    def __init__(self, correlation_timeout: float = 0.0, event_callback=None):
         self.correlation_timeout = correlation_timeout
-        self.disabled_timeout = 0.5
-        self.destroyed_timeout = 5.0
+        self.disabled_timeout = 0.0
+        self.destroyed_timeout = 1.0
         self.pending_vehicle_events: List[VehicleDestroyEvent] = []
+        self._pending_lock = threading.Lock()
+        self._cleanup_interval = 0.1
+        self._cleanup_thread: Optional[threading.Thread] = None
+        self._cleanup_stop = threading.Event()
+        self.event_callback = event_callback  # Callback to emit expired events
         self.logger = logging.getLogger(__name__)
+        self.npc_patterns = ["pu_", "npc", "ai", "enemy", "criminal", "soldier", "engineer",
+                            "gunner", "sniper", "shipjacker"]
         
         self.vehicle_destroy_pattern = re.compile(
             r'<(?P<timestamp>[^>]+)> \[Notice\] <Vehicle Destruction> '
@@ -67,15 +76,10 @@ class VehicleEventCorrelator:
         )
 
     def process_log_line(self, line: str) -> Tuple[Optional[Dict], List[Dict]]:
-        """
-        Process a log line and return:
-        - Vehicle event if found (to be buffered)
-        - List of correlated kill events (ready to process)
-        
+        """        
         Vehicle Destruction Level Understanding:
-        - 0→1 (Soft Death): Ship disabled but flyable. If in ship = occupants may survive.
-                            If not in ship = likely player downing/incapacitation.
-        - 1→2 (Hard Death): Ship completely destroyed. Occupants likely killed.
+        - 0→1 (Soft Death): Ship disabled not flyable.
+        - 1→2 (Hard Death): Ship completely destroyed.
         
         IMPORTANT: Only generates kills when actual HUMAN PLAYERS die in vehicles.
         Vehicle entity deaths (like ARGO_ATLS_6282649965732) are filtered out.
@@ -89,22 +93,57 @@ class VehicleEventCorrelator:
             if vehicle_event:
                 should_buffer = False
                 
+                # Check for ejection - these should be shown immediately
+                if vehicle_event.damage_cause.lower() == 'ejection':
+                    self.logger.info(f"Ejection detected: {vehicle_event.destroyer_name} ejected from {vehicle_event.vehicle_name}")
+                    ejection_event = self._create_ejection_event(vehicle_event)
+                    if ejection_event:
+                        correlated_events.append(ejection_event)
+                    return None, correlated_events
+                
+                if vehicle_event.destroy_level == 1:
+                    timeout = self.disabled_timeout
+                elif vehicle_event.destroy_level == 2:
+                    timeout = self.destroyed_timeout
+                else:
+                    timeout = self.correlation_timeout
+                
                 if vehicle_event.destroyer_name.lower() in ['unknown', ''] or vehicle_event.destroyer_id == '0':
                     should_buffer = True
                     self.logger.info(f"Buffering vehicle destruction (unknown destroyer): {vehicle_event.vehicle_name} (level {vehicle_event.destroy_level})")
                 
-                elif vehicle_event.destroy_level == 1:
-                    self.logger.info(f"Creating immediate vehicle disabled event: {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
+                elif timeout == 0:
+                    self.logger.info(f"Processing immediate vehicle event (0 timeout): {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
                     display_event = self._create_vehicle_destruction_event(vehicle_event)
-                    correlated_events.append(display_event)
+                    if display_event:
+                        correlated_events.append(display_event)
                     should_buffer = False
                 
+                elif vehicle_event.destroy_level == 1:
+                    if timeout > 0:
+                        should_buffer = True
+                        self.logger.info(f"Buffering vehicle disabled event for {timeout}s: {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
+                    else:
+                        self.logger.info(f"Creating immediate vehicle disabled event: {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
+                        display_event = self._create_vehicle_destruction_event(vehicle_event)
+                        if display_event:
+                            correlated_events.append(display_event)
+                        should_buffer = False
+                
                 elif vehicle_event.destroy_level == 2:
-                    should_buffer = True
-                    self.logger.info(f"Buffering vehicle hard death for occupant correlation: {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
+                    if timeout > 0:
+                        should_buffer = True
+                        self.logger.info(f"Buffering vehicle hard death for occupant correlation ({timeout}s): {vehicle_event.vehicle_name}")
+                    else:
+                        self.logger.info(f"Creating immediate vehicle destroyed event: {vehicle_event.vehicle_name} by {vehicle_event.destroyer_name}")
+                        display_event = self._create_vehicle_destruction_event(vehicle_event)
+                        if display_event:
+                            correlated_events.append(display_event)
+                        should_buffer = False
                 
                 if should_buffer:
-                    self.pending_vehicle_events.append(vehicle_event)
+                    with self._pending_lock:
+                        self.pending_vehicle_events.append(vehicle_event)
                 else:
                     self.logger.info(f"Processing immediate vehicle destruction: {vehicle_event.vehicle_name} level {vehicle_event.destroy_level}")
                     kill_event = self._create_kill_event_from_vehicle(vehicle_event)
@@ -129,7 +168,11 @@ class VehicleEventCorrelator:
                     kill_event = self._create_correlated_kill_event(correlated_vehicle, actor_event)
                     if kill_event:
                         correlated_events.append(kill_event)
-                    self.pending_vehicle_events.remove(correlated_vehicle)
+                    with self._pending_lock:
+                        try:
+                            self.pending_vehicle_events.remove(correlated_vehicle)
+                        except ValueError:
+                            self.logger.debug("Pending vehicle event already removed by cleanup thread")
                 else:
                     self.logger.debug(f"No vehicle correlation found for actor death: {actor_event.victim}")
         
@@ -156,6 +199,7 @@ class VehicleEventCorrelator:
                 destroyer_id=data.get('destroyer_id', ''),
                 destroyer_name=data.get('destroyer', ''),
                 destroy_level=int(data.get('to_level', 0)),
+                damage_cause=data.get('damage_cause', 'Combat'),
                 log_time=log_time
             )
         except (ValueError, KeyError) as e:
@@ -231,8 +275,15 @@ class VehicleEventCorrelator:
 
     def _create_vehicle_destruction_event(self, vehicle_event: VehicleDestroyEvent) -> Dict:
         """Create a vehicle destruction display event (not a kill)"""
+        name_lower = (vehicle_event.vehicle_name or '').lower()
+        if vehicle_event.destroy_level in (1, 2):
+            for pattern in self.npc_patterns:
+                if pattern in name_lower:
+                    self.logger.debug(f"Skipping display for AI/NPC vehicle '{vehicle_event.vehicle_name}' (pattern '{pattern}')")
+                    return None
+
         cleaned_vehicle = vehicle_event.vehicle_name.replace('_', ' ')
-        
+
         return {
             'event_type': 'vehicle_destruction',
             'timestamp': vehicle_event.timestamp,
@@ -243,6 +294,29 @@ class VehicleEventCorrelator:
             'destroy_level': vehicle_event.destroy_level,
             'damage_cause': getattr(vehicle_event, 'damage_cause', 'Combat'),
             'log_line': f"VEHICLE DESTROYED: {cleaned_vehicle} destroyed by {vehicle_event.destroyer_name}",
+            'display_only': True
+        }
+
+    def _create_ejection_event(self, vehicle_event: VehicleDestroyEvent) -> Dict:
+        """Create an ejection display event"""
+        name_lower = (vehicle_event.vehicle_name or '').lower()
+        for pattern in self.npc_patterns:
+            if pattern in name_lower:
+                self.logger.debug(f"Skipping display for AI/NPC vehicle ejection '{vehicle_event.vehicle_name}' (pattern '{pattern}')")
+                return None
+
+        cleaned_vehicle = vehicle_event.vehicle_name.replace('_', ' ')
+
+        return {
+            'event_type': 'ejection',
+            'timestamp': vehicle_event.timestamp,
+            'vehicle_name': cleaned_vehicle,
+            'pilot': vehicle_event.destroyer_name,
+            'pilot_id': vehicle_event.destroyer_id,
+            'zone': vehicle_event.zone,
+            'destroy_level': vehicle_event.destroy_level,
+            'damage_cause': 'Ejection',
+            'log_line': f"EJECTION: {vehicle_event.destroyer_name} ejected from {cleaned_vehicle}",
             'display_only': True
         }
 
@@ -340,29 +414,65 @@ class VehicleEventCorrelator:
         """Remove vehicle events that have exceeded their specific timeout and create display events for them"""
         expired_events = []
         remaining_events = []
-        
-        for event in self.pending_vehicle_events:
-            if event.destroy_level == 1:
-                timeout = self.disabled_timeout
-            elif event.destroy_level == 2:
-                timeout = self.destroyed_timeout
-            else:
-                timeout = self.correlation_timeout
-            
-            if current_time - event.log_time >= timeout:
-                display_event = self._create_vehicle_destruction_event(event)
-                expired_events.append(display_event)
-                destruction_type = "DISABLED" if event.destroy_level == 1 else "DESTROYED" if event.destroy_level == 2 else "DAMAGED"
-                self.logger.info(f"Timeout ({timeout}s): Creating vehicle {destruction_type.lower()} event for {event.vehicle_name}")
-            else:
-                remaining_events.append(event)
-        
-        self.pending_vehicle_events = remaining_events
+
+        with self._pending_lock:
+            for event in list(self.pending_vehicle_events):
+                if event.destroy_level == 1:
+                    timeout = self.disabled_timeout
+                elif event.destroy_level == 2:
+                    timeout = self.destroyed_timeout
+                else:
+                    timeout = self.correlation_timeout
+
+                if current_time - event.log_time >= timeout:
+                    display_event = self._create_vehicle_destruction_event(event)
+                    if display_event:
+                        expired_events.append(display_event)
+                        destruction_type = "DISABLED" if event.destroy_level == 1 else "DESTROYED" if event.destroy_level == 2 else "DAMAGED"
+                        self.logger.info(f"Timeout ({timeout}s): Creating vehicle {destruction_type.lower()} event for {event.vehicle_name}")
+                    else:
+                        self.logger.debug(f"Timeout ({timeout}s): Skipping AI/NPC vehicle display for {event.vehicle_name}")
+                    try:
+                        self.pending_vehicle_events.remove(event)
+                    except ValueError:
+                        pass
+                else:
+                    remaining_events.append(event)
         
         if expired_events:
             self.logger.debug(f"Converted {len(expired_events)} expired vehicle events to display events")
         
         return expired_events
+
+    def start_cleanup_thread(self) -> None:
+        """Start background cleanup thread. Safe to call multiple times."""
+        if self._cleanup_thread and self._cleanup_thread.is_alive():
+            return
+
+        self._cleanup_stop.clear()
+        def _run():
+            self.logger.debug("VehicleEventCorrelator cleanup thread started")
+            while not self._cleanup_stop.is_set():
+                try:
+                    now = time.time()
+                    expired = self._cleanup_expired_events(now)
+                    # Emit expired events through callback if available
+                    if expired and self.event_callback:
+                        for event in expired:
+                            self.event_callback(event)
+                except Exception:
+                    self.logger.exception("Exception in cleanup thread")
+                self._cleanup_stop.wait(self._cleanup_interval)
+            self.logger.debug("VehicleEventCorrelator cleanup thread stopping")
+
+        self._cleanup_thread = threading.Thread(target=_run, daemon=True, name="VECleanupThread")
+        self._cleanup_thread.start()
+
+    def stop_cleanup_thread(self, wait: bool = False) -> None:
+        """Signal the cleanup thread to stop. If wait=True join the thread."""
+        self._cleanup_stop.set()
+        if wait and self._cleanup_thread:
+            self._cleanup_thread.join(timeout=2.0)
 
     def get_pending_count(self) -> int:
         """Get count of pending vehicle events waiting for correlation"""

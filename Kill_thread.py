@@ -177,7 +177,8 @@ class TailThread(QThread):
         self.has_registered = False
         self.current_attacker_ship: Optional[str] = "Player destruction"
         
-        self.vehicle_correlator = VehicleEventCorrelator()
+        self.vehicle_correlator = VehicleEventCorrelator(event_callback=self.handle_correlated_vehicle_kill)
+        self.vehicle_correlator.start_cleanup_thread()
 
     def reset_killer_ship(self) -> None:
         self.current_attacker_ship = "No Ship"
@@ -188,9 +189,18 @@ class TailThread(QThread):
         if self.config_file and os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
+                    content = f.read().strip()
+                    if not content:
+                        logging.debug(f"Config file {self.config_file} is empty; using default config")
+                        config = {}
+                    else:
+                        try:
+                            config = json.loads(content)
+                        except json.JSONDecodeError as e:
+                            logging.error(f"Error parsing JSON config at {self.config_file}: {e}")
+                            config = {}
             except Exception as e:
-                logging.error(f"Error reading config: {e}")
+                logging.error(f"Error reading config file {self.config_file}: {e}")
                 config = {}
             config["killer_ship"] = ship
             try:
@@ -204,7 +214,16 @@ class TailThread(QThread):
         if self.config_file and os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
+                    content = f.read().strip()
+                    if not content:
+                        logging.debug(f"Config file {self.config_file} is empty when clearing killer_ship; using default config")
+                        config = {}
+                    else:
+                        try:
+                            config = json.loads(content)
+                        except json.JSONDecodeError as e:
+                            logging.error(f"Error parsing JSON config for clearing killer_ship at {self.config_file}: {e}")
+                            config = {}
             except Exception as e:
                 logging.error(f"Error reading config for clearing killer_ship: {e}")
                 config = {}
@@ -393,6 +412,8 @@ class TailThread(QThread):
             self.handle_vehicle_destruction_event(event)
         elif event_type == 'correlated_vehicle_kill':
             self.handle_actual_vehicle_kill(event)
+        elif event_type == 'ejection':
+            self.handle_ejection_event(event)
         else:
             logging.warning(f"Unknown event type from correlator: {event_type}")
     
@@ -418,14 +439,17 @@ class TailThread(QThread):
                 destruction_type = "DESTROYED"
             else:
                 destruction_type = "DAMAGED"
-            
+            empty_line_html = ''
+            if destruction_type == 'DESTROYED':
+                empty_line_html = '<div style="font-size: 14px; color: #ff9900; margin-bottom: 3px;">EMPTY VEHICLE DESTROYED</div>'
+
             readout = f"""
             <div class="newEntry">
                 <table class="event-table" style="background: linear-gradient(135deg, #151515, #0d0d0d); color: #e0e0e0; border-radius: 10px; margin-bottom: 15px; width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
                             <div style="font-size: 18px; font-weight: bold; color: #00ccff; margin-bottom: 5px;">VEHICLE {destruction_type}</div>
-                            <div style="font-size: 14px; color: #ff9900; margin-bottom: 3px;">EMPTY VEHICLE DESTROYED</div>
+                            {empty_line_html}
                             <div style="font-size: 14px; color: #c8c8c8;">{cleaned_vehicle}</div>
                         </td>
                     </tr>
@@ -442,6 +466,10 @@ class TailThread(QThread):
         attacker = event.get('attacker', '').strip()
         vehicle_name = event.get('vehicle_name', '')
         timestamp = event.get('timestamp', '')
+        victim_id = event.get('victim_id', '0')
+        attacker_id = event.get('attacker_id', '0')
+        weapon = event.get('weapon', 'Unknown')
+        zone = event.get('zone', 'Unknown')
 
         if KillParser.is_npc(attacker):
             logging.info(f"NPC vehicle kill detected (attacker: {attacker}). Not showing.")
@@ -452,18 +480,27 @@ class TailThread(QThread):
         
         if attacker.lower() == self.registered_user.strip().lower():
             try:
+                # Create a synthetic log line that matches KILL_LOG_PATTERN
+                synthetic_log_line = (
+                    f"<{timestamp}> [Notice] <Actor Death> CActor::Kill: '{victim}' "
+                    f"[{victim_id}] in zone '{zone}' "
+                    f"killed by '{attacker}' [{attacker_id}] using '{weapon}' [0] "
+                    f"with damage type 'vehicledestruction' "
+                    f"from direction x: 0.0, y: 0.0, z: 0.0 [0]"
+                )
+                
                 fake_data = {
                     'victim': victim,
                     'attacker': attacker,
-                    'weapon': event.get('weapon', 'Unknown'),
+                    'weapon': weapon,
                     'damage_type': 'vehicledestruction',
-                    'zone': event.get('zone', 'Unknown'),
+                    'zone': zone,
                     'killer_ship': cleaned_vehicle
                 }
                 
                 captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
                 readout, payload = format_registered_kill(
-                    event.get('log_line', ''), fake_data, self.registered_user, timestamp, captured_game_mode, success=True
+                    synthetic_log_line, fake_data, self.registered_user, timestamp, captured_game_mode, success=True
                 )
                 self.kill_detected.emit(readout, attacker)
                 self.payload_ready.emit(payload, timestamp, attacker, readout)
@@ -474,24 +511,34 @@ class TailThread(QThread):
         elif victim.lower() == self.registered_user.strip().lower():
             try:
                 from Death_kill import format_death_kill
+                
+                # Create a synthetic log line that matches KILL_LOG_PATTERN
+                synthetic_log_line = (
+                    f"<{timestamp}> [Notice] <Actor Death> CActor::Kill: '{victim}' "
+                    f"[{victim_id}] in zone '{zone}' "
+                    f"killed by '{attacker}' [{attacker_id}] using '{weapon}' [0] "
+                    f"with damage type 'vehicledestruction' "
+                    f"from direction x: 0.0, y: 0.0, z: 0.0 [0]"
+                )
+                
                 fake_data = {
                     'victim': victim,
                     'attacker': attacker,
-                    'weapon': event.get('weapon', 'Unknown'),
+                    'weapon': weapon,
                     'damage_type': 'vehicledestruction',
-                    'zone': event.get('zone', 'Unknown')
+                    'zone': zone
                 }
                 
                 captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
-                readout = format_death_kill(event.get('log_line', ''), fake_data, self.registered_user, timestamp, captured_game_mode)
+                readout = format_death_kill(synthetic_log_line, fake_data, self.registered_user, timestamp, captured_game_mode)
                 self.death_detected.emit(readout, victim)
                 
                 death_payload = {
-                    'log_line': event.get('log_line', ''),
+                    'log_line': synthetic_log_line,
                     'game_mode': captured_game_mode,
                     'victim_name': victim,
                     'attacker_name': attacker,
-                    'weapon': event.get('weapon', 'Unknown'),
+                    'weapon': weapon,
                     'damage_type': 'vehicledestruction',
                     'location': event.get('zone', 'Unknown'),
                     'timestamp': timestamp,
@@ -501,6 +548,40 @@ class TailThread(QThread):
                 logging.info(f"Processed correlated vehicle death: {victim} killed by {attacker} in {cleaned_vehicle}")
             except Exception as e:
                 logging.error(f"Error processing correlated death: {e}")
+
+    def handle_ejection_event(self, event: dict) -> None:
+        """Handle ejection events from vehicles"""
+        pilot = event.get('pilot', '').strip()
+        vehicle_name = event.get('vehicle_name', '')
+        timestamp = event.get('timestamp', '')
+        
+        if KillParser.is_npc(pilot):
+            logging.info(f"NPC ejection detected (pilot: {pilot}). Not showing.")
+            return
+        
+        cleaned_vehicle = re.sub(r'_\d+$', '', vehicle_name)
+        cleaned_vehicle = cleaned_vehicle.replace('_', ' ')
+        
+        # Only show ejections by OTHER players (not the registered user)
+        if pilot.lower() != self.registered_user.strip().lower():
+            readout = f"""
+            <div class="newEntry">
+                <table class="event-table" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: #e0e0e0; border-radius: 10px; margin-bottom: 15px; width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
+                            <div style="font-size: 18px; font-weight: bold; color: #00d9ff; margin-bottom: 5px;">🪂 PILOT EJECTED</div>
+                            <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} ejected from their ship</div>
+                            <div style="font-size: 14px; color: #c8c8c8;">{cleaned_vehicle}</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            """
+            
+            self.kill_detected.emit(readout, pilot)
+            logging.info(f"Enemy ejection displayed: {pilot} ejected from {vehicle_name}")
+        else:
+            logging.info(f"Registered user ejection ignored: {pilot} ejected from {vehicle_name}")
 
     def handle_kill_event(self, line: str, match_obj: re.Match) -> None:
         data = match_obj.groupdict()
@@ -577,6 +658,8 @@ class TailThread(QThread):
     def stop(self) -> None:
         logging.info("Stopping TailThread.")
         self._stop_event = True
+        if self.vehicle_correlator:
+            self.vehicle_correlator.stop_cleanup_thread(wait=True)
         self.clear_config_killer_ship()
 
 class RescanThread(QThread):

@@ -1428,6 +1428,17 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
     def on_kill_detected(self, readout: str, attacker: str) -> None:
         self.append_kill_readout(readout)
+        try:
+            lowered = readout.lower() if readout else ''
+            is_vehicle_display = False
+            if 'vehicle' in lowered and ('vehicle disabled' in lowered or 'vehicle destroyed' in lowered or 'empty vehicle destroyed' in lowered):
+                is_vehicle_display = True
+            if is_vehicle_display:
+                logging.debug("Skipping kill sound for vehicle display event.")
+                return
+        except Exception:
+            pass
+
         if self.kill_sound_enabled:
             sound_file = self.get_sound_file_for_event(self.kill_sound_mode, self.kill_sound_path, self.kill_sound_folder)
             if sound_file and os.path.exists(sound_file):
@@ -1435,6 +1446,14 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
     def on_death_detected(self, readout: str, attacker: str) -> None:
         self.append_death_readout(readout)
+        try:
+            lowered = readout.lower() if readout else ''
+            if 'vehicle' in lowered and ('vehicle disabled' in lowered or 'vehicle destroyed' in lowered or 'empty vehicle destroyed' in lowered):
+                logging.debug("Skipping death sound for vehicle display event.")
+                return
+        except Exception:
+            pass
+
         if self.death_sound_enabled:
             sound_file = self.get_sound_file_for_event(self.death_sound_mode, self.death_sound_path, self.death_sound_folder)
             if sound_file and os.path.exists(sound_file):
