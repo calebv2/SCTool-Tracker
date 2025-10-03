@@ -1433,6 +1433,10 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             is_vehicle_display = False
             if 'vehicle' in lowered and ('vehicle disabled' in lowered or 'vehicle destroyed' in lowered or 'empty vehicle destroyed' in lowered):
                 is_vehicle_display = True
+            # Skip sound for ejection and seat exit events
+            if 'pilot ejected' in lowered or 'pilot abandoned ship' in lowered:
+                logging.debug("Skipping kill sound for pilot ejection/seat exit event.")
+                return
             if is_vehicle_display:
                 logging.debug("Skipping kill sound for vehicle display event.")
                 return

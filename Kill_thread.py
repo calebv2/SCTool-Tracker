@@ -414,6 +414,8 @@ class TailThread(QThread):
             self.handle_actual_vehicle_kill(event)
         elif event_type == 'ejection':
             self.handle_ejection_event(event)
+        elif event_type == 'seat_exit':
+            self.handle_seat_exit_event(event)
         else:
             logging.warning(f"Unknown event type from correlator: {event_type}")
     
@@ -559,7 +561,9 @@ class TailThread(QThread):
             logging.info(f"NPC ejection detected (pilot: {pilot}). Not showing.")
             return
         
+        # Clean vehicle name - remove trailing numbers and underscores
         cleaned_vehicle = re.sub(r'_\d+$', '', vehicle_name)
+        cleaned_vehicle = re.sub(r'\s+\d+$', '', cleaned_vehicle)
         cleaned_vehicle = cleaned_vehicle.replace('_', ' ')
         
         # Only show ejections by OTHER players (not the registered user)
@@ -569,7 +573,7 @@ class TailThread(QThread):
                 <table class="event-table" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: #e0e0e0; border-radius: 10px; margin-bottom: 15px; width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
-                            <div style="font-size: 18px; font-weight: bold; color: #00d9ff; margin-bottom: 5px;">🪂 PILOT EJECTED</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #00d9ff; margin-bottom: 5px;">PILOT EJECTED</div>
                             <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} ejected from their ship</div>
                             <div style="font-size: 14px; color: #c8c8c8;">{cleaned_vehicle}</div>
                         </td>
@@ -582,6 +586,37 @@ class TailThread(QThread):
             logging.info(f"Enemy ejection displayed: {pilot} ejected from {vehicle_name}")
         else:
             logging.info(f"Registered user ejection ignored: {pilot} ejected from {vehicle_name}")
+
+    def handle_seat_exit_event(self, event: dict) -> None:
+        """Handle pilot leaving seat events (after ship disabled)"""
+        pilot = event.get('pilot', '').strip()
+        vehicle_name = event.get('vehicle_name', '')
+        timestamp = event.get('timestamp', '')
+        
+        if KillParser.is_npc(pilot):
+            logging.info(f"NPC seat exit detected (pilot: {pilot}). Not showing.")
+            return
+        
+        # Only show seat exits by OTHER players (not the registered user)
+        if pilot.lower() != self.registered_user.strip().lower():
+            readout = f"""
+            <div class="newEntry">
+                <table class="event-table" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: #e0e0e0; border-radius: 10px; margin-bottom: 15px; width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
+                            <div style="font-size: 18px; font-weight: bold; color: #ff6b6b; margin-bottom: 5px;">PILOT ABANDONED SHIP</div>
+                            <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} left their disabled ship</div>
+                            <div style="font-size: 14px; color: #c8c8c8;">{vehicle_name}</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            """
+            
+            self.kill_detected.emit(readout, pilot)
+            logging.info(f"Pilot seat exit displayed: {pilot} left {vehicle_name}")
+        else:
+            logging.info(f"Registered user seat exit ignored: {pilot} left {vehicle_name}")
 
     def handle_kill_event(self, line: str, match_obj: re.Match) -> None:
         data = match_obj.groupdict()

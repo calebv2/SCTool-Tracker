@@ -74,6 +74,13 @@ class VehicleEventCorrelator:
             r"with damage type '(?P<damage_type>\w+)' "
             r"from direction x: (?P<x>-?[\d.]+), y: (?P<y>-?[\d.]+), z: (?P<z>-?[\d.]+) \[.*?\]"
         )
+        
+
+        self.seat_exit_pattern = re.compile(
+            r'<(?P<timestamp>[^>]+)> \[net\]\[bind\]CEntity::OnOwnerRemoved: '
+            r'force detaching ENTITY ATTACHMENT id = \d+ name = "(?P<player_name>[^"]+)" '
+            r'to unblock removal of parent id = (?P<seat_id>\d+) name = "(?P<seat_name>[^"]+)"'
+        )
 
     def process_log_line(self, line: str) -> Tuple[Optional[Dict], List[Dict]]:
         """        
@@ -174,6 +181,12 @@ class VehicleEventCorrelator:
                             self.logger.debug("Pending vehicle event already removed by cleanup thread")
                 else:
                     self.logger.debug(f"No vehicle correlation found for actor death: {actor_event.victim}")
+
+        seat_exit_match = self.seat_exit_pattern.search(line)
+        if seat_exit_match:
+            seat_exit_event = self._parse_seat_exit_event(seat_exit_match, current_time)
+            if seat_exit_event:
+                correlated_events.append(seat_exit_event)
         
         expired_display_events = self._cleanup_expired_events(current_time)
         
@@ -222,6 +235,41 @@ class VehicleEventCorrelator:
             )
         except (ValueError, KeyError) as e:
             self.logger.error(f"Error parsing actor event: {e}")
+            return None
+
+    def _parse_seat_exit_event(self, match, log_time: float) -> Optional[Dict]:
+        """Parse seat exit event and create display event immediately"""
+        try:
+            data = match.groupdict()
+            player_name = data.get('player_name', '')
+            seat_name = data.get('seat_name', '')
+            timestamp = data.get('timestamp', '')
+            
+            if 'Seat_Pilot' not in seat_name:
+                self.logger.debug(f"Skipping non-pilot seat exit: {seat_name}")
+                return None
+            
+            if KillParser.is_npc(player_name, '0'):
+                self.logger.debug(f"Skipping NPC seat exit: {player_name}")
+                return None
+            
+            vehicle_name = seat_name.replace('_Seat_Pilot', '')
+            vehicle_name = re.sub(r'_\d+$', '', vehicle_name)
+            vehicle_name = vehicle_name.replace('_', ' ')
+            
+            self.logger.info(f"Seat exit detected: {player_name} left pilot seat of {vehicle_name}")
+            
+            return {
+                'event_type': 'seat_exit',
+                'timestamp': timestamp,
+                'vehicle_name': vehicle_name,
+                'pilot': player_name,
+                'seat_name': seat_name,
+                'log_line': f"PILOT LEFT SEAT: {player_name} exited {vehicle_name}",
+                'display_only': True
+            }
+        except (ValueError, KeyError) as e:
+            self.logger.error(f"Error parsing seat exit event: {e}")
             return None
 
     def _is_vehicle_entity_death(self, victim_name: str) -> bool:
