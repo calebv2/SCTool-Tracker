@@ -508,5 +508,10 @@
   "Kill Color": "キル色",
   "Death Color": "デス色",
   "Info Color": "情報色",
-  "Show Simple Text Helper": "シンプルテキストヘルパーを表示"
+  "Show Simple Text Helper": "シンプルテキストヘルパーを表示",
+  "_VEHICLE_EVENTS_": "===== 車両イベント =====",
+  "PILOT EJECTED": "パイロット脱出",
+  "PILOT ABANDONED SHIP": "パイロット船放棄",
+  "ejected from their ship": "船から脱出しました",
+  "left their disabled ship": "無効化された船を離れました"
 }

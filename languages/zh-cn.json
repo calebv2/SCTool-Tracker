@@ -508,5 +508,10 @@
   "Kill Color": "击杀颜色",
   "Death Color": "死亡颜色",
   "Info Color": "信息颜色",
-  "Show Simple Text Helper": "显示简单文本助手"
+  "Show Simple Text Helper": "显示简单文本助手",
+  "_VEHICLE_EVENTS_": "===== 载具事件 =====",
+  "PILOT EJECTED": "驾驶员弹射",
+  "PILOT ABANDONED SHIP": "驾驶员弃船",
+  "ejected from their ship": "从飞船中弹射",
+  "left their disabled ship": "离开了损坏的飞船"
 }

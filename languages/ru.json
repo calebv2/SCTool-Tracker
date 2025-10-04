@@ -508,5 +508,10 @@
   "Kill Color": "Цвет Убийства",
   "Death Color": "Цвет Смерти",
   "Info Color": "Цвет Информации",
-  "Show Simple Text Helper": "Показать Простой Текстовый Помощник"
+  "Show Simple Text Helper": "Показать Простой Текстовый Помощник",
+  "_VEHICLE_EVENTS_": "===== События транспорта =====",
+  "PILOT EJECTED": "ПИЛОТ КАТАПУЛЬТИРОВАЛСЯ",
+  "PILOT ABANDONED SHIP": "ПИЛОТ ПОКИНУЛ КОРАБЛЬ",
+  "ejected from their ship": "катапультировался из корабля",
+  "left their disabled ship": "покинул отключённый корабль"
 }

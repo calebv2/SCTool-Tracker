@@ -1586,7 +1586,7 @@ def init_ui(self) -> None:
 
     support_card_main_layout = QVBoxLayout(support_card)
     support_card_main_layout.setContentsMargins(20, 20, 20, 20)
-    support_card_main_layout.setSpacing(15)
+    support_card_main_layout.setSpacing(10)
     
     header_container = QWidget()
     header_container.setStyleSheet("background: transparent; border: none;")
@@ -1596,6 +1596,7 @@ def init_ui(self) -> None:
     
     support_header = QLabel("SUPPORT & HELP")
     support_header.setStyleSheet("QLabel { color: #4CAF50; font-size: 18px; font-weight: bold; background: transparent; border: none; }")
+    support_header.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     self.support_header = support_header
     header_layout.addWidget(support_header)
     
@@ -1618,11 +1619,11 @@ def init_ui(self) -> None:
     
     support_card_layout = QFormLayout()
     support_card_layout.setContentsMargins(0, 0, 0, 0)
-    support_card_layout.setSpacing(15)
+    support_card_layout.setSpacing(10)
     support_card_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     
     api_setup_header = QLabel("API Setup")
-    api_setup_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 15px; }")
+    api_setup_header.setStyleSheet("QLabel { color: #FFA726; font-size: 16px; font-weight: bold; background: transparent; border: none; margin-top: 5px; }")
     self.api_setup_header = api_setup_header
     support_card_layout.addRow(api_setup_header)
     

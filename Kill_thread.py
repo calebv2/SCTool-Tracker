@@ -573,8 +573,8 @@ class TailThread(QThread):
                 <table class="event-table" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: #e0e0e0; border-radius: 10px; margin-bottom: 15px; width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
-                            <div style="font-size: 18px; font-weight: bold; color: #00d9ff; margin-bottom: 5px;">PILOT EJECTED</div>
-                            <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} ejected from their ship</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #00d9ff; margin-bottom: 5px;">{t("PILOT EJECTED")}</div>
+                            <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} {t("ejected from their ship")}</div>
                             <div style="font-size: 14px; color: #c8c8c8;">{cleaned_vehicle}</div>
                         </td>
                     </tr>
@@ -604,8 +604,8 @@ class TailThread(QThread):
                 <table class="event-table" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: #e0e0e0; border-radius: 10px; margin-bottom: 15px; width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333;">
-                            <div style="font-size: 18px; font-weight: bold; color: #ff6b6b; margin-bottom: 5px;">PILOT ABANDONED SHIP</div>
-                            <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} left their disabled ship</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #ff6b6b; margin-bottom: 5px;">{t("PILOT ABANDONED SHIP")}</div>
+                            <div style="font-size: 14px; color: #ffcc00; margin-bottom: 3px;">{pilot} {t("left their disabled ship")}</div>
                             <div style="font-size: 14px; color: #c8c8c8;">{vehicle_name}</div>
                         </td>
                     </tr>

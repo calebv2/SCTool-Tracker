@@ -508,5 +508,10 @@
   "Kill Color": "Color de Eliminación",
   "Death Color": "Color de Muerte",
   "Info Color": "Color de Información",
-  "Show Simple Text Helper": "Mostrar Ayudante de Texto Simple"
+  "Show Simple Text Helper": "Mostrar Ayudante de Texto Simple",
+  "_VEHICLE_EVENTS_": "===== Eventos de Vehículos =====",
+  "PILOT EJECTED": "PILOTO EYECTADO",
+  "PILOT ABANDONED SHIP": "PILOTO ABANDONÓ LA NAVE",
+  "ejected from their ship": "eyectado de su nave",
+  "left their disabled ship": "abandonó su nave deshabilitada"
 }
