@@ -121,6 +121,8 @@ class GameOverlay(QWidget):
         self.setup_overlay()
         self.create_ui()
         self.load_position()
+        
+        self.set_locked(self.is_locked)
 
         self.save_timer = QTimer()
         self.save_timer.timeout.connect(self.save_config)
@@ -128,11 +130,14 @@ class GameOverlay(QWidget):
         
         if self.is_enabled:
             self.show_overlay()
+        else:
+            self.hide()
         
     def set_enabled(self, enabled: bool):
         """Set overlay enabled state and save to config"""
         self.is_enabled = enabled
         self.config['enabled'] = enabled
+        self.save_config()
         if enabled:
             self.show_overlay()
         else:
@@ -624,10 +629,29 @@ class GameOverlay(QWidget):
         """Set overlay lock state"""
         self.is_locked = locked
         self.config['locked'] = locked
+        
         if locked:
+            self.setWindowFlags(
+                Qt.WindowStaysOnTopHint |
+                Qt.FramelessWindowHint |
+                Qt.Tool |
+                Qt.BypassWindowManagerHint |
+                Qt.WindowDoesNotAcceptFocus |
+                Qt.WindowTransparentForInput
+            )
             self.setCursor(Qt.ArrowCursor)
         else:
+            self.setWindowFlags(
+                Qt.WindowStaysOnTopHint |
+                Qt.FramelessWindowHint |
+                Qt.Tool |
+                Qt.BypassWindowManagerHint |
+                Qt.WindowDoesNotAcceptFocus
+            )
             self.setCursor(Qt.SizeAllCursor)
+        
+        if self.is_enabled and self.is_visible:
+            self.show()
     
     def update_animations(self):
         """Update animation states"""

@@ -760,6 +760,140 @@ def init_ui(self) -> None:
     preferences_layout.addWidget(language_container)
     
     killfeed_settings_layout.addWidget(preferences_card)
+
+    vehicle_events_card = QWidget()
+    vehicle_events_card.setStyleSheet(
+        "QWidget { background-color: rgba(20, 20, 20, 0.8); border-radius: 8px; "
+        "border: 1px solid #333333; }"
+    )
+    vehicle_events_layout = QVBoxLayout(vehicle_events_card)
+    vehicle_events_layout.setContentsMargins(20, 20, 20, 20)
+    vehicle_events_layout.setSpacing(15)
+    
+    vehicle_events_header = QLabel(t("VEHICLE EVENT DISPLAY"))
+    vehicle_events_header.setStyleSheet(
+        "QLabel { color: #ffffff; font-size: 18px; font-weight: bold; background: transparent; border: none; }"
+    )
+    vehicle_events_layout.addWidget(vehicle_events_header)
+    
+    vehicle_events_desc = QLabel(t("Control which vehicle-related events are displayed in the killfeed."))
+    vehicle_events_desc.setStyleSheet(
+        "QLabel { color: #cccccc; font-size: 13px; background: transparent; border: none; }"
+    )
+    vehicle_events_desc.setWordWrap(True)
+    vehicle_events_layout.addWidget(vehicle_events_desc)
+    
+    vehicle_separator = QFrame()
+    vehicle_separator.setFrameShape(QFrame.HLine)
+    vehicle_separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; }")
+    vehicle_events_layout.addWidget(vehicle_separator)
+    
+    disabled_container = QWidget()
+    disabled_container.setStyleSheet("background: transparent; border: none;")
+    disabled_layout = QVBoxLayout(disabled_container)
+    disabled_layout.setContentsMargins(0, 0, 0, 0)
+    disabled_layout.setSpacing(5)
+    
+    self.show_vehicle_disabled_checkbox = QCheckBox(t("Show Vehicle Disabled Events"))
+    self.show_vehicle_disabled_checkbox.setChecked(self.show_vehicle_disabled)
+    self.show_vehicle_disabled_checkbox.stateChanged.connect(self.on_show_vehicle_disabled_changed)
+    self.show_vehicle_disabled_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
+    )
+    disabled_layout.addWidget(self.show_vehicle_disabled_checkbox)
+    
+    disabled_desc = QLabel(t("Display when enemy ships are disabled (soft death - ship not flyable)"))
+    disabled_desc.setStyleSheet(
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+    )
+    disabled_desc.setWordWrap(True)
+    disabled_layout.addWidget(disabled_desc)
+    
+    vehicle_events_layout.addWidget(disabled_container)
+    
+    destroyed_container = QWidget()
+    destroyed_container.setStyleSheet("background: transparent; border: none;")
+    destroyed_layout = QVBoxLayout(destroyed_container)
+    destroyed_layout.setContentsMargins(0, 0, 0, 0)
+    destroyed_layout.setSpacing(5)
+    
+    self.show_vehicle_destroyed_checkbox = QCheckBox(t("Show Vehicle Destroyed Events"))
+    self.show_vehicle_destroyed_checkbox.setChecked(self.show_vehicle_destroyed)
+    self.show_vehicle_destroyed_checkbox.stateChanged.connect(self.on_show_vehicle_destroyed_changed)
+    self.show_vehicle_destroyed_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
+    )
+    destroyed_layout.addWidget(self.show_vehicle_destroyed_checkbox)
+    
+    destroyed_desc = QLabel(t("Display when enemy ships are completely destroyed (hard death)"))
+    destroyed_desc.setStyleSheet(
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+    )
+    destroyed_desc.setWordWrap(True)
+    destroyed_layout.addWidget(destroyed_desc)
+    
+    vehicle_events_layout.addWidget(destroyed_container)
+    
+    ejected_container = QWidget()
+    ejected_container.setStyleSheet("background: transparent; border: none;")
+    ejected_layout = QVBoxLayout(ejected_container)
+    ejected_layout.setContentsMargins(0, 0, 0, 0)
+    ejected_layout.setSpacing(5)
+    
+    self.show_pilot_ejected_checkbox = QCheckBox(t("Show Pilot Ejection Events"))
+    self.show_pilot_ejected_checkbox.setChecked(self.show_pilot_ejected)
+    self.show_pilot_ejected_checkbox.stateChanged.connect(self.on_show_pilot_ejected_changed)
+    self.show_pilot_ejected_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
+    )
+    ejected_layout.addWidget(self.show_pilot_ejected_checkbox)
+    
+    ejected_desc = QLabel(t("Display when enemy pilots eject from their ships"))
+    ejected_desc.setStyleSheet(
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+    )
+    ejected_desc.setWordWrap(True)
+    ejected_layout.addWidget(ejected_desc)
+    
+    vehicle_events_layout.addWidget(ejected_container)
+    
+    abandoned_container = QWidget()
+    abandoned_container.setStyleSheet("background: transparent; border: none;")
+    abandoned_layout = QVBoxLayout(abandoned_container)
+    abandoned_layout.setContentsMargins(0, 0, 0, 0)
+    abandoned_layout.setSpacing(5)
+    
+    self.show_pilot_abandoned_checkbox = QCheckBox(t("Show Pilot Abandoned Ship Events"))
+    self.show_pilot_abandoned_checkbox.setChecked(self.show_pilot_abandoned)
+    self.show_pilot_abandoned_checkbox.stateChanged.connect(self.on_show_pilot_abandoned_changed)
+    self.show_pilot_abandoned_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
+    )
+    abandoned_layout.addWidget(self.show_pilot_abandoned_checkbox)
+    
+    abandoned_desc = QLabel(t("Display when enemy pilots leave their disabled ships"))
+    abandoned_desc.setStyleSheet(
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+    )
+    abandoned_desc.setWordWrap(True)
+    abandoned_layout.addWidget(abandoned_desc)
+    
+    vehicle_events_layout.addWidget(abandoned_container)
+    
+    killfeed_settings_layout.addWidget(vehicle_events_card)
+    
     killfeed_settings_layout.addStretch(1)
 
     api_page = QWidget()
@@ -1687,7 +1821,7 @@ def init_ui(self) -> None:
             background-color: #4E5D94;
         }
     """)
-    discord_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://discord.gg/PCXmwGPZ94")))
+    discord_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://discord.gg/upNeFFDAUK")))
     self.discord_btn = discord_btn
     support_card_layout.addRow("", discord_btn)
 
@@ -2135,6 +2269,18 @@ def load_config(self) -> None:
             else:
                 logging.debug(f"Load config: language already set to {language_code}")
             
+            self.show_vehicle_disabled = config.get('show_vehicle_disabled', True)
+            self.show_vehicle_disabled_checkbox.setChecked(self.show_vehicle_disabled)
+            
+            self.show_vehicle_destroyed = config.get('show_vehicle_destroyed', True)
+            self.show_vehicle_destroyed_checkbox.setChecked(self.show_vehicle_destroyed)
+            
+            self.show_pilot_ejected = config.get('show_pilot_ejected', True)
+            self.show_pilot_ejected_checkbox.setChecked(self.show_pilot_ejected)
+            
+            self.show_pilot_abandoned = config.get('show_pilot_abandoned', True)
+            self.show_pilot_abandoned_checkbox.setChecked(self.show_pilot_abandoned)
+            
             if config.get('monitoring_active', False):
                 QTimer.singleShot(500, self.toggle_monitoring)
                 
@@ -2524,6 +2670,18 @@ class TranslationMixin:
                         widget.setText(t("Language:"))
                     elif text.startswith("Choose your preferred language"):
                         widget.setText(t("Choose your preferred language for the application interface"))
+                    elif text == "VEHICLE EVENT DISPLAY":
+                        widget.setText(t("VEHICLE EVENT DISPLAY"))
+                    elif text.startswith("Control which vehicle-related events"):
+                        widget.setText(t("Control which vehicle-related events are displayed in the killfeed."))
+                    elif text.startswith("Display when enemy ships are disabled"):
+                        widget.setText(t("Display when enemy ships are disabled (soft death - ship not flyable)"))
+                    elif text.startswith("Display when enemy ships are completely destroyed"):
+                        widget.setText(t("Display when enemy ships are completely destroyed (hard death)"))
+                    elif text.startswith("Display when enemy pilots eject"):
+                        widget.setText(t("Display when enemy pilots eject from their ships"))
+                    elif text.startswith("Display when enemy pilots leave their disabled"):
+                        widget.setText(t("Display when enemy pilots leave their disabled ships"))
             except Exception as e:
                 logging.debug(f"Error updating killfeed settings label translations: {e}")
 
@@ -2541,6 +2699,15 @@ class TranslationMixin:
                 self.minimize_to_tray_checkbox.setText(t("Minimize to system tray"))
             if hasattr(self, 'start_with_system_checkbox'):
                 self.start_with_system_checkbox.setText(t("Start with Windows"))
+            
+            if hasattr(self, 'show_vehicle_disabled_checkbox'):
+                self.show_vehicle_disabled_checkbox.setText(t("Show Vehicle Disabled Events"))
+            if hasattr(self, 'show_vehicle_destroyed_checkbox'):
+                self.show_vehicle_destroyed_checkbox.setText(t("Show Vehicle Destroyed Events"))
+            if hasattr(self, 'show_pilot_ejected_checkbox'):
+                self.show_pilot_ejected_checkbox.setText(t("Show Pilot Ejection Events"))
+            if hasattr(self, 'show_pilot_abandoned_checkbox'):
+                self.show_pilot_abandoned_checkbox.setText(t("Show Pilot Abandoned Ship Events"))
                 
             try:
                 for input_widget in self.findChildren(QLineEdit):

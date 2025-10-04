@@ -182,6 +182,11 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.last_animation_timer = None
         
         self.stats_panel_visible = True
+        
+        self.show_vehicle_disabled = True
+        self.show_vehicle_destroyed = True
+        self.show_pilot_ejected = True
+        self.show_pilot_abandoned = True
         self.twitch_enabled = False
         self.auto_connect_twitch = False
         self.twitch = TwitchIntegration()
@@ -538,7 +543,11 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'start_with_system': self.start_with_system,
             'twitch_chat_message_template': self.twitch_chat_message_template,
             'twitch_death_message_template': self.twitch_death_message_template,
-            'language': language_manager.current_language
+            'language': language_manager.current_language,
+            'show_vehicle_disabled': self.show_vehicle_disabled,
+            'show_vehicle_destroyed': self.show_vehicle_destroyed,
+            'show_pilot_ejected': self.show_pilot_ejected,
+            'show_pilot_abandoned': self.show_pilot_abandoned
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -3136,7 +3145,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     logging.error(f"Failed to load config for killer_ship: {e}")
                     killer_ship = "No Ship"
 
-            self.monitor_thread = TailThread(new_log_path, CONFIG_FILE)
+            self.monitor_thread = TailThread(new_log_path, CONFIG_FILE, parent=self)
             self.monitor_thread.current_attacker_ship = killer_ship
             self.monitor_thread.ship_updated.connect(self.on_ship_updated)
             self.monitor_thread.payload_ready.connect(self.handle_payload)
@@ -3637,6 +3646,30 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.setup_autostart(self.start_with_system)
         self.save_config()
         logging.info(f"Start with system set to: {self.start_with_system}")
+
+    def on_show_vehicle_disabled_changed(self, state: int) -> None:
+        """Handle show vehicle disabled checkbox state change"""
+        self.show_vehicle_disabled = (state == Qt.Checked)
+        self.save_config()
+        logging.info(f"Show vehicle disabled events set to: {self.show_vehicle_disabled}")
+
+    def on_show_vehicle_destroyed_changed(self, state: int) -> None:
+        """Handle show vehicle destroyed checkbox state change"""
+        self.show_vehicle_destroyed = (state == Qt.Checked)
+        self.save_config()
+        logging.info(f"Show vehicle destroyed events set to: {self.show_vehicle_destroyed}")
+
+    def on_show_pilot_ejected_changed(self, state: int) -> None:
+        """Handle show pilot ejected checkbox state change"""
+        self.show_pilot_ejected = (state == Qt.Checked)
+        self.save_config()
+        logging.info(f"Show pilot ejected events set to: {self.show_pilot_ejected}")
+
+    def on_show_pilot_abandoned_changed(self, state: int) -> None:
+        """Handle show pilot abandoned ship checkbox state change"""
+        self.show_pilot_abandoned = (state == Qt.Checked)
+        self.save_config()
+        logging.info(f"Show pilot abandoned ship events set to: {self.show_pilot_abandoned}")
 
     def changeEvent(self, event) -> None:
         """Handle window state change events for minimizing to tray"""

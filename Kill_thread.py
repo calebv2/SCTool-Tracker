@@ -167,8 +167,8 @@ class TailThread(QThread):
     death_payload_ready = pyqtSignal(dict, str, str, str)
     ship_updated = pyqtSignal(str)
 
-    def __init__(self, file_path: str, config_file: Optional[str] = None, callback=None) -> None:
-        super().__init__()
+    def __init__(self, file_path: str, config_file: Optional[str] = None, callback=None, parent=None) -> None:
+        super().__init__(parent)
         self.file_path = file_path
         self.config_file = config_file
         self._stop_event = False
@@ -176,6 +176,7 @@ class TailThread(QThread):
         self.registered_user: Optional[str] = None
         self.has_registered = False
         self.current_attacker_ship: Optional[str] = "Player destruction"
+        self.gui_parent = parent
         
         self.vehicle_correlator = VehicleEventCorrelator(event_callback=self.handle_correlated_vehicle_kill)
         self.vehicle_correlator.start_cleanup_thread()
@@ -430,6 +431,14 @@ class TailThread(QThread):
             logging.info(f"NPC vehicle destruction detected (destroyer: {destroyer}). Not showing.")
             return
         
+        if self.gui_parent:
+            if destroy_level == 1 and not getattr(self.gui_parent, 'show_vehicle_disabled', True):
+                logging.debug(f"Vehicle disabled event hidden by user preference: {vehicle_name}")
+                return
+            elif destroy_level == 2 and not getattr(self.gui_parent, 'show_vehicle_destroyed', True):
+                logging.debug(f"Vehicle destroyed event hidden by user preference: {vehicle_name}")
+                return
+        
         cleaned_vehicle = re.sub(r'_\d+$', '', vehicle_name)
         cleaned_vehicle = re.sub(r'\s+\d+$', '', cleaned_vehicle)
         cleaned_vehicle = cleaned_vehicle.replace('_', ' ')
@@ -482,7 +491,6 @@ class TailThread(QThread):
         
         if attacker.lower() == self.registered_user.strip().lower():
             try:
-                # Create a synthetic log line that matches KILL_LOG_PATTERN
                 synthetic_log_line = (
                     f"<{timestamp}> [Notice] <Actor Death> CActor::Kill: '{victim}' "
                     f"[{victim_id}] in zone '{zone}' "
@@ -514,7 +522,6 @@ class TailThread(QThread):
             try:
                 from Death_kill import format_death_kill
                 
-                # Create a synthetic log line that matches KILL_LOG_PATTERN
                 synthetic_log_line = (
                     f"<{timestamp}> [Notice] <Actor Death> CActor::Kill: '{victim}' "
                     f"[{victim_id}] in zone '{zone}' "
@@ -561,12 +568,14 @@ class TailThread(QThread):
             logging.info(f"NPC ejection detected (pilot: {pilot}). Not showing.")
             return
         
-        # Clean vehicle name - remove trailing numbers and underscores
+        if self.gui_parent and not getattr(self.gui_parent, 'show_pilot_ejected', True):
+            logging.debug(f"Pilot ejection event hidden by user preference: {pilot}")
+            return
+        
         cleaned_vehicle = re.sub(r'_\d+$', '', vehicle_name)
         cleaned_vehicle = re.sub(r'\s+\d+$', '', cleaned_vehicle)
         cleaned_vehicle = cleaned_vehicle.replace('_', ' ')
         
-        # Only show ejections by OTHER players (not the registered user)
         if pilot.lower() != self.registered_user.strip().lower():
             readout = f"""
             <div class="newEntry">
@@ -597,7 +606,10 @@ class TailThread(QThread):
             logging.info(f"NPC seat exit detected (pilot: {pilot}). Not showing.")
             return
         
-        # Only show seat exits by OTHER players (not the registered user)
+        if self.gui_parent and not getattr(self.gui_parent, 'show_pilot_abandoned', True):
+            logging.debug(f"Pilot abandoned ship event hidden by user preference: {pilot}")
+            return
+        
         if pilot.lower() != self.registered_user.strip().lower():
             readout = f"""
             <div class="newEntry">
