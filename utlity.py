@@ -15,15 +15,73 @@ from language_manager import t, get_language_manager
 from kill_parser import VERSION
 from PyQt5.QtGui import QKeyEvent
 from datetime import datetime, timedelta
-from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QKeySequence
-from PyQt5.QtCore import QUrl
+from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QKeySequence, QFont, QFontMetrics
+from PyQt5.QtCore import QUrl, Qt as QtCore_Qt
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QLineEdit, QFormLayout, QComboBox, QCheckBox,
     QSlider, QFileDialog, QTextBrowser, QScrollArea, QFrame,
     QSizePolicy, QApplication, QStackedWidget, QMessageBox, QGroupBox,
-    QGridLayout, QRadioButton, QButtonGroup
+    QGridLayout, QRadioButton, QButtonGroup, QGraphicsBlurEffect, QGraphicsDropShadowEffect
 )
+
+class OutlinedLabel(QLabel):
+    """QLabel subclass that draws text with a black outline"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.outline_width = 2
+        self.outline_color = QColor(0, 0, 0)
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        text = self.text()
+        if not text:
+            return
+            
+        font = self.font()
+        painter.setFont(font)
+
+        fm = QFontMetrics(font)
+        text_width = fm.horizontalAdvance(text)
+        text_height = fm.height()
+
+        rect = self.rect()
+        x = rect.x()
+        y = rect.y()
+        
+        if self.alignment() & Qt.AlignHCenter:
+            x = (rect.width() - text_width) // 2
+        elif self.alignment() & Qt.AlignRight:
+            x = rect.width() - text_width
+            
+        if self.alignment() & Qt.AlignVCenter:
+            y = (rect.height() + text_height) // 2 - fm.descent()
+        elif self.alignment() & Qt.AlignBottom:
+            y = rect.height() - fm.descent()
+        else:
+            y = text_height - fm.descent()
+
+        path = QPainterPath()
+        path.addText(x, y, font, text)
+
+        painter.setPen(QPen(self.outline_color, self.outline_width * 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawPath(path)
+
+        painter.setPen(Qt.NoPen)
+
+        style = self.styleSheet()
+        color = QColor("#f0f0f0")
+        if "color:" in style:
+            import re
+            match = re.search(r'color:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})', style)
+            if match:
+                color = QColor(match.group(1))
+        
+        painter.setBrush(QBrush(color))
+        painter.drawPath(path)
 
 try:
     from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -119,8 +177,22 @@ def init_ui(self) -> None:
     sidebar_layout.setSpacing(2)
     logo_container = QWidget()
     logo_container.setStyleSheet("border: none; background: transparent;")
+    self.logo_container = logo_container
+
+    self.guild_background = QLabel(logo_container)
+    self.guild_background.setStyleSheet("border: none; background: transparent;")
+    self.guild_background.setAlignment(Qt.AlignCenter)
+    self.guild_background.setVisible(False)
+    blur_effect = QGraphicsBlurEffect()
+    blur_effect.setBlurRadius(5)
+    self.guild_background.setGraphicsEffect(blur_effect)
+    self._guild_background_blur = blur_effect
+    self.guild_background.lower()
+    self.guild_background.setGeometry(logo_container.rect())
+
     logo_layout = QVBoxLayout(logo_container)
     logo_layout.setContentsMargins(10, 0, 10, 20)
+    logo_container.installEventFilter(self)
 
     self.user_profile_image = QLabel()
     self.user_profile_image.setFixedSize(64, 64)
@@ -131,19 +203,27 @@ def init_ui(self) -> None:
     logo_layout.addWidget(self.user_profile_image, alignment=Qt.AlignCenter)
     self.set_default_user_image()
     
-    app_title = QLabel("SCTool Tracker")
+    app_title = OutlinedLabel("SCTool Tracker")
     app_title.setStyleSheet(
         "QLabel { color: #f04747; font-size: 16px; font-weight: bold; background: transparent; border: none; }"
     )
     app_title.setAlignment(Qt.AlignCenter)
     logo_layout.addWidget(app_title)
-    
-    self.user_display = QLabel(t("Not logged in"))
+
+    self.user_display = OutlinedLabel(t("Not logged in"))
     self.user_display.setStyleSheet(
         "QLabel { color: #f0f0f0; font-size: 12px; background: transparent; border: none; }"
     )
     self.user_display.setAlignment(Qt.AlignCenter)
     logo_layout.addWidget(self.user_display)
+
+    self.guild_display = OutlinedLabel("")
+    self.guild_display.setStyleSheet(
+        "QLabel { color: #f0f0f0; font-size: 12px; background: transparent; border: none; }"
+    )
+    self.guild_display.setAlignment(Qt.AlignCenter)
+    self.guild_display.setVisible(False)
+    logo_layout.addWidget(self.guild_display)
     
     sidebar_layout.addWidget(logo_container)
     

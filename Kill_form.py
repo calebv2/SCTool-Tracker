@@ -31,9 +31,9 @@ from PyQt5.QtWidgets import (
     QSlider, QFormLayout, QLabel, QComboBox, QDialog, QSizePolicy, QProgressDialog,
     QSystemTrayIcon, QMenu, QAction, QFrame, QGraphicsOpacityEffect, QScrollArea
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath
+from PyQt5.QtGui import QIcon, QDesktopServices, QPixmap, QPainter, QBrush, QPen, QColor, QPainterPath, QImage
 from PyQt5.QtCore import (
-    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect, QPropertyAnimation, QEasingCurve
+    Qt, QUrl, QTimer, QStandardPaths, QDir, QSize, QRect, QPropertyAnimation, QEasingCurve, QEvent
 )
 from PyQt5.QtMultimedia import QSoundEffect, QMediaPlayer, QMediaContent
 
@@ -142,6 +142,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.api_endpoint = "https://starcitizentool.com/api/v1/kills"
         self.user_agent = CHROME_USER_AGENT
         self.local_user_name = ""
+        self.guild_name = ""
+        self._guild_icon_pixmap: Optional[QPixmap] = None
         self.dark_mode_enabled = True
         
         _, _, self.scale_factor = ScreenScaler.get_screen_info()
@@ -381,6 +383,55 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             else:
                 return self.kill_display.toHtml()
         return ""
+
+    def _refresh_guild_background(self) -> None:
+        if not hasattr(self, 'guild_background'):
+            return
+
+        target_size = self.guild_background.size()
+        if self._guild_icon_pixmap:
+            if not target_size.isEmpty():
+                scaled = self._guild_icon_pixmap.scaled(
+                    target_size,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
+                self.guild_background.setPixmap(scaled)
+            self.guild_background.setVisible(True)
+            return
+
+        self.guild_background.clear()
+        self.guild_background.setVisible(False)
+
+    def _update_guild_background(self, icon_url: Optional[str]) -> None:
+        if not hasattr(self, 'guild_background'):
+            return
+
+        if icon_url:
+            try:
+                response = requests.get(icon_url, timeout=10)
+                response.raise_for_status()
+                image = QImage.fromData(response.content)
+                if not image.isNull():
+                    self._guild_icon_pixmap = QPixmap.fromImage(image)
+                    self.guild_background.setVisible(True)
+                    self._refresh_guild_background()
+                    return
+                else:
+                    logging.warning("Guild icon image data is invalid")
+            except Exception as e:
+                logging.warning(f"Failed to load guild icon from {icon_url}: {e}")
+
+        self._guild_icon_pixmap = None
+        self._refresh_guild_background()
+
+    def eventFilter(self, obj, event):
+        if hasattr(self, 'logo_container') and obj is getattr(self, 'logo_container', None):
+            if event.type() in (QEvent.Resize, QEvent.Show):
+                if hasattr(self, 'guild_background'):
+                    self.guild_background.setGeometry(self.logo_container.rect())
+                    self._refresh_guild_background()
+        return super().eventFilter(obj, event)
 
     def create_nav_button(self, text, obj_name=None):
         """Create a styled navigation button for the sidebar"""
@@ -1223,6 +1274,21 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                             if hasattr(self, 'user_display'):
                                 self.user_display.setText(f"{self.local_user_name}")
                             logging.info(f"Retrieved registered username from API: {registered_name}")
+                    
+                    guild_name = data.get('guild_name')
+                    if guild_name:
+                        self.guild_name = guild_name
+                        if hasattr(self, 'guild_display'):
+                            self.guild_display.setText(f"{self.guild_name}")
+                            self.guild_display.setVisible(True)
+                        logging.info(f"Retrieved guild name from API: {guild_name}")
+                    else:
+                        self.guild_name = ""
+                        if hasattr(self, 'guild_display'):
+                            self.guild_display.clear()
+                            self.guild_display.setVisible(False)
+
+                    self._update_guild_background(data.get('guild_icon'))
                     
                     logging.info("API ping successful")
                     return True
