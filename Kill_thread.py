@@ -20,14 +20,14 @@ from PyQt5.QtWidgets import (
 
 from language_manager import t
 
-from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT, KillParser
+from kill_parser import GAME_MODE_MAPPING, GAME_MODE_PATTERN, KILL_LOG_PATTERN, CHROME_USER_AGENT, DESKTOP_CLIENT_USER_AGENT, KillParser
 from language_manager import t
 
 from Registered_kill import format_registered_kill
 from vehicle_event_correlator import VehicleEventCorrelator
 
 SESSION = requests.Session()
-SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
+SESSION.headers.update({"User-Agent": DESKTOP_CLIENT_USER_AGENT})
 cleanupPattern = re.compile(r'^(.+?)_\d+$')
 
 class MissingKillsDialog(QDialog):

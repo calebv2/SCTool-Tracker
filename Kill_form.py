@@ -38,7 +38,7 @@ from PyQt5.QtCore import (
 from PyQt5.QtMultimedia import QSoundEffect, QMediaPlayer, QMediaContent
 
 from Kill_thread import ApiSenderThread, TailThread, RescanThread, MissingKillsDialog
-from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT
+from kill_parser import KILL_LOG_PATTERN, CHROME_USER_AGENT, DESKTOP_CLIENT_USER_AGENT
 from twitch_integration import TwitchIntegration, process_twitch_callbacks
 from kill_clip import ButtonAutomation, process_button_automation_callbacks, ButtonAutomationWidget
 from responsive_ui import ScreenScaler, ResponsiveUIHelper, make_popup_responsive
@@ -121,7 +121,7 @@ logging.basicConfig(
 LOCAL_KILLS_FILE = os.path.join(TRACKER_DIR, "logged_kills.json")
 
 SESSION = requests.Session()
-SESSION.headers.update({"User-Agent": CHROME_USER_AGENT})
+SESSION.headers.update({"User-Agent": DESKTOP_CLIENT_USER_AGENT})
 PLAYER_DETAILS_CACHE: Dict[str, Dict[str, str]] = {}
 
 class KillLoggerGUI(QMainWindow, TranslationMixin):
@@ -140,7 +140,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.rescan_thread: Optional[RescanThread] = None
         self.missing_kills_queue: List[dict] = []
         self.api_endpoint = "https://starcitizentool.com/api/v1/kills"
-        self.user_agent = CHROME_USER_AGENT
+        self.user_agent = DESKTOP_CLIENT_USER_AGENT
         self.local_user_name = ""
         self.guild_name = ""
         self._guild_icon_pixmap: Optional[QPixmap] = None
@@ -1080,7 +1080,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
             'Upgrade-Insecure-Requests': '1',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'User-Agent': self.user_agent,
             'X-API-Key': self.api_key,
             'X-Client-ID': self.__client_id__,
             'X-Client-Version': self.__version__

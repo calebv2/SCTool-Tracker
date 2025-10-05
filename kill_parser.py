@@ -8,6 +8,11 @@ CHROME_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/131.0.0.0 Safari/537.36"
 )
+
+VERSION = "6.2"
+
+DESKTOP_CLIENT_USER_AGENT = f"kill_logger_client/{VERSION}"
+
 KILL_LOG_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> \[Notice\] <Actor Death> CActor::Kill: '(?P<victim>[^']+)' "
     r"\[(?P<victim_geid>\d+)\] in zone '(?P<zone>[^']+)' "
@@ -18,8 +23,6 @@ KILL_LOG_PATTERN = re.compile(
 GAME_MODE_PATTERN = re.compile(
     r"<(?P<timestamp>[^>]+)> Loading GameModeRecord='(?P<game_mode>[^']+)' with EGameModeId='[^']+'"
 )
-
-VERSION = "6.1"
 
 GAME_MODE_MAPPING = {
     'EA_TeamElimination': 'Team Elimination',
