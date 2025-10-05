@@ -1476,7 +1476,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
     def export_logs(self) -> None:
         """Export the kill/death log entries to an HTML file."""
-        if not self.kill_display.document().isEmpty():
+        has_content = False
+        if hasattr(self.kill_display, 'document'):
+            has_content = not self.kill_display.document().isEmpty()
+        else:
+            has_content = self.kill_count > 0 or self.death_count > 0
+        
+        if has_content:
             options = QFileDialog.Options()
             current_date = datetime.now().strftime("%Y-%m-%d")
             file_path, _ = QFileDialog.getSaveFileName(
