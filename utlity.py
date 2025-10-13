@@ -2328,10 +2328,13 @@ def load_config(self) -> None:
             self.start_with_system_checkbox.setChecked(self.start_with_system)
             
             self.local_user_name = config.get('local_user_name', '')
+            self.local_user_geid = config.get('local_user_geid', '')
             if self.local_user_name:
                 self.user_display.setText(f"{self.local_user_name}")
                 self.update_user_profile_image(self.local_user_name)
                 self.rescan_button.setEnabled(True)
+                if self.local_user_geid:
+                    logging.info(f"Loaded user: {self.local_user_name} with GEID: {self.local_user_geid}")
             
             self.twitch_chat_message_template = config.get('twitch_chat_message_template', "🔫 {username} just killed {victim}! 🚀 {profile_url}")
             if hasattr(self, 'twitch_message_input'):

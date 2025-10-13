@@ -142,6 +142,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.api_endpoint = "https://starcitizentool.com/api/v1/kills"
         self.user_agent = DESKTOP_CLIENT_USER_AGENT
         self.local_user_name = ""
+        self.local_user_geid = ""
         self.guild_name = ""
         self._guild_icon_pixmap: Optional[QPixmap] = None
         self.dark_mode_enabled = True
@@ -581,6 +582,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'api_key': self.api_key_input.text().strip(),
             'disable_ssl_verification': self.disable_ssl_verification,
             'local_user_name': self.local_user_name,
+            'local_user_geid': self.local_user_geid,
             'send_to_api': self.send_to_api_checkbox.isChecked(),
             'killer_ship': ship_value,
             'twitch_enabled': self.twitch_enabled,
@@ -840,7 +842,21 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.missing_kills_results = {'duplicates': [], 'new_kills': [], 'errors': [], 'total': 0}
 
     def on_player_registered(self, text: str) -> None:
-        match = re.search(r"Registered user:\s+(.+)$", text)
+        # Try to match the new format with GEID
+        match_with_geid = re.search(r"Registered user(?:\s+updated)?:\s+(.+?)\s+\(GEID:\s+(\d+)\)", text)
+        if match_with_geid:
+            self.local_user_name = match_with_geid.group(1).strip()
+            self.local_user_geid = match_with_geid.group(2).strip()
+            self.user_display.setText(f"{self.local_user_name}")
+            self.update_bottom_info("registered", f"Registered user: {self.local_user_name}")
+            self.save_config()
+            self.rescan_button.setEnabled(True)
+            QTimer.singleShot(500, lambda: self.update_user_profile_image(self.local_user_name))
+            logging.info(f"Player registered: {self.local_user_name} with GEID: {self.local_user_geid}")
+            return
+        
+        # Fallback to legacy format without GEID
+        match = re.search(r"Registered user(?:\s+updated)?:\s+(.+)$", text)
         if match:
             self.local_user_name = match.group(1).strip()
             self.user_display.setText(f"{self.local_user_name}")
@@ -3004,6 +3020,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             new_log_path = self.log_path_input.text().strip()
             self.api_key = new_api_key
             self.local_user_name = ""
+            self.local_user_geid = ""
             self.registration_attempts = 0
             
             logging.info("=" * 60)
