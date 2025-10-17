@@ -109,8 +109,24 @@ class RegisteredKillFormatter(KillEventFormatter):
         return killer_ship
     
     @staticmethod
-    def determine_engagement_and_method(damage_type: str, killer_ship: str, formatted_weapon: str) -> Tuple[str, str]:
-        """Determine engagement description and method"""
+    def determine_engagement_and_method(damage_type: str, killer_ship: str, formatted_weapon: str, is_in_ship: bool = False) -> Tuple[str, str]:
+        """
+        Determine engagement description and method
+        
+        Args:
+            damage_type: Type of damage (e.g., 'vehicledestruction', 'Bullet')
+            killer_ship: Name of the ship (if any)
+            formatted_weapon: Formatted weapon name
+            is_in_ship: Whether the player was in a ship at the time of the kill
+            
+        Returns:
+            Tuple of (engagement description, method)
+            
+        Logic:
+            - Vehicle destruction = A ship/vehicle was destroyed (damage_type == "vehicledestruction")
+            - Player destruction = A player entity died (any other damage type)
+            - Engagement shows ship name if player was in a ship during the kill
+        """
         if damage_type.lower() == "vehicledestruction":
             if killer_ship.lower() not in [t("vehicle destruction").lower(), t("player destruction").lower(), ""]:
                 engagement = f"{killer_ship} {t('using')} {formatted_weapon}"
@@ -118,7 +134,10 @@ class RegisteredKillFormatter(KillEventFormatter):
                 engagement = formatted_weapon
             method = t("Vehicle destruction")
         else:
-            engagement = formatted_weapon
+            if is_in_ship and killer_ship and killer_ship.lower() not in [t("vehicle destruction").lower(), t("player destruction").lower(), t("no ship").lower(), ""]:
+                engagement = f"{killer_ship} {t('using')} {formatted_weapon}"
+            else:
+                engagement = formatted_weapon
             method = t("Player destruction")
         
         return engagement, method
@@ -130,7 +149,8 @@ class RegisteredKillFormatter(KillEventFormatter):
         registered_user: str,
         full_timestamp: str,
         last_game_mode: str,
-        success: bool = True
+        success: bool = True,
+        is_in_ship: bool = False
     ) -> Tuple[str, Dict[str, Any]]:
         """Format registered kill event"""
         try:
@@ -145,7 +165,7 @@ class RegisteredKillFormatter(KillEventFormatter):
             formatted_zone = KillParser.format_zone(zone)
             formatted_weapon = KillParser.format_weapon(weapon)
             engagement, method = self.determine_engagement_and_method(
-                damage_type, killer_ship, formatted_weapon
+                damage_type, killer_ship, formatted_weapon, is_in_ship
             )
 
             details = self.safe_get_player_details(victim)

@@ -177,6 +177,7 @@ class TailThread(QThread):
         self.registered_user_geid: Optional[str] = None
         self.has_registered = False
         self.current_attacker_ship: Optional[str] = "Player destruction"
+        self.is_in_ship: bool = False
         self.gui_parent = parent
         
         self.vehicle_correlator = VehicleEventCorrelator(event_callback=self.handle_correlated_vehicle_kill)
@@ -248,6 +249,7 @@ class TailThread(QThread):
         vehicle_control_get_in_pattern = re.compile(r"Local client node \[(?P<geid>\d+)\] requesting control token for '(?P<ship>[^']+)' \[")
         vehicle_control_get_out_pattern = re.compile(r"Local client node \[(?P<geid>\d+)\] releasing control token for '(?P<ship>[^']+)' \[")
         last_ship = None
+        last_is_in_ship = False
         ship_count = 0
         current_game_mode = "Unknown"
         
@@ -276,12 +278,13 @@ class TailThread(QThread):
                                 raw_ship = vc_match.group('ship').strip()
                                 
                                 if self.registered_user_geid and geid == self.registered_user_geid:
-                                    if re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                                    if re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI|GLSN)', raw_ship):
                                         cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
                                         cleaned_ship = cleaned_ship.replace('_', ' ')
                                         cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
                                         
                                         last_ship = cleaned_ship
+                                        last_is_in_ship = True
                                         ship_count += 1
                                         continue
                     elif "CVehicleMovementBase::ClearDriver" in stripped and "releasing control token" in stripped:
@@ -293,6 +296,7 @@ class TailThread(QThread):
                                 
                                 if self.registered_user_geid and geid == self.registered_user_geid:
                                     last_ship = "No Ship"
+                                    last_is_in_ship = False
                                     ship_count += 1
                                     continue
                 
@@ -304,7 +308,7 @@ class TailThread(QThread):
                     if j_match:
                         raw_ship = j_match.group('ship')
                         
-                        if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                        if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI|GLSN)', raw_ship):
                             continue
                         
                         cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
@@ -327,15 +331,18 @@ class TailThread(QThread):
             
         if current_game_mode == 'Main Menu':
             self.current_attacker_ship = "No Ship"
+            self.is_in_ship = False
             self.update_config_killer_ship("No Ship")
             self.ship_updated.emit("No Ship")
             logging.info("Ship history reconstruction: User in Main Menu, set to No Ship")
         elif last_ship:
             self.current_attacker_ship = last_ship
+            self.is_in_ship = last_is_in_ship
             self.update_config_killer_ship(last_ship)
             self.ship_updated.emit(last_ship)
-            logging.info(f"Ship history reconstruction: Found {ship_count} ship changes, current ship: {last_ship}")
+            logging.info(f"Ship history reconstruction: Found {ship_count} ship changes, current ship: {last_ship}, in_ship: {last_is_in_ship}")
         else:
+            self.is_in_ship = False
             logging.info("Ship history reconstruction: No ships found in log history")
 
     def run(self) -> None:
@@ -418,7 +425,7 @@ class TailThread(QThread):
         match = re.search(r'\(adam:\s+(?P<ship>(?:[A-Za-z0-9_]+?)(?=_\d+\s+in zone)|[A-Za-z0-9_]+)\s+in zone', line)
         if match:
             raw_ship = match.group('ship')
-            if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+            if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI|GLSN)', raw_ship):
                 logging.warning(f"Jump Drive: Ship name doesn't have a recognized manufacturer code: {raw_ship}")
                 return
 
@@ -451,7 +458,7 @@ class TailThread(QThread):
                 logging.debug(f"Vehicle Control Get In: GEID {geid} doesn't match registered user GEID {self.registered_user_geid}")
                 return
             
-            if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+            if not re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI|GLSN)', raw_ship):
                 logging.warning(f"Vehicle Control Get In: Ship name doesn't have a recognized manufacturer code: {raw_ship}")
                 return
             
@@ -460,6 +467,7 @@ class TailThread(QThread):
             cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
             
             self.current_attacker_ship = cleaned_ship
+            self.is_in_ship = True
             logging.info(f"Vehicle Control Get In: Updated killer ship to: {cleaned_ship} for user GEID: {geid}")
             self.update_config_killer_ship(cleaned_ship)
             self.ship_updated.emit(cleaned_ship)
@@ -481,6 +489,7 @@ class TailThread(QThread):
                 return
             
             self.current_attacker_ship = "No Ship"
+            self.is_in_ship = False
             logging.info(f"Vehicle Control Get Out: User exited vehicle, set to No Ship for GEID: {geid}")
             self.update_config_killer_ship("No Ship")
             self.ship_updated.emit("No Ship")
@@ -822,6 +831,7 @@ class TailThread(QThread):
                 self.death_detected.emit(readout, victim)
                 
                 self.current_attacker_ship = "No Ship"
+                self.is_in_ship = False
                 logging.info("Player Death: User died (suicide), set ship to No Ship")
                 self.update_config_killer_ship("No Ship")
                 self.ship_updated.emit("No Ship")
@@ -835,7 +845,7 @@ class TailThread(QThread):
         if attacker.lower() == self.registered_user.strip().lower():
             try:
                 readout, payload = format_registered_kill(
-                    line, data, self.registered_user, full_timestamp, captured_game_mode, success=True
+                    line, data, self.registered_user, full_timestamp, captured_game_mode, success=True, is_in_ship=self.is_in_ship
                 )
                 self.kill_detected.emit(readout, attacker)
                 self.payload_ready.emit(payload, full_timestamp, attacker, readout)
@@ -861,6 +871,7 @@ class TailThread(QThread):
                 self.death_payload_ready.emit(death_payload, full_timestamp, attacker, readout)
                 
                 self.current_attacker_ship = "No Ship"
+                self.is_in_ship = False
                 logging.info(f"Player Death: User was killed by {attacker}, set ship to No Ship")
                 self.update_config_killer_ship("No Ship")
                 self.ship_updated.emit("No Ship")
@@ -889,6 +900,7 @@ class RescanThread(QThread):
     def run(self) -> None:
         current_game_mode = "Unknown"
         current_ship = "No Ship"
+        is_in_ship = False
         registered_user_geid = None
         jump_drive_pattern = re.compile(r'\(adam:\s+(?P<ship>(?:[A-Za-z0-9_]+?)(?=_\d+\s+in zone)|[A-Za-z0-9_]+)\s+in zone')
         vehicle_control_get_in_pattern = re.compile(r"Local client node \[(?P<geid>\d+)\] requesting control token for '(?P<ship>[^']+)' \[")
@@ -921,6 +933,7 @@ class RescanThread(QThread):
                             
                             if mapped == 'Main Menu':
                                 current_ship = "No Ship"
+                                is_in_ship = False
                     
                     if "<Vehicle Control Flow>" in stripped:
                         if "CVehicleMovementBase::SetDriver" in stripped and "requesting control token" in stripped:
@@ -932,11 +945,12 @@ class RescanThread(QThread):
                                     raw_ship = vc_match.group('ship').strip()
                                     
                                     if registered_user_geid and geid == registered_user_geid:
-                                        if re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                                        if re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI|GLSN)', raw_ship):
                                             cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
                                             cleaned_ship = cleaned_ship.replace('_', ' ')
                                             cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
                                             current_ship = cleaned_ship
+                                            is_in_ship = True
                         elif "CVehicleMovementBase::ClearDriver" in stripped and "releasing control token" in stripped:
                             ac_vehicle_modes = ['Free Flight', 'Squadron Battle', 'Vehicle Kill Confirmed', 'Duel', 'Tonk Royale', 'Tonk Royale Free For All']
                             if current_game_mode == 'PU' or current_game_mode in ac_vehicle_modes:
@@ -946,6 +960,7 @@ class RescanThread(QThread):
                                     
                                     if registered_user_geid and geid == registered_user_geid:
                                         current_ship = "No Ship"
+                                        is_in_ship = False
                     
                     if current_game_mode == 'PU' and "<Jump Drive Requesting State Change>" in stripped:
                         if "Jump Drive is no longer in use" not in stripped:
@@ -953,7 +968,7 @@ class RescanThread(QThread):
                             if j_match:
                                 raw_ship = j_match.group('ship')
                                 
-                                if re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI)', raw_ship):
+                                if re.match(r'^(ORIG|CRUS|RSI|AEGS|VNCL|DRAK|ANVL|BANU|MISC|CNOU|XIAN|GAMA|TMBL|ESPR|KRIG|GRIN|XNAA|MRAI|GLSN)', raw_ship):
                                     cleaned_ship = re.sub(r'_\d+$', '', raw_ship)
                                     cleaned_ship = cleaned_ship.replace('_', ' ')
                                     cleaned_ship = re.sub(r'\s+\d+$', '', cleaned_ship)
@@ -975,6 +990,7 @@ class RescanThread(QThread):
                             if victim == self.registered_user:
                                 logging.info(f"Registered user died during rescan. Victim: '{victim}', Attacker: {attacker}")
                                 current_ship = "No Ship"
+                                is_in_ship = False
                                 continue
                                 
                             if attacker == self.registered_user:
