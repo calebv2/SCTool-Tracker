@@ -9,7 +9,7 @@ CHROME_USER_AGENT = (
     "Chrome/131.0.0.0 Safari/537.36"
 )
 
-VERSION = "6.3"
+VERSION = "6.4"
 
 DESKTOP_CLIENT_USER_AGENT = f"kill_logger_client/{VERSION}"
 

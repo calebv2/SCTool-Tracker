@@ -152,6 +152,13 @@ class RegisteredKillTemplate(KillEventTemplate):
         else:
             org_section = f"""<div style="color: {colors['text_secondary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">{t('Organization')}: NO ORG</div>"""
         
+        ship_type = data.get('killer_ship', 'None')
+        ship_section = ""
+        if ship_type and ship_type != 'None':
+            ship_section = f"""<div style="color: {colors['text_primary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">
+                        {t('Ship Type')}: {ship_type}
+                    </div>"""
+        
         return f"""
 <div style="
     background: {colors['background']}; 
@@ -182,8 +189,9 @@ class RegisteredKillTemplate(KillEventTemplate):
                 </div>
                 
                 <div style="margin-top: 10px;">
+                    {ship_section}
                     <div style="color: {colors['text_primary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">
-                        {t('Weapon')}: {data['engagement']}
+                        {t('Weapon')}: {data['formatted_weapon']}
                     </div>
                     <div style="color: {colors['text_primary']}; font-size: 16px; font-family: 'Consolas', monospace; margin: 2px 0;">
                         {t('Location')}: {data['formatted_zone']}

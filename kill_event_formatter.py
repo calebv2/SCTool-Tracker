@@ -161,9 +161,23 @@ class RegisteredKillFormatter(KillEventFormatter):
             damage_type = data.get('damage_type', 'Unknown')
             weapon = data.get('weapon', 'Unknown')
             raw_killer_ship = data.get('killer_ship', t("Player destruction"))
+            ship_manufacturers = ['ORIG', 'CRUS', 'RSI', 'AEGS', 'VNCL', 'DRAK', 'ANVL', 
+                                 'BANU', 'MISC', 'CNOU', 'XIAN', 'GAMA', 'TMBL', 'ESPR', 
+                                 'KRIG', 'GRIN', 'XNAA', 'MRAI', 'GLSN']
+            weapon_prefix = weapon.split('_')[0] if '_' in weapon else ""
+            
+            if weapon_prefix in ship_manufacturers:
+                parts = weapon.split('_')
+                if len(parts) >= 2:
+                    raw_killer_ship = f"{parts[0]}_{parts[1]}"
+                else:
+                    raw_killer_ship = weapon
+                formatted_weapon = "Ship Weapon"
+            else:
+                formatted_weapon = KillParser.format_weapon(weapon)
+            
             killer_ship = self.process_killer_ship(raw_killer_ship)
             formatted_zone = KillParser.format_zone(zone)
-            formatted_weapon = KillParser.format_weapon(weapon)
             engagement, method = self.determine_engagement_and_method(
                 damage_type, killer_ship, formatted_weapon, is_in_ship
             )
@@ -184,19 +198,22 @@ class RegisteredKillFormatter(KillEventFormatter):
                 'victim_link': victim_link,
                 'formatted_zone': formatted_zone,
                 'details': details,
-                'victim_image_data_uri': victim_image_data_uri
+                'victim_image_data_uri': victim_image_data_uri,
+                'killer_ship': killer_ship,
+                'formatted_weapon': formatted_weapon
             }
             
             readout = RegisteredKillTemplate.render(template_data)
             
             payload_ship = killer_ship if killer_ship.lower() not in [
-                t("vehicle destruction").lower(), t("player destruction").lower()
+                t("vehicle destruction").lower(), t("player destruction").lower(), t("no ship").lower(), ""
             ] else ""
             
             payload = {
                 'log_line': log_line.strip(),
                 'game_mode': game_mode,
                 'killer_ship': payload_ship,
+                'weapon': formatted_weapon,
                 'method': method
             }
             

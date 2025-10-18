@@ -840,7 +840,7 @@ class TailThread(QThread):
             return
 
         captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
-        data["killer_ship"] = self.current_attacker_ship if self.current_attacker_ship else "Player destruction"
+        data["killer_ship"] = self.current_attacker_ship if self.current_attacker_ship else "No Ship"
 
         if attacker.lower() == self.registered_user.strip().lower():
             try:
@@ -1000,8 +1000,33 @@ class RescanThread(QThread):
                                 except ValueError:
                                     timestamp = timestamp_iso
                                 local_key = f"{timestamp}::{victim}::{current_game_mode}"
-                                payload = {'log_line': stripped, 'game_mode': current_game_mode}
-                                payload["killer_ship"] = current_ship
+                                
+                                damage_type = data.get('damage_type', 'Unknown')
+                                weapon = data.get('weapon', 'Unknown')
+                                ship_manufacturers = ['ORIG', 'CRUS', 'RSI', 'AEGS', 'VNCL', 'DRAK', 'ANVL', 
+                                                     'BANU', 'MISC', 'CNOU', 'XIAN', 'GAMA', 'TMBL', 'ESPR', 
+                                                     'KRIG', 'GRIN', 'XNAA', 'MRAI', 'GLSN']
+                                weapon_prefix = weapon.split('_')[0] if '_' in weapon else ""
+                                
+                                if weapon_prefix in ship_manufacturers:
+                                    formatted_weapon = "Ship Weapon"
+                                else:
+                                    formatted_weapon = KillParser.format_weapon(weapon)
+                                
+                                if damage_type.lower() == "vehicledestruction":
+                                    method = "Vehicle destruction"
+                                else:
+                                    method = "Player destruction"
+
+                                payload_ship = current_ship if current_ship and current_ship.lower() not in ["no ship", ""] else ""
+                                payload = {
+                                    'log_line': stripped, 
+                                    'game_mode': current_game_mode,
+                                    'killer_ship': payload_ship,
+                                    'weapon': formatted_weapon,
+                                    'method': method
+                                }
+                                
                                 self.found_kills.append({
                                     "local_key": local_key,
                                     "payload": payload,

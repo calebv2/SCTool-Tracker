@@ -680,26 +680,234 @@ The tracker offers Twitch integration with advanced configuration options:
 - **Clip Timing**: Configurable clip delay and grouping windows
 - **Chat Templates**: Customizable message templates for different kill types
 
-## Building Your Own Tracker
+## API Integration and Combat Tracking System
 
-If you want to build your own tracker that integrates with the SCTool API, follow these guidelines:
+The SCTool Tracker integrates with the SCTool API to send combat data for statistics tracking. This section details the exact payload structures and API specifications.
 
-## API Client Specifications
+### Combat Event Processing
+
+#### Kill vs Death Payload Tracking
+
+The system sends **two different payload types** to the API:
+
+1. **Kill Payloads** (sent to `/api/v1/kills`): What YOU did - tracking your kills
+2. **Death Payloads** (sent to `/api/v1/deaths`): What happened to you - tracking your deaths
+
+Only verified kills and deaths are sent to the API. Local copies of all events are saved regardless of API integration settings.
+
+#### Ship State Tracking
+
+The tracker maintains an `is_in_ship` state that affects how kills are classified:
+
+**Ship Entry Event** (when entering a ship):
+- Sets `current_attacker_ship` to the detected ship name
+- Sets `is_in_ship = True`
+
+**Ship Exit Event** (when exiting a ship):
+- Sets `current_attacker_ship = "No Ship"`
+- Sets `is_in_ship = False`
+
+**Player Death Event**:
+- Resets `current_attacker_ship = "No Ship"`
+- Sets `is_in_ship = False`
+
+**Mid-Session Startup**:
+- The `reconstruct_ship_history()` method scans the entire log file on startup
+- Identifies the player's current ship state before live monitoring begins
+- Properly sets both `current_attacker_ship` and `is_in_ship` flags
+
+### Kill Payload Specifications
+
+**Endpoint**: `POST https://starcitizentool.com/api/v1/kills`
+
+#### Kill Payload Structure
+
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'victim' [...] killed by 'attacker' [...] using 'weapon' [...] with damage type 'type' [...]",
+    "game_mode": "PU",
+    "killer_ship": "AEGS Vanguard or empty string",
+    "weapon": "Ship Weapon or personal weapon name",
+    "method": "Vehicle destruction OR Player destruction"
+}
+```
+
+**Optional Fields**:
+```json
+{
+    "clip_url": "Valid URL or null",
+    "handle": "Player handle or null"
+}
+```
+
+#### Kill Payload Field Reference
+
+| Field | Type | Always? | Description |
+|-------|------|---------|-------------|
+| `log_line` | string | ✅ Yes | Full Star Citizen game log line |
+| `game_mode` | string | ✅ Yes | Current game mode (PU, Squadron Battle, etc.) |
+| `killer_ship` | string | ❌ No | **Removed if empty**. Present only in ship-based kills. Absent in on-foot kills. |
+| `weapon` | string | ✅ Yes | Formatted weapon name. "Ship Weapon" if using ship weapons, otherwise personal weapon name. |
+| `method` | string | ✅ Yes | "Vehicle destruction" (ship destroyed) or "Player destruction" (player killed) |
+| `clip_url` | string | ❌ No | Valid Twitch clip URL if created |
+| `handle` | string | ❌ No | Player handle for additional context |
+
+#### Kill Scenarios and Payload Examples
+
+##### Scenario 1: Ship vs Ship Combat
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'EnemyPilot' [201968593176] in zone 'pyro4' killed by 'UNIBaller69' [202153876664] using 'GLSN_Shiv_Weapon_S1_6766499376235' [Class GLSN_Shiv_Weapon_S1] with damage type 'Bullet' [...]",
+    "game_mode": "PU",
+    "killer_ship": "GLSN Shiv",
+    "weapon": "Ship Weapon",
+    "method": "Player destruction"
+}
+```
+**Engagement Display**: "GLSN Shiv using Ship Weapon"
+
+##### Scenario 2: Player vs Player Combat (On Foot)
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'EnemyPlayer' [201968593176] in zone 'pyro4' killed by 'UNIBaller69' [202153876664] using 'P4_AR_6766499376235' [Class P4_AR] with damage type 'Bullet' [...]",
+    "game_mode": "PU",
+    "weapon": "P4-AR",
+    "method": "Player destruction"
+}
+```
+**Note**: `killer_ship` is **NOT included** in JSON (player on foot = no ship)
+**Engagement Display**: "P4-AR"
+
+##### Scenario 3: Ship vs Player On Ground
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'GroundPlayer' [201968593176] in zone 'pyro4' killed by 'UNIBaller69' [202153876664] using 'AEGS_Vanguard_Weapon_S1_6766499376235' [Class AEGS_Vanguard_Weapon_S1] with damage type 'Energy' [...]",
+    "game_mode": "PU",
+    "killer_ship": "AEGS Vanguard",
+    "weapon": "Ship Weapon",
+    "method": "Player destruction"
+}
+```
+**Engagement Display**: "AEGS Vanguard using Ship Weapon"
+
+##### Scenario 4: Ground Player Destroys Ship
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'ShipPilot' [201968593176] in zone 'pyro4' killed by 'UNIBaller69' [202153876664] using 'MXOX_NeutronRepeater_S3_6766499376235' [Class MXOX_NeutronRepeater_S3] with damage type 'vehicledestruction' [...]",
+    "game_mode": "PU",
+    "weapon": "MXOX Neutron Repeater S3",
+    "method": "Vehicle destruction"
+}
+```
+**Note**: `killer_ship` is **NOT included** (player on foot)
+**Engagement Display**: "MXOX Neutron Repeater S3"
+
+#### Combat Outcome Matrix
+
+| Kill Type | killer_ship | weapon | method | is_in_ship | Engagement Example |
+|-----------|-------------|--------|--------|------------|-------------------|
+| Ship destroys player | ✅ Present | "Ship Weapon" | "Player destruction" | True | "AEGS Sabre using Ship Weapon" |
+| Ship destroys ship | ✅ Present | "Ship Weapon" | "Vehicle destruction" | True | "AEGS Sabre using Ship Weapon" |
+| Player (ground) kills player (ground) | ❌ Removed | Personal weapon | "Player destruction" | False | "P4-AR Rifle" |
+| Player (ground) destroys ship | ❌ Removed | Weapon name | "Vehicle destruction" | False | "MXOX Neutron Repeater S3" |
+
+### Death Payload Specifications
+
+**Endpoint**: `POST https://starcitizentool.com/api/v1/deaths`
+
+#### Death Payload Structure
+
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'victim' [...] killed by 'attacker' [...] using 'weapon' [...] with damage type 'type' [...]",
+    "game_mode": "PU",
+    "victim_name": "UNIBaller69",
+    "attacker_name": "EnemyPilot",
+    "weapon": "Ship Weapon or personal weapon name",
+    "damage_type": "Energy, Bullet, vehicledestruction, etc.",
+    "location": "pyro4",
+    "timestamp": "2025-10-18 14:03:40",
+    "event_type": "death"
+}
+```
+
+#### Death Payload Field Reference
+
+| Field | Type | Always? | Description |
+|-------|------|---------|-------------|
+| `log_line` | string | ✅ Yes | Full game log line |
+| `game_mode` | string | ✅ Yes | Current game mode |
+| `victim_name` | string | ✅ Yes | Your character name |
+| `attacker_name` | string | ✅ Yes | Who killed you |
+| `weapon` | string | ✅ Yes | What killed you. "Ship Weapon" if hit by ship weapons. |
+| `damage_type` | string | ✅ Yes | Type of damage (Energy, Bullet, vehicledestruction, etc.) |
+| `location` | string | ✅ Yes | Zone where you died |
+| `timestamp` | string | ✅ Yes | When you died (YYYY-MM-DD HH:MM:SS) |
+| `event_type` | string | ✅ Yes | Always "death" |
+
+#### Death Payload Examples
+
+##### Death from Ship Pilot
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'UNIBaller69' [...] killed by 'EnemyPilot' [...] using 'GLSN_Shiv_Weapon_S1_6766499376235' [Class GLSN_Shiv_Weapon_S1] with damage type 'Energy' [...]",
+    "game_mode": "PU",
+    "victim_name": "UNIBaller69",
+    "attacker_name": "EnemyPilot",
+    "weapon": "Ship Weapon",
+    "damage_type": "Energy",
+    "location": "pyro4",
+    "timestamp": "2025-10-18 14:03:40",
+    "event_type": "death"
+}
+```
+
+##### Death from Player On Ground
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'UNIBaller69' [...] killed by 'EnemyPlayer' [...] using 'FS9_Laser_Rifle_6766499376235' [Class FS9_Laser_Rifle] with damage type 'Energy' [...]",
+    "game_mode": "PU",
+    "victim_name": "UNIBaller69",
+    "attacker_name": "EnemyPlayer",
+    "weapon": "FS9 Laser Rifle",
+    "damage_type": "Energy",
+    "location": "pyro4",
+    "timestamp": "2025-10-18 14:03:40",
+    "event_type": "death"
+}
+```
+
+##### Death from Ship Destruction
+```json
+{
+    "log_line": "<2025-10-18T14:03:40.679Z> [Notice] <Actor Death> CActor::Kill: 'UNIBaller69' [...] killed by 'EnemyPlayer' [...] using 'MXOX_NeutronRepeater_S3_6766499376235' [Class MXOX_NeutronRepeater_S3] with damage type 'vehicledestruction' [...]",
+    "game_mode": "PU",
+    "victim_name": "UNIBaller69",
+    "attacker_name": "EnemyPlayer",
+    "weapon": "MXOX Neutron Repeater S3",
+    "damage_type": "vehicledestruction",
+    "location": "pyro4",
+    "timestamp": "2025-10-18 14:03:40",
+    "event_type": "death"
+}
+```
+
+### API Client Specifications
 
 This section defines the **exact** specifications that client applications must follow to successfully send data to the Dashboard API. Any deviation from these specifications will result in request rejection.
 
-### Base Requirements
+#### Base Requirements
 
-#### Authentication
+**Authentication**
 - **API Key**: Required in `X-API-Key` header
 - **Client Identification**: Must identify as `kill_logger_client`
 - **Version**: Must be exactly `5.8`
 
-#### HTTP Method
+**HTTP Method**
 - **Method**: `POST` only
 - **Protocol**: HTTP/HTTPS
 
-### Required Headers (Exact Match)
+#### Required Headers (Exact Match)
 
 ```json
 {
@@ -711,7 +919,7 @@ This section defines the **exact** specifications that client applications must 
 }
 ```
 
-#### Optional Headers (Allowed)
+**Optional Headers (Allowed)**
 ```json
 {
     "Accept-Language": "en-US,en;q=0.9",
@@ -720,56 +928,16 @@ This section defines the **exact** specifications that client applications must 
 }
 ```
 
-### API Endpoints
+#### Field Validation Rules
 
-#### 1. Kill Data Endpoint
-**URL**: `https://starcitizentool.com/api/v1/kills`
-
-**Payload Structure (Required Fields)**
-```json
-{
-    "log_line": "string - Full Star Citizen game log line with timestamp",
-    "game_mode": "string - One of: PU, Team Elimination, Gun Rush, Tonk Royale, Free Flight, Squadron Battle, Vehicle Kill Confirmed, FPS Kill Confirmed, Control, Duel, Unknown",
-    "killer_ship": "string - Ship name or empty string",
-    "method": "string - Either 'Vehicle destruction' or 'Player destruction'"
-}
-```
-
-**Optional Fields**
-```json
-{
-    "clip_url": "string|null - Valid URL or null",
-    "handle": "string|null - Player handle or null"
-}
-```
-
-**Field Validation Rules**
+**Kill Payload**
 - **log_line**: Must match Star Citizen log format with timestamp pattern `<YYYY-MM-DDTHH:MM:SS.sssZ>`
-- **game_mode**: Must be exactly one of the valid game modes listed above
-- **killer_ship**: Can be empty string or alphanumeric with spaces/hyphens/underscores
+- **game_mode**: Must be exactly one of: PU, Team Elimination, Gun Rush, Tonk Royale, Free Flight, Squadron Battle, Vehicle Kill Confirmed, FPS Kill Confirmed, Control, Duel, Unknown
+- **killer_ship**: Empty string if no valid ship (e.g., on-foot kills). Removed from JSON if empty.
+- **weapon**: Formatted weapon name from the game log
 - **method**: Must be exactly "Vehicle destruction" or "Player destruction"
-- **clip_url**: Must be valid URL format if provided
-- **handle**: No special validation if provided
 
-#### 2. Death Data Endpoint  
-**URL**: `https://starcitizentool.com/api/v1/deaths`
-
-**Payload Structure (All Fields Required)**
-```json
-{
-    "log_line": "string - Full Star Citizen game log line with timestamp", 
-    "game_mode": "string - One of the valid game modes",
-    "victim_name": "string - Name of player who died",
-    "attacker_name": "string - Name of player who killed",
-    "weapon": "string - Weapon used",
-    "damage_type": "string - Type of damage",
-    "location": "string - Zone/location where death occurred",
-    "timestamp": "string - ISO timestamp format YYYY-MM-DDTHH:MM:SS.sssZ",
-    "event_type": "string - Must be exactly 'death'"
-}
-```
-
-**Field Validation Rules**
+**Death Payload**
 - **log_line**: Must match Star Citizen log format
 - **game_mode**: Must be valid game mode
 - **victim_name/attacker_name**: Alphanumeric with spaces/underscores/hyphens/dots allowed
@@ -777,51 +945,7 @@ This section defines the **exact** specifications that client applications must 
 - **timestamp**: Must be valid ISO timestamp format
 - **event_type**: Must be exactly "death"
 
-#### 3. Clip Update Endpoint
-**URL**: `https://starcitizentool.com/api/v1/kills/update-clip`
-
-**Payload Structure**
-```json
-{
-    "clip_url": "string - Required valid URL",
-    "kill_id": "string - Optional UUID of kill to update",
-    "timestamp": "string - Optional ISO timestamp",
-    "victim_name": "string - Optional victim name"
-}
-```
-
-**Field Validation Rules**
-- **clip_url**: Required, must be valid URL
-- **Identifiers**: Must provide at least one of: kill_id, timestamp, or victim_name
-- **kill_id**: Must be valid UUID format if provided
-- **timestamp**: Must be valid ISO format if provided
-- **victim_name**: Standard player name validation if provided
-
-### Validation Behavior
-
-#### Request Acceptance
-- ✅ All required headers present with exact values
-- ✅ Payload structure exactly matches specification
-- ✅ All field validations pass
-- ✅ Client ID is `kill_logger_client`
-- ✅ Client version is exactly `5.8`
-- ✅ Valid API key
-
-#### Request Rejection (HTTP 400)
-- ❌ Missing or incorrect headers
-- ❌ Invalid payload structure  
-- ❌ Field validation failures
-- ❌ Unexpected fields in payload
-- ❌ Wrong client ID or version
-
-#### Authentication Failures (HTTP 401)
-- ❌ Missing API key
-- ❌ Invalid API key
-
-#### Version Errors (HTTP 426)
-- ❌ Unsupported client version (if using legacy validation)
-
-### API Request Configuration
+#### API Request Configuration
 
 - **HTTP Method**: POST for all endpoints
 - **Timeout**: 10 seconds
@@ -829,7 +953,7 @@ This section defines the **exact** specifications that client applications must 
 - **Retry Logic**: Up to 5 retries with exponential backoff (1s, 2s, 4s, 8s, 16s)
 - **Threading**: Asynchronous requests using QThread to prevent UI blocking
 
-### API Response Handling
+#### API Response Handling
 
 - **201 Created**: Kill/death logged successfully
 - **200 OK**: Alternative success response
@@ -837,7 +961,7 @@ This section defines the **exact** specifications that client applications must 
 - **500+**: Server error, triggers retry logic
 - **Duplicate Detection**: Server responds with "duplicate" message for already logged events
 
-### Error Response Format
+#### Error Response Format
 
 When validation fails, you'll receive:
 ```json
@@ -848,12 +972,33 @@ When validation fails, you'll receive:
 }
 ```
 
-### Rate Limits
+#### Validation Behavior
+
+**Request Acceptance**
+- ✅ All required headers present with exact values
+- ✅ Payload structure exactly matches specification
+- ✅ All field validations pass
+- ✅ Client ID is `kill_logger_client`
+- ✅ Client version is exactly `5.8`
+- ✅ Valid API key
+
+**Request Rejection (HTTP 400)**
+- ❌ Missing or incorrect headers
+- ❌ Invalid payload structure  
+- ❌ Field validation failures
+- ❌ Unexpected fields in payload
+- ❌ Wrong client ID or version
+
+**Authentication Failures (HTTP 401)**
+- ❌ Missing API key
+- ❌ Invalid API key
+
+#### Rate Limits
 
 - **5000 requests per 60 seconds** (throttling)
 - **1000 requests per minute** (rate limiting)
 
-### Security Notes
+#### Security Notes
 
 - Only requests matching this exact specification will be processed
 - Any deviation results in immediate rejection
@@ -862,6 +1007,10 @@ When validation fails, you'll receive:
 - Client version enforcement is strict
 
 **Important**: This specification ensures absolute data consistency. Client applications must implement these requirements exactly to maintain API access.
+
+## Building Your Own Tracker
+
+If you want to build your own tracker that integrates with the SCTool API, follow these guidelines:
 
 ### Development Setup
 
