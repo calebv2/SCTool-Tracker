@@ -166,6 +166,7 @@ class TailThread(QThread):
     payload_ready = pyqtSignal(dict, str, str, str)
     death_payload_ready = pyqtSignal(dict, str, str, str)
     ship_updated = pyqtSignal(str)
+    name_mismatch_detected = pyqtSignal(str, str)
 
     def __init__(self, file_path: str, config_file: Optional[str] = None, callback=None, parent=None) -> None:
         super().__init__(parent)
@@ -183,10 +184,26 @@ class TailThread(QThread):
         self.vehicle_correlator = VehicleEventCorrelator(event_callback=self.handle_correlated_vehicle_kill)
         self.vehicle_correlator.start_cleanup_thread()
 
-    def reset_killer_ship(self) -> None:
-        self.current_attacker_ship = "No Ship"
-        self.update_config_killer_ship("No Ship")
-        self.ship_updated.emit("No Ship")
+    def reset_killer_ship(self, force: bool = False) -> None:
+        """
+        Reset the killer ship to "No Ship".
+        
+        Args:
+            force: If True, always reset. If False, only reset if not in a vehicle-based game mode.
+        """
+        VEHICLE_GAME_MODES = [
+            'Tonk Royale',
+            'Tonk Royale Free For All',
+            'Free Flight',
+            'Squadron Battle',
+            'Vehicle Kill Confirmed',
+            'Duel'
+        ]
+        
+        if force or self.last_game_mode not in VEHICLE_GAME_MODES:
+            self.current_attacker_ship = "No Ship"
+            self.update_config_killer_ship("No Ship")
+            self.ship_updated.emit("No Ship")
 
     def update_config_killer_ship(self, ship: str) -> None:
         if self.config_file and os.path.exists(self.config_file):
@@ -413,7 +430,8 @@ class TailThread(QThread):
                 if mapped and mapped != self.last_game_mode:
                     self.last_game_mode = mapped
                     self.game_mode_changed.emit(f"Monitoring game mode: {mapped}")
-                    self.reset_killer_ship()
+                    force_reset = (mapped == 'Main Menu')
+                    self.reset_killer_ship(force=force_reset)
                 elif not mapped:
                     logging.warning(f"Unknown game mode '{raw}'")
 
@@ -820,9 +838,9 @@ class TailThread(QThread):
             
         if "subside" in victim.lower() or "subside" in attacker.lower():
             return
-        if not self.registered_user:
-            return
-        if (attacker.lower() == self.registered_user.strip().lower() and
+    
+        if (self.registered_user and 
+            attacker.lower() == self.registered_user.strip().lower() and
             victim.lower() == self.registered_user.strip().lower()):
             try:
                 from Death_kill import format_death_kill
@@ -830,11 +848,15 @@ class TailThread(QThread):
                 readout = format_death_kill(line, data, self.registered_user, display_timestamp, captured_game_mode)
                 self.death_detected.emit(readout, victim)
                 
-                self.current_attacker_ship = "No Ship"
-                self.is_in_ship = False
-                logging.info("Player Death: User died (suicide), set ship to No Ship")
-                self.update_config_killer_ship("No Ship")
-                self.ship_updated.emit("No Ship")
+                VEHICLE_GAME_MODES = ['Tonk Royale', 'Tonk Royale Free For All', 'Free Flight', 'Squadron Battle', 'Vehicle Kill Confirmed', 'Duel']
+                if captured_game_mode not in VEHICLE_GAME_MODES:
+                    self.current_attacker_ship = "No Ship"
+                    self.is_in_ship = False
+                    logging.info("Player Death: User died (suicide), cleared ship (not in vehicle game mode)")
+                    self.update_config_killer_ship("No Ship")
+                    self.ship_updated.emit("No Ship")
+                else:
+                    logging.info(f"Player Death: User died (suicide), but in vehicle game mode '{captured_game_mode}' - retaining ship")
             except Exception as e:
                 logging.error(f"Error formatting suicide event: {e}")
             return
@@ -842,7 +864,7 @@ class TailThread(QThread):
         captured_game_mode = self.last_game_mode if self.last_game_mode and self.last_game_mode != "Unknown" else "Unknown"
         data["killer_ship"] = self.current_attacker_ship if self.current_attacker_ship else "No Ship"
 
-        if attacker.lower() == self.registered_user.strip().lower():
+        if self.registered_user and attacker.lower() == self.registered_user.strip().lower():
             try:
                 readout, payload = format_registered_kill(
                     line, data, self.registered_user, full_timestamp, captured_game_mode, success=True, is_in_ship=self.is_in_ship
@@ -851,7 +873,11 @@ class TailThread(QThread):
                 self.payload_ready.emit(payload, full_timestamp, attacker, readout)
             except Exception as e:
                 logging.error(f"Error formatting registered kill: {e}")
-        elif victim.lower() == self.registered_user.strip().lower():
+        elif self.registered_user and not KillParser.is_npc(attacker) and attacker.lower() != self.registered_user.strip().lower():
+            logging.warning(f"Name mismatch detected: Kill attributed to '{attacker}' but user is registered as '{self.registered_user}'")
+            self.name_mismatch_detected.emit(self.registered_user, attacker)
+        
+        if self.registered_user and victim.lower() == self.registered_user.strip().lower():
             try:
                 from Death_kill import format_death_kill
                 readout = format_death_kill(line, data, self.registered_user, full_timestamp, captured_game_mode)
@@ -870,11 +896,15 @@ class TailThread(QThread):
                 }
                 self.death_payload_ready.emit(death_payload, full_timestamp, attacker, readout)
                 
-                self.current_attacker_ship = "No Ship"
-                self.is_in_ship = False
-                logging.info(f"Player Death: User was killed by {attacker}, set ship to No Ship")
-                self.update_config_killer_ship("No Ship")
-                self.ship_updated.emit("No Ship")
+                VEHICLE_GAME_MODES = ['Tonk Royale', 'Tonk Royale Free For All', 'Free Flight', 'Squadron Battle', 'Vehicle Kill Confirmed', 'Duel']
+                if captured_game_mode not in VEHICLE_GAME_MODES:
+                    self.current_attacker_ship = "No Ship"
+                    self.is_in_ship = False
+                    logging.info(f"Player Death: User was killed by {attacker}, cleared ship (not in vehicle game mode)")
+                    self.update_config_killer_ship("No Ship")
+                    self.ship_updated.emit("No Ship")
+                else:
+                    logging.info(f"Player Death: User was killed by {attacker}, but in vehicle game mode '{captured_game_mode}' - retaining ship")
             except Exception as e:
                 logging.error(f"Error formatting or sending death payload: {e}")
         else:
@@ -989,8 +1019,10 @@ class RescanThread(QThread):
                             
                             if victim == self.registered_user:
                                 logging.info(f"Registered user died during rescan. Victim: '{victim}', Attacker: {attacker}")
-                                current_ship = "No Ship"
-                                is_in_ship = False
+                                VEHICLE_GAME_MODES = ['Tonk Royale', 'Tonk Royale Free For All', 'Free Flight', 'Squadron Battle', 'Vehicle Kill Confirmed', 'Duel']
+                                if current_game_mode not in VEHICLE_GAME_MODES:
+                                    current_ship = "No Ship"
+                                    is_in_ship = False
                                 continue
                                 
                             if attacker == self.registered_user:
@@ -1039,7 +1071,9 @@ class RescanThread(QThread):
                             name = suicide_match.group(1).strip().lower()
                             if name == self.registered_user:
                                 logging.info(f"Registered user committed suicide during rescan: {name}")
-                                current_ship = "No Ship"
+                                VEHICLE_GAME_MODES = ['Tonk Royale', 'Tonk Royale Free For All', 'Free Flight', 'Squadron Battle', 'Vehicle Kill Confirmed', 'Duel']
+                                if current_game_mode not in VEHICLE_GAME_MODES:
+                                    current_ship = "No Ship"
                     
                     QThread.yieldCurrentThread()
         except Exception as e:

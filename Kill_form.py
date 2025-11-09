@@ -180,6 +180,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         
         self.minimize_to_tray = False
         self.start_with_system = False
+        self.auto_clear_logs = False
         self.tray_icon = None
         self.tray_menu = None
         self.last_animation_timer = None
@@ -600,7 +601,8 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             'show_vehicle_disabled': self.show_vehicle_disabled,
             'show_vehicle_destroyed': self.show_vehicle_destroyed,
             'show_pilot_ejected': self.show_pilot_ejected,
-            'show_pilot_abandoned': self.show_pilot_abandoned
+            'show_pilot_abandoned': self.show_pilot_abandoned,
+            'auto_clear_logs': self.auto_clear_logs if hasattr(self, 'auto_clear_logs') else False
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -761,12 +763,20 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             success = True
             is_duplicate = True
             self.missing_kills_results['duplicates'].append(local_key)
+            if local_key in self.local_kills:
+                self.local_kills[local_key]["sent_to_api"] = True
+                self.local_kills[local_key]["api_response"] = msg
+                self.save_local_kills()
         elif "kill logged successfully" in msg.lower() or msg.strip() == "":
             logging.info(f"Kill {local_key} sent successfully")
             success = True
             self.missing_kills_results['new_kills'].append(local_key)
             
             if local_key in self.local_kills:
+                self.local_kills[local_key]["sent_to_api"] = True
+                self.local_kills[local_key]["api_response"] = msg if msg.strip() else "Kill logged successfully"
+                self.save_local_kills()
+                
                 readout = self.local_kills[local_key].get("readout", "")
                 if "YOU KILLED" in readout:
                     self.kill_count += 1
@@ -842,7 +852,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.missing_kills_results = {'duplicates': [], 'new_kills': [], 'errors': [], 'total': 0}
 
     def on_player_registered(self, text: str) -> None:
-        # Try to match the new format with GEID
         match_with_geid = re.search(r"Registered user(?:\s+updated)?:\s+(.+?)\s+\(GEID:\s+(\d+)\)", text)
         if match_with_geid:
             self.local_user_name = match_with_geid.group(1).strip()
@@ -855,7 +864,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             logging.info(f"Player registered: {self.local_user_name} with GEID: {self.local_user_geid}")
             return
         
-        # Fallback to legacy format without GEID
         match = re.search(r"Registered user(?:\s+updated)?:\s+(.+)$", text)
         if match:
             self.local_user_name = match.group(1).strip()
@@ -1488,6 +1496,40 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     "QLabel { color: #666666; font-size: 11px; font-weight: bold; background: transparent; border: none; }"
                 )
 
+    def on_name_mismatch_detected(self, registered_name: str, submitted_name: str) -> None:
+        """Handle detection of in-game name mismatch between registered and submitted name"""
+        logging.warning(f"In-game name mismatch: registered as '{registered_name}' but detecting kills from '{submitted_name}'")
+        
+        message = f"""<b>{t('In-Game Name Mismatch Detected')}</b>
+
+{t('Your registered in-game name')}: <b>{registered_name}</b>
+{t('Current kill detected from')}: <b>{submitted_name}</b>
+
+{t('Warning: Your API key is registered to one in-game name, but kills are being logged from a different character.')}
+
+{t('This could indicate:')}
+• {t('You are using an alt/secondary character')}
+• {t('Your registered name has changed')}
+• {t('The game log is showing a different name than expected')}
+
+{t('Solution:')}
+1. {t('Verify your registered in-game name matches your current character')}
+2. {t('If you play multiple characters, create separate API keys for each')}
+3. {t('Check if you need to re-verify your account')}"""
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(t("In-Game Name Mismatch"))
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Warning)
+        msg_box.setStyleSheet(
+            "QMessageBox { background-color: #1e1e1e; color: #ffffff; }"
+            "QMessageBox QLabel { color: #ffffff; }"
+            "QPushButton { background-color: #2a2a2a; border: 1px solid #444444; color: #ffffff; padding: 5px 15px; border-radius: 3px; }"
+            "QPushButton:hover { background-color: #3a3a3a; }"
+        )
+        msg_box.setTextFormat(Qt.RichText)
+        msg_box.exec_()
+
     def get_random_sound_from_folder(self, folder_path: str) -> str:
         """Get a random sound file from the specified folder."""
         if not folder_path or not os.path.exists(folder_path):
@@ -1524,7 +1566,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             is_vehicle_display = False
             if 'vehicle' in lowered and ('vehicle disabled' in lowered or 'vehicle destroyed' in lowered or 'empty vehicle destroyed' in lowered):
                 is_vehicle_display = True
-            # Skip sound for ejection and seat exit events - check for translated strings
             pilot_ejected_text = t("PILOT EJECTED").lower()
             pilot_abandoned_text = t("PILOT ABANDONED SHIP").lower()
             if pilot_ejected_text in lowered or pilot_abandoned_text in lowered:
@@ -1558,11 +1599,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
     def export_logs(self) -> None:
         """Export the kill/death log entries to an HTML file."""
-        has_content = False
-        if hasattr(self.kill_display, 'document'):
-            has_content = not self.kill_display.document().isEmpty()
-        else:
-            has_content = self.kill_count > 0 or self.death_count > 0
+        has_content = self.kill_count > 0 or self.death_count > 0
         
         if has_content:
             options = QFileDialog.Options()
@@ -1574,6 +1611,30 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             
             if file_path:
                 try:
+                    entries_html = ""
+                    if self.local_kills:
+                        for kill_key, kill_data in self.local_kills.items():
+                            timestamp = kill_data.get("timestamp", "Unknown")
+                            attacker = kill_data.get("attacker", "Unknown")
+                            victim = kill_data.get("readout", "").split(" - ")[0] if " - " in kill_data.get("readout", "") else "Unknown"
+                            readout = kill_data.get("readout", "No details")
+
+                            if attacker == self.local_user_name:
+                                event_type = "Kill"
+                                color = "#00ff00"
+                            else:
+                                event_type = "Death"
+                                color = "#ff4444"
+                            
+                            entries_html += f"""
+                            <div style="background-color: #1a1a1a; padding: 12px; margin: 10px 0; border-left: 4px solid {color}; border-radius: 4px;">
+                                <p style="margin: 0; color: {color}; font-weight: bold;">[{event_type.upper()}] {timestamp}</p>
+                                <p style="margin: 5px 0 0 0; color: #ffffff;">{readout}</p>
+                            </div>
+                            """
+                    else:
+                        entries_html = "<p style='color: #aaaaaa;'>No kill or death records found in this session.</p>"
+                    
                     html_content = f"""<!DOCTYPE html>
                                         <html>
                                         <head>
@@ -1603,6 +1664,9 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                                                     margin: 5px 0 0 0;
                                                     color: #aaaaaa;
                                                 }}
+                                                .entries {{
+                                                    margin-top: 20px;
+                                                }}
                                                 a {{
                                                     color: #f04747;
                                                     text-decoration: none;
@@ -1619,7 +1683,9 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                                                 <p>{t("User")}: {self.local_user_name or t("Unknown")}</p>
                                                 <p>{t("Session Stats")}: {t("Kills")}: {self.kill_count} | {t("Deaths")}: {self.death_count}</p>
                                             </div>
-                                            {self._get_display_html() if hasattr(self.kill_display, 'toHtml') else '<p>Export not available for this display type</p>'}
+                                            <div class="entries">
+                                                {entries_html}
+                                            </div>
                                         </body>
                                         </html>
                                     """
@@ -1640,8 +1706,12 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         else:
             self.showCustomMessageBox(t("Nothing to Export"), t("There are no logs to export."), QMessageBox.Information)
 
+    def export_kills(self) -> None:
+        """Alias for export_logs - exports the kill/death log entries to an HTML file."""
+        self.export_logs()
+
     def export_debug_logs(self) -> None:
-        """Export debug logs and diagnostic information for troubleshooting"""
+        """Export comprehensive debug logs including all kills/deaths and their API responses"""
         try:
             current_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             options = QFileDialog.Options()
@@ -1671,18 +1741,60 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                 
                 debug_content.append("\n" + "="*60 + "\n")
                 
-                debug_content.append("RECENT LOG FILE CONTENT (last 50 lines):\n")
+                debug_content.append("SESSION KILL/DEATH RECORDS:\n")
+                debug_content.append(f"Total kills in session: {self.kill_count}\n")
+                debug_content.append(f"Total deaths in session: {self.death_count}\n")
+                debug_content.append(f"Total local records: {len(self.local_kills)}\n\n")
+                
+                if self.local_kills:
+                    debug_content.append("DETAILED KILL/DEATH LOG:\n")
+                    debug_content.append("-" * 60 + "\n")
+                    
+                    for index, (local_key, kill_data) in enumerate(self.local_kills.items(), 1):
+                        debug_content.append(f"\n[{index}] Local Key: {local_key}\n")
+                        debug_content.append(f"    Timestamp: {kill_data.get('timestamp', 'N/A')}\n")
+                        debug_content.append(f"    Attacker: {kill_data.get('attacker', 'N/A')}\n")
+                        debug_content.append(f"    Sent to API: {kill_data.get('sent_to_api', False)}\n")
+                        
+                        if 'api_response' in kill_data:
+                            debug_content.append(f"    API Response: {kill_data['api_response']}\n")
+                        else:
+                            debug_content.append(f"    API Response: Pending/Not sent\n")
+                        
+                        if 'api_kill_id' in kill_data:
+                            debug_content.append(f"    API Kill ID: {kill_data['api_kill_id']}\n")
+                        
+                        if 'readout' in kill_data:
+                            readout_preview = kill_data['readout'][:200].replace('\n', ' ')
+                            debug_content.append(f"    Readout Preview: {readout_preview}...\n")
+                        
+                        if 'payload' in kill_data:
+                            payload = kill_data['payload']
+                            debug_content.append(f"    Payload Keys: {list(payload.keys())}\n")
+                    
+                    debug_content.append("\n" + "-" * 60 + "\n")
+                else:
+                    debug_content.append("No kill/death records found in this session.\n")
+                
+                debug_content.append("\n" + "="*60 + "\n")
+                
+                debug_content.append("COMPLETE APPLICATION LOG FILE:\n")
+                debug_content.append("-" * 60 + "\n")
                 try:
                     log_file_path = os.path.join(TRACKER_DIR, "kill_logger.log")
                     if os.path.exists(log_file_path):
                         with open(log_file_path, 'r', encoding='utf-8') as f:
-                            lines = f.readlines()
-                            recent_lines = lines[-50:] if len(lines) > 50 else lines
-                            debug_content.extend(recent_lines)
+                            log_content = f.read()
+                            debug_content.append(f"(Total log size: {len(log_content)} bytes)\n\n")
+                            debug_content.append(log_content)
                     else:
-                        debug_content.append("Log file not found\n")
+                        debug_content.append("Log file not found.\n")
                 except Exception as e:
                     debug_content.append(f"Error reading log file: {e}\n")
+                
+                debug_content.append("\n" + "="*60 + "\n")
+                debug_content.append("END OF DEBUG EXPORT\n")
+                debug_content.append(f"Export generated: {datetime.now().isoformat()}\n")
                 
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.writelines(debug_content)
@@ -1699,7 +1811,13 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     f"Debug information has been:\n\n"
                     f"• Saved to: {file_path}\n"
                     f"• Copied to clipboard\n\n"
-                    f"You can now share this information with support."
+                    f"This includes:\n"
+                    f"  - API diagnostic report\n"
+                    f"  - All session kills/deaths with status\n"
+                    f"  - API responses for each kill\n"
+                    f"  - COMPLETE application log file\n"
+                    f"  - System and configuration info\n\n"
+                    f"You can now share this with support."
                 )
                 info_box.exec_()
                 
@@ -1860,6 +1978,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             
         if local_key in self.local_kills:
             self.local_kills[local_key]["api_response"] = message
+            self.local_kills[local_key]["sent_to_api"] = True
             logging.info(f"[{timestamp}] Updated local kill {local_key} with API response: {message}")
             self.save_local_kills()
 
@@ -2724,6 +2843,14 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.clip_groups = {}
         self.save_config()
         
+        if getattr(self, 'auto_clear_logs', False):
+            try:
+                self._set_display_html("")
+                self.local_kills = {}
+                logging.info("Auto-cleared logs on session end")
+            except Exception as e:
+                logging.error(f"Error auto-clearing logs: {e}")
+        
         self.delete_local_kills()
         self.delete_kill_logger_log()
         event.accept()
@@ -2926,7 +3053,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         logging.info(f"Created new clip group {self.current_clip_group_id} for kill {local_key}")
 
         try:
-            # enqueue clip creation to background worker
             self._twitch_task_queue.put_nowait({
                 'type': 'clip',
                 'kill_data': kill_data,
@@ -3236,6 +3362,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
             self.monitor_thread = TailThread(new_log_path, CONFIG_FILE, parent=self)
             self.monitor_thread.current_attacker_ship = killer_ship
+            self.monitor_thread.registered_user = self.local_user_name.lower() if self.local_user_name else ""
             self.monitor_thread.ship_updated.connect(self.on_ship_updated)
             self.monitor_thread.payload_ready.connect(self.handle_payload)
             self.monitor_thread.death_payload_ready.connect(self.handle_death_payload)
@@ -3243,6 +3370,7 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
             self.monitor_thread.death_detected.connect(self.on_death_detected)
             self.monitor_thread.player_registered.connect(self.on_player_registered)
             self.monitor_thread.game_mode_changed.connect(self.on_game_mode_changed)
+            self.monitor_thread.name_mismatch_detected.connect(self.on_name_mismatch_detected)
             self.monitor_thread.start()
             self.on_ship_updated(killer_ship)
             self.start_button.setText(t("STOP MONITORING"))
@@ -3347,7 +3475,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
 
         if self.twitch_enabled and self.twitch.is_ready():
             if self.clip_creation_enabled:
-                # enqueue clip creation task to background worker
                 try:
                     self._twitch_task_queue.put_nowait({
                         'type': 'clip',
@@ -3365,7 +3492,6 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
                     profile_url=rsi_url
                 )
                 try:
-                    # enqueue chat send to background worker to avoid blocking UI
                     self._twitch_task_queue.put_nowait({
                         'type': 'chat',
                         'message': message
@@ -3759,6 +3885,38 @@ class KillLoggerGUI(QMainWindow, TranslationMixin):
         self.show_pilot_abandoned = (state == Qt.Checked)
         self.save_config()
         logging.info(f"Show pilot abandoned ship events set to: {self.show_pilot_abandoned}")
+
+    def on_auto_clear_logs_changed(self, state: int) -> None:
+        """Handle auto-clear logs checkbox state change"""
+        self.auto_clear_logs = (state == Qt.Checked)
+        self.save_config()
+        logging.info(f"Auto-clear logs on session end set to: {self.auto_clear_logs}")
+
+    def clear_current_logs(self) -> None:
+        """Clear the current session logs from the display"""
+        reply = QMessageBox.question(
+            self, t("Clear Logs"), 
+            t("Are you sure you want to clear all logs? This action cannot be undone."),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                self._set_display_html("")
+                
+                self.kill_count = 0
+                self.death_count = 0
+                self.update_kill_death_stats()
+                
+                self.local_kills = {}
+                
+                logging.info("Current session logs cleared by user")
+                self.append_kill_readout(f"<div style='color: #4CAF50; font-weight: bold; margin: 10px 0;'>🗑️ {t('Logs cleared successfully')}</div>")
+                
+            except Exception as e:
+                logging.error(f"Error clearing logs: {e}")
+                self.showCustomMessageBox(t("Error"), t(f"Failed to clear logs: {str(e)}"), QMessageBox.Critical)
 
     def changeEvent(self, event) -> None:
         """Handle window state change events for minimizing to tray"""

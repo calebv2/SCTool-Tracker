@@ -716,10 +716,34 @@ def init_ui(self) -> None:
     data_buttons_layout.setContentsMargins(0, 0, 0, 0)
     data_buttons_layout.setSpacing(15)
     
-    self.export_button = QPushButton(t("EXPORT LOGS"))
+    self.export_button = QPushButton(t("EXPORT KILLS"))
     self.export_button.setIcon(QIcon(resource_path("export_icon.png")))
-    self.export_button.clicked.connect(self.export_logs)
+    self.export_button.clicked.connect(self.export_kills)
     self.export_button.setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
+        "border-radius: 4px; padding: 12px 18px; font-weight: bold; font-size: 13px; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #4a4a4a, stop:1 #303030); }"
+        "QPushButton:pressed { background: #202020; }"
+    )
+    
+    self.export_debug_button = QPushButton(t("EXPORT DEBUG LOGS"))
+    self.export_debug_button.setIcon(QIcon(resource_path("export_icon.png")))
+    self.export_debug_button.clicked.connect(self.export_debug_logs)
+    self.export_debug_button.setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
+        "border-radius: 4px; padding: 12px 18px; font-weight: bold; font-size: 13px; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "stop:0 #4a4a4a, stop:1 #303030); }"
+        "QPushButton:pressed { background: #202020; }"
+    )
+    
+    self.clear_logs_button = QPushButton(t("CLEAR LOGS"))
+    self.clear_logs_button.setIcon(QIcon(resource_path("export_icon.png")))
+    self.clear_logs_button.clicked.connect(self.clear_current_logs)
+    self.clear_logs_button.setStyleSheet(
         "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
         "stop:0 #3a3a3a, stop:1 #202020); color: white; border: none; "
         "border-radius: 4px; padding: 12px 18px; font-weight: bold; font-size: 13px; }"
@@ -741,12 +765,45 @@ def init_ui(self) -> None:
     )
     
     data_buttons_layout.addWidget(self.export_button)
+    data_buttons_layout.addWidget(self.export_debug_button)
+    data_buttons_layout.addWidget(self.clear_logs_button)
     data_buttons_layout.addWidget(self.files_button)
     data_buttons_layout.addStretch()
     
     data_layout.addWidget(data_buttons_container)
     
-    data_help = QLabel(t("• Export logs creates an HTML file with all recorded kills and deaths\\n• Data folder contains configuration files, logs, and saved kill records"))
+    log_management_separator = QFrame()
+    log_management_separator.setFrameShape(QFrame.HLine)
+    log_management_separator.setStyleSheet("QFrame { color: #333333; background-color: #333333; border: none; max-height: 1px; margin: 10px 0; }")
+    data_layout.addWidget(log_management_separator)
+    
+    auto_clear_container = QWidget()
+    auto_clear_container.setStyleSheet("background: transparent; border: none;")
+    auto_clear_layout = QVBoxLayout(auto_clear_container)
+    auto_clear_layout.setContentsMargins(0, 0, 0, 0)
+    auto_clear_layout.setSpacing(8)
+    
+    self.auto_clear_logs_checkbox = QCheckBox(t("Clear logs after each session"))
+    self.auto_clear_logs_checkbox.setChecked(self.auto_clear_logs if hasattr(self, 'auto_clear_logs') else False)
+    self.auto_clear_logs_checkbox.stateChanged.connect(self.on_auto_clear_logs_changed)
+    self.auto_clear_logs_checkbox.setStyleSheet(
+        "QCheckBox { color: #ffffff; spacing: 10px; background: transparent; border: none; font-size: 14px; font-weight: 500; }"
+        "QCheckBox::indicator { width: 20px; height: 20px; }"
+        "QCheckBox::indicator:unchecked { border: 1px solid #2a2a2a; background-color: #1e1e1e; border-radius: 3px; }"
+        "QCheckBox::indicator:checked { border: 1px solid #f04747; background-color: #f04747; border-radius: 3px; }"
+    )
+    auto_clear_layout.addWidget(self.auto_clear_logs_checkbox)
+    
+    auto_clear_desc = QLabel(t("Automatically clear the kill/death log when closing the application"))
+    auto_clear_desc.setStyleSheet(
+        "QLabel { color: #999999; font-size: 12px; background: transparent; border: none; margin-left: 30px; }"
+    )
+    auto_clear_desc.setWordWrap(True)
+    auto_clear_layout.addWidget(auto_clear_desc)
+    
+    data_layout.addWidget(auto_clear_container)
+    
+    data_help = QLabel(t("• Export Kills creates an HTML file with all recorded kills and deaths\n• Export Debug Logs creates a text file with system info, logs, and tracebacks for troubleshooting\n• Clear logs will reset your current session display\n• Data folder contains configuration files, logs, and saved kill records\n• Clear logs after session checkbox controls automatic clearing on app close"))
     data_help.setStyleSheet(
         "QLabel { color: #aaaaaa; font-size: 12px; background: transparent; border: none; }"
     )
@@ -2364,6 +2421,10 @@ def load_config(self) -> None:
             self.show_pilot_abandoned = config.get('show_pilot_abandoned', True)
             self.show_pilot_abandoned_checkbox.setChecked(self.show_pilot_abandoned)
             
+            self.auto_clear_logs = config.get('auto_clear_logs', False)
+            if hasattr(self, 'auto_clear_logs_checkbox'):
+                self.auto_clear_logs_checkbox.setChecked(self.auto_clear_logs)
+            
             if config.get('monitoring_active', False):
                 QTimer.singleShot(500, self.toggle_monitoring)
                 
@@ -2772,7 +2833,11 @@ class TranslationMixin:
                 self.log_path_input.setPlaceholderText(t("Enter path to your Game.log"))
 
             if hasattr(self, 'export_button'):
-                self.export_button.setText(t("EXPORT LOGS"))
+                self.export_button.setText(t("EXPORT KILLS"))
+            if hasattr(self, 'export_debug_button'):
+                self.export_debug_button.setText(t("EXPORT DEBUG LOGS"))
+            if hasattr(self, 'clear_logs_button'):
+                self.clear_logs_button.setText(t("CLEAR LOGS"))
             if hasattr(self, 'files_button'):
                 self.files_button.setText(t("OPEN DATA FOLDER"))
 
@@ -3325,7 +3390,13 @@ class TranslationMixin:
                 self.update_button.setText(t("CHECK FOR UPDATES"))
             
             if hasattr(self, 'export_button'):
-                self.export_button.setText(t("EXPORT LOGS"))
+                self.export_button.setText(t("EXPORT KILLS"))
+            
+            if hasattr(self, 'export_debug_button'):
+                self.export_debug_button.setText(t("EXPORT DEBUG LOGS"))
+            
+            if hasattr(self, 'clear_logs_button'):
+                self.clear_logs_button.setText(t("CLEAR LOGS"))
             
             if hasattr(self, 'files_button'):
                 self.files_button.setText(t("OPEN DATA FOLDER"))
